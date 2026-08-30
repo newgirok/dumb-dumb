@@ -1,7 +1,48 @@
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; }
-body { background: #0d0d1a; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+@import "tailwindcss";
+
+@theme {
+  --color-background: oklch(0 0 0);
+  --color-foreground: oklch(1 0 0);
+  --color-card: oklch(0.14 0 0);
+  --color-card-foreground: oklch(1 0 0);
+  --color-primary: oklch(1 0 0);
+  --color-primary-foreground: oklch(0 0 0);
+  --color-secondary: oklch(0.25 0 0);
+  --color-muted: oklch(0.23 0 0);
+  --color-muted-foreground: oklch(0.64 0 0);
+  --color-accent: oklch(0.32 0 0);
+  --color-border: oklch(0.26 0 0);
+  --color-input: oklch(0.32 0 0);
+  --color-ring: oklch(0.72 0 0);
+  --color-sidebar: oklch(0.11 0 0);
+  --color-destructive: oklch(0.69 0.20 23.91);
+
+  --font-sans: var(--font-geist), system-ui, sans-serif;
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+}
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }

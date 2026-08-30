@@ -3,10 +3,8 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Spinner } from '@/components/ui/Spinner'
 
 // ── 타입 ──────────────────────────────────────────────────────────────────────
-type OAuthProvider = 'google' | 'kakao'
 type Tab = 'social' | 'phone'
 type PhoneStep = 'input' | 'otp'
 
@@ -23,17 +21,12 @@ function toE164(display: string): string {
   return d.startsWith('0') ? `+82${d.slice(1)}` : `+82${d}`
 }
 
-// ── 소셜 로그인 ───────────────────────────────────────────────────────────────
-const SOCIAL_PROVIDERS: { id: OAuthProvider; label: string; bg: string; color: string }[] = [
-  { id: 'kakao', label: '카카오로 시작하기', bg: '#FEE500', color: '#191919' },
-  { id: 'google', label: 'Google로 시작하기', bg: '#fff', color: '#333' },
-]
-
+// ── 소셜 탭 ──────────────────────────────────────────────────────────────────
 function SocialTab() {
   const [loading, setLoading] = useState<string | null>(null)
   const supabase = createClient()
 
-  const signIn = async (provider: OAuthProvider) => {
+  const signIn = async (provider: 'kakao' | 'google') => {
     setLoading(provider)
     await supabase.auth.signInWithOAuth({
       provider,
@@ -42,22 +35,30 @@ function SocialTab() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {SOCIAL_PROVIDERS.map(({ id, label, bg, color }) => (
-        <button
-          key={id}
-          disabled={loading !== null}
-          onClick={() => signIn(id)}
-          style={{ ...btn, background: bg, color, opacity: loading ? 0.7 : 1 }}
-        >
-          {loading === id ? <Spinner size={18} /> : label}
-        </button>
-      ))}
+    <div className="flex flex-col gap-3">
+      <button
+        disabled={!!loading}
+        onClick={() => signIn('kakao')}
+        className="flex items-center justify-center gap-2 w-full py-3 rounded-lg text-sm font-semibold transition-opacity disabled:opacity-60"
+        style={{ background: '#FEE500', color: '#191919' }}
+      >
+        {loading === 'kakao' ? <Spinner /> : '카카오로 시작하기'}
+      </button>
+      <button
+        disabled={!!loading}
+        onClick={() => signIn('google')}
+        className="flex items-center justify-center gap-2 w-full py-3 rounded-lg text-sm font-semibold bg-white text-gray-900 transition-opacity disabled:opacity-60 hover:bg-gray-100"
+      >
+        {loading === 'google' ? <Spinner dark /> : 'Google로 시작하기'}
+      </button>
+      <p className="text-center text-xs text-white/40 mt-1">
+        소셜 계정으로 간편하게 시작하세요
+      </p>
     </div>
   )
 }
 
-// ── 휴대폰 OTP ────────────────────────────────────────────────────────────────
+// ── 휴대폰 OTP 탭 ─────────────────────────────────────────────────────────────
 function PhoneTab() {
   const router = useRouter()
   const supabase = createClient()
@@ -72,7 +73,7 @@ function PhoneTab() {
   const startCountdown = () => {
     setCountdown(180)
     const t = setInterval(() => {
-      setCountdown((c) => {
+      setCountdown(c => {
         if (c <= 1) { clearInterval(t); return 0 }
         return c - 1
       })
@@ -81,14 +82,14 @@ function PhoneTab() {
 
   const sendOtp = async () => {
     setError('')
-    const digits = phone.replace(/\D/g, '')
-    if (digits.length < 10) { setError('올바른 휴대폰 번호를 입력하세요.'); return }
-
+    if (phone.replace(/\D/g, '').length < 10) {
+      setError('올바른 휴대폰 번호를 입력하세요.')
+      return
+    }
     setLoading(true)
     const { error: e } = await supabase.auth.signInWithOtp({ phone: toE164(phone) })
     setLoading(false)
-
-    if (e) { setError('인증번호 발송에 실패했습니다. SMS 설정을 확인하세요.'); return }
+    if (e) { setError('인증번호 발송에 실패했습니다.'); return }
     setStep('otp')
     startCountdown()
   }
@@ -96,15 +97,11 @@ function PhoneTab() {
   const verifyOtp = async () => {
     setError('')
     if (otp.length !== 6) { setError('6자리 인증번호를 입력하세요.'); return }
-
     setLoading(true)
     const { error: e } = await supabase.auth.verifyOtp({
-      phone: toE164(phone),
-      token: otp,
-      type: 'sms',
+      phone: toE164(phone), token: otp, type: 'sms',
     })
     setLoading(false)
-
     if (e) { setError('인증번호가 올바르지 않습니다.'); return }
     router.push('/world')
   }
@@ -113,64 +110,70 @@ function PhoneTab() {
   const ss = String(countdown % 60).padStart(2, '0')
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="flex flex-col gap-3">
       {step === 'input' ? (
-        <>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              type="tel"
-              inputMode="numeric"
-              placeholder="010-0000-0000"
-              value={phone}
-              onChange={(e) => setPhone(formatPhone(e.target.value))}
-              onKeyDown={(e) => e.key === 'Enter' && sendOtp()}
-              style={input}
-            />
-            <button
-              onClick={sendOtp}
-              disabled={loading}
-              style={{ ...btn, width: 'auto', padding: '0 16px', background: '#4f8ef7', color: '#fff', flexShrink: 0 }}
-            >
-              {loading ? <Spinner size={16} /> : '발송'}
-            </button>
-          </div>
-        </>
+        <div className="flex gap-2">
+          <input
+            type="tel"
+            inputMode="numeric"
+            placeholder="010-0000-0000"
+            value={phone}
+            onChange={e => setPhone(formatPhone(e.target.value))}
+            onKeyDown={e => e.key === 'Enter' && sendOtp()}
+            className="flex-1 px-3 py-3 rounded-lg border border-white/10 bg-white/5 text-white text-sm placeholder:text-white/30 outline-none focus:border-white/30 transition-colors"
+          />
+          <button
+            onClick={sendOtp}
+            disabled={loading}
+            className="px-4 py-3 rounded-lg bg-white text-gray-900 text-sm font-semibold shrink-0 disabled:opacity-60 hover:bg-gray-100 transition-colors"
+          >
+            {loading ? <Spinner dark /> : '발송'}
+          </button>
+        </div>
       ) : (
         <>
-          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: 0 }}>
-            {phone}으로 발송된 6자리 번호를 입력하세요.
-          </p>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <p className="text-xs text-white/50">{phone}으로 발송된 6자리 번호를 입력하세요.</p>
+          <div className="flex gap-2 items-center">
             <input
               type="text"
               inputMode="numeric"
               maxLength={6}
               placeholder="000000"
               value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              onKeyDown={(e) => e.key === 'Enter' && verifyOtp()}
-              style={{ ...input, letterSpacing: 6, textAlign: 'center' }}
+              onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onKeyDown={e => e.key === 'Enter' && verifyOtp()}
+              className="flex-1 px-3 py-3 rounded-lg border border-white/10 bg-white/5 text-white text-sm text-center tracking-widest placeholder:text-white/30 outline-none focus:border-white/30 transition-colors"
             />
-            <span style={{ color: countdown > 0 ? '#f74f4f' : 'rgba(255,255,255,0.3)', fontSize: 14, alignSelf: 'center', flexShrink: 0 }}>
+            <span className={`text-sm shrink-0 tabular-nums ${countdown > 0 ? 'text-red-400' : 'text-white/20'}`}>
               {countdown > 0 ? `${mm}:${ss}` : '만료'}
             </span>
           </div>
-          <button onClick={verifyOtp} disabled={loading} style={{ ...btn, background: '#4f8ef7', color: '#fff' }}>
-            {loading ? <Spinner size={18} /> : '인증 확인'}
+          <button
+            onClick={verifyOtp}
+            disabled={loading}
+            className="w-full py-3 rounded-lg bg-white text-gray-900 text-sm font-semibold disabled:opacity-60 hover:bg-gray-100 transition-colors"
+          >
+            {loading ? <Spinner dark /> : '인증 확인'}
           </button>
           <button
             onClick={() => { setStep('input'); setOtp(''); setError('') }}
-            style={{ ...btn, background: 'transparent', color: 'rgba(255,255,255,0.4)', border: 'none', fontSize: 13 }}
+            className="text-xs text-white/30 hover:text-white/60 transition-colors text-center"
           >
             번호 다시 입력
           </button>
         </>
       )}
-
-      {error && (
-        <p style={{ color: '#f74f4f', fontSize: 13, margin: 0, textAlign: 'center' }}>{error}</p>
-      )}
+      {error && <p className="text-xs text-red-400 text-center">{error}</p>}
     </div>
+  )
+}
+
+// ── 스피너 ────────────────────────────────────────────────────────────────────
+function Spinner({ dark }: { dark?: boolean }) {
+  return (
+    <span
+      className={`inline-block w-4 h-4 rounded-full border-2 border-t-transparent animate-spin ${dark ? 'border-gray-900' : 'border-white'}`}
+    />
   )
 }
 
@@ -179,54 +182,65 @@ export default function LoginPage() {
   const [tab, setTab] = useState<Tab>('social')
 
   return (
-    <div style={container}>
-      <div style={card}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>🌍</div>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: '#fff', marginBottom: 24 }}>오픈월드</h1>
+    <div className="flex h-screen bg-black">
+      {/* 좌측 패널 (lg 이상) */}
+      <div className="hidden lg:flex flex-col justify-between w-1/2 p-12 relative overflow-hidden">
+        {/* 배경 그라디언트 */}
+        <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-black to-zinc-950" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.03)_0%,transparent_60%)]" />
 
-        {/* 탭 */}
-        <div style={{ display: 'flex', width: '100%', marginBottom: 24, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-          {(['social', 'phone'] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              style={{
-                flex: 1, padding: '10px 0', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600,
-                background: tab === t ? '#4f8ef7' : 'transparent',
-                color: tab === t ? '#fff' : 'rgba(255,255,255,0.4)',
-                transition: 'background 0.15s',
-              }}
-            >
-              {t === 'social' ? '소셜 로그인' : '휴대폰 인증'}
-            </button>
-          ))}
+        {/* 브랜드 */}
+        <div className="relative z-10">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">🌍</span>
+            <span className="text-xl font-bold tracking-tight">오픈월드</span>
+          </div>
         </div>
 
-        {tab === 'social' ? <SocialTab /> : <PhoneTab />}
+        {/* 설명 */}
+        <div className="relative z-10">
+          <h2 className="text-4xl font-bold leading-tight mb-4">
+            실시간으로 만나는<br />나만의 오픈월드
+          </h2>
+          <p className="text-white/40 text-sm leading-relaxed">
+            쿼터뷰 맵을 걸어다니며 주변 사람들과<br />
+            공간 음성으로 자연스럽게 대화하세요.
+          </p>
+        </div>
+      </div>
+
+      {/* 우측 패널 (로그인 폼) */}
+      <div className="flex flex-1 items-center justify-center p-6 lg:p-12">
+        <div className="w-full max-w-sm">
+          {/* 모바일 브랜드 */}
+          <div className="flex items-center gap-2 mb-8 lg:hidden">
+            <span className="text-2xl">🌍</span>
+            <span className="text-lg font-bold">오픈월드</span>
+          </div>
+
+          <h1 className="text-2xl font-bold mb-1">시작하기</h1>
+          <p className="text-sm text-white/40 mb-8">계정을 선택하거나 휴대폰으로 가입하세요.</p>
+
+          {/* 탭 */}
+          <div className="flex mb-6 border border-white/10 rounded-lg overflow-hidden">
+            {(['social', 'phone'] as Tab[]).map(t => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                  tab === t
+                    ? 'bg-white/10 text-white'
+                    : 'text-white/40 hover:text-white/70'
+                }`}
+              >
+                {t === 'social' ? '소셜 로그인' : '휴대폰 인증'}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'social' ? <SocialTab /> : <PhoneTab />}
+        </div>
       </div>
     </div>
   )
-}
-
-// ── 스타일 상수 ───────────────────────────────────────────────────────────────
-const container: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  minHeight: '100vh', background: '#0d0d1a', padding: 16,
-}
-const card: React.CSSProperties = {
-  background: '#1e1e2e', borderRadius: 16, padding: 36,
-  width: '100%', maxWidth: 360, boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-  display: 'flex', flexDirection: 'column', alignItems: 'center',
-}
-const btn: React.CSSProperties = {
-  width: '100%', padding: '13px 20px', borderRadius: 10, border: 'none',
-  fontSize: 15, fontWeight: 600, cursor: 'pointer',
-  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-  transition: 'opacity 0.15s',
-}
-const input: React.CSSProperties = {
-  flex: 1, padding: '12px 14px', borderRadius: 8,
-  border: '1px solid rgba(255,255,255,0.15)',
-  background: 'rgba(255,255,255,0.07)', color: '#fff', fontSize: 15,
-  outline: 'none', width: '100%',
 }
