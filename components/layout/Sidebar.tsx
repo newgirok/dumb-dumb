@@ -4,9 +4,9 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-const NAV = [
-  { href: '/world', label: 'WORLD', key: 'world' },
-  { href: '/profile', label: 'PROFILE', key: 'profile' },
+const SECTIONS = [
+  { href: '/world',   label: '월드',   emoji: '🗺️' },
+  { href: '/profile', label: '프로필', emoji: '🌸' },
 ]
 
 export function Sidebar() {
@@ -21,49 +21,70 @@ export function Sidebar() {
 
   return (
     <aside
-      className="hidden md:flex flex-col justify-between w-[52px] border-r shrink-0"
-      style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface)' }}
+      className="hidden md:flex flex-col items-center justify-between shrink-0"
+      style={{
+        width: 'var(--sidebar-width)',
+        paddingBlock: 'var(--space-md)',
+        background: 'var(--color-white)',
+        borderRight: '2px solid var(--color-grass-light)',
+        position: 'fixed',
+        inset: '0 auto 0 0',
+        zIndex: 'var(--z-sticky-nav)',
+        boxShadow: '2px 0 12px oklch(40% 0.08 142 / 0.06)',
+      }}
     >
-      {/* 브랜드 */}
-      <div
-        className="h-[52px] flex items-center justify-center border-b"
-        style={{ borderColor: 'var(--color-border)' }}
+      {/* 브랜드 아이콘 */}
+      <Link
+        href="/"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '0.25rem',
+          textDecoration: 'none',
+        }}
+        title="홈으로"
       >
-        <Link href="/" className="text-white/60 hover:text-white transition-colors">
-          <span className="text-base">⊕</span>
-        </Link>
-      </div>
+        <span style={{ fontSize: '1.75rem' }}>🌿</span>
+      </Link>
 
-      {/* 세로 네비게이션 텍스트 */}
-      <nav className="flex flex-col flex-1 gap-0">
-        {NAV.map(({ href, label, key }) => {
-          const active = pathname.startsWith('/' + key)
+      {/* 네비게이션 */}
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', alignItems: 'center' }}>
+        {SECTIONS.map(({ href, label, emoji }) => {
+          const active = pathname.startsWith(href)
           return (
             <Link
-              key={key}
+              key={href}
               href={href}
-              className="flex items-center justify-center h-[52px] relative group"
-              style={{ borderBottom: '1px solid var(--color-border)' }}
+              title={label}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.2rem',
+                width: '3rem',
+                height: '3rem',
+                borderRadius: '0.875rem',
+                justifyContent: 'center',
+                background: active ? 'var(--color-grass-light)' : 'transparent',
+                border: active ? '2px solid var(--color-grass)' : '2px solid transparent',
+                transition: `all var(--dur-short) var(--ease-out)`,
+                textDecoration: 'none',
+              }}
             >
+              <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>{emoji}</span>
               <span
-                className="transition-colors duration-150"
                 style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '9px',
-                  letterSpacing: '0.15em',
-                  writingMode: 'vertical-rl',
-                  textOrientation: 'mixed',
-                  transform: 'rotate(180deg)',
-                  color: active ? '#fff' : 'rgba(255,255,255,0.25)',
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: 700,
+                  fontSize: '0.5rem',
+                  letterSpacing: '0.04em',
+                  color: active ? 'var(--color-grass-2)' : 'var(--color-bark-3)',
+                  lineHeight: 1,
                 }}
               >
                 {label}
               </span>
-              {active && (
-                <span
-                  className="absolute left-0 top-0 bottom-0 w-px bg-white"
-                />
-              )}
             </Link>
           )
         })}
@@ -72,16 +93,21 @@ export function Sidebar() {
       {/* 로그아웃 */}
       <button
         onClick={signOut}
-        className="h-[52px] flex items-center justify-center border-t group"
-        style={{ borderColor: 'var(--color-border)' }}
         title="로그아웃"
+        style={{
+          fontSize: '1.25rem',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: '0.5rem',
+          borderRadius: '0.75rem',
+          opacity: 0.5,
+          transition: `opacity var(--dur-short) var(--ease-out)`,
+        }}
+        onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}
+        onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '0.5')}
       >
-        <span
-          className="text-white/20 group-hover:text-white/60 transition-colors"
-          style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', letterSpacing: '0.1em' }}
-        >
-          OUT
-        </span>
+        🚪
       </button>
     </aside>
   )

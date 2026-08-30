@@ -4,9 +4,9 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
-const NAV = [
-  { href: '/world', label: 'WORLD', key: 'world' },
-  { href: '/profile', label: 'PROFILE', key: 'profile' },
+const SECTIONS = [
+  { href: '/world',   label: '월드',   emoji: '🗺️' },
+  { href: '/profile', label: '프로필', emoji: '🌸' },
 ]
 
 export function BottomNav() {
@@ -21,44 +21,81 @@ export function BottomNav() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 flex border-t z-50"
+      className="md:hidden"
       style={{
-        borderColor: 'var(--color-border)',
-        background: 'rgba(0,0,0,0.9)',
-        backdropFilter: 'blur(8px)',
+        position: 'fixed',
+        inset: 'auto 0 0 0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-around',
+        height: '3.5rem',
+        background: 'var(--color-white)',
+        borderTop: '2px solid var(--color-grass-light)',
+        boxShadow: '0 -2px 12px oklch(40% 0.08 142 / 0.08)',
+        zIndex: 'var(--z-sticky-nav)',
         paddingBottom: 'env(safe-area-inset-bottom)',
-        fontFamily: 'var(--font-mono)',
       }}
     >
-      {NAV.map(({ href, label, key }) => {
-        const active = pathname.startsWith('/' + key)
+      {SECTIONS.map(({ href, label, emoji }) => {
+        const active = pathname.startsWith(href)
         return (
           <Link
-            key={key}
+            key={href}
             href={href}
-            className="flex-1 flex items-center justify-center py-3.5 relative"
-            style={{ borderRight: '1px solid var(--color-border)' }}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.15rem',
+              padding: '0.35rem 1rem',
+              borderRadius: '1rem',
+              background: active ? 'var(--color-grass-light)' : 'transparent',
+              textDecoration: 'none',
+              transition: `all var(--dur-short) var(--ease-out)`,
+            }}
           >
-            {active && (
-              <span className="absolute top-0 left-0 right-0 h-px bg-white" />
-            )}
+            <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>{emoji}</span>
             <span
-              className="text-[9px] tracking-widest uppercase transition-colors"
-              style={{ color: active ? '#fff' : 'rgba(255,255,255,0.25)' }}
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontWeight: 700,
+                fontSize: '0.6rem',
+                color: active ? 'var(--color-grass-2)' : 'var(--color-bark-3)',
+                letterSpacing: '0.04em',
+              }}
             >
               {label}
             </span>
           </Link>
         )
       })}
+
       <button
         onClick={signOut}
-        className="flex items-center justify-center px-5"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '0.15rem',
+          padding: '0.35rem 1rem',
+          borderRadius: '1rem',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          opacity: 0.5,
+        }}
       >
+        <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>🚪</span>
         <span
-          className="text-[9px] tracking-widest text-white/20 hover:text-white/60 transition-colors"
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontWeight: 700,
+            fontSize: '0.6rem',
+            color: 'var(--color-bark-3)',
+            letterSpacing: '0.04em',
+          }}
         >
-          OUT
+          나가기
         </span>
       </button>
     </nav>
