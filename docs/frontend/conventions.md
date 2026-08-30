@@ -2,6 +2,69 @@
 
 ---
 
+## 디자인 시스템
+
+### 테마 — Animal Crossing
+
+Tailwind CSS v4 + `@theme` 블록 기반 커스텀 디자인 시스템. 모든 색상은 `oklch()` 색공간으로 정의한다.
+
+```css
+/* app/globals.css */
+@import "tailwindcss";
+
+@theme {
+  --font-display: var(--font-display), "Nunito", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    var(--font-mono),    "JetBrains Mono", ui-monospace, monospace;
+}
+```
+
+### 색상 토큰 (CSS Custom Properties)
+
+| 토큰 | 용도 |
+|---|---|
+| `--color-paper` | 기본 배경 (크림 화이트) |
+| `--color-grass` | 주요 액션 컬러 (초록) |
+| `--color-grass-light` | 활성 상태 배경, 테두리 |
+| `--color-bark` | 기본 텍스트 (짙은 갈색) |
+| `--color-sky` | 보조 배경 (하늘 파랑) |
+| `--color-sand` | CTA 섹션 배경 |
+
+모든 토큰은 `app/globals.css`의 `:root` 블록에서 정의하며, `var(--color-*)` 형태로 사용한다.
+
+### 폰트
+
+- **Display / Body**: Nunito (Google Fonts, `next/font/google`)
+- **Mono**: JetBrains Mono (코드, OTP 입력 등)
+
+```tsx
+// app/layout.tsx
+import { Nunito, JetBrains_Mono } from 'next/font/google'
+const nunito = Nunito({ subsets: ['latin'], variable: '--font-display', display: 'swap' })
+```
+
+### 애니메이션 유틸리티 클래스
+
+| 클래스 | 효과 | 용도 |
+|---|---|---|
+| `.float` | 4초 상하 부유 | 히어로 이모지, UI 강조 요소 |
+| `.float-slow` | 6초 상하 부유 | 배경 오브젝트 |
+| `.sway` | 5초 좌우 흔들림 | 자연물 (나무, 꽃) |
+
+모든 애니메이션은 `will-change: transform`을 포함해 GPU 가속된다.
+
+### 로그인 페이지 레이아웃
+
+Spot Virtual 스타일 스플릿 레이아웃 (`app/(auth)/login/page.tsx`):
+
+| 영역 | 비율 | 역할 |
+|---|---|---|
+| 좌측 패널 | 58% (lg 이상만 표시) | `/illustration-login.png` 중앙 정렬 |
+| 우측 패널 | 42% | 로그인 폼 (최대 너비 320px) |
+
+버튼·입력창 높이 44px, border-radius 0.5rem, 주요 액션 색상 `#22c55e` 고정.
+
+---
+
 ## Mapbox GL JS 레이어 관리
 
 ### 소스·레이어 네이밍 규칙

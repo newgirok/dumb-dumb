@@ -11,14 +11,11 @@
 로컬 개발 환경 세팅은 [로컬 환경 세팅 가이드](./onboarding/local-setup.md)를 참고하라.
 
 ```bash
-# 1. Supabase CLI로 로컬 인프라 기동 (PostgreSQL + PostGIS + Auth + Storage + Realtime)
-supabase start
-
-# 2. 환경변수 설정
+# 1. 환경변수 설정 (Supabase Cloud 키 입력)
 cp .env.example .env.local
 
-# 3. 개발 서버 시작
-npm run dev
+# 2. Docker Compose로 개발 서버 기동
+docker compose down -v && docker compose up --build -d
 ```
 
 환경변수 항목별 설명은 [환경변수 가이드](./onboarding/env-vars.md)를 확인하라.
@@ -81,17 +78,17 @@ npm run dev
 ## 핵심 명령어
 
 ```bash
-# 로컬 Supabase 스택 전체 기동
-supabase start
+# Docker Compose 개발 서버 기동 (패키지 변경 후)
+docker compose down -v && docker compose up --build -d
 
-# Next.js 개발 서버
-npm run dev
+# 개발 서버 로그 확인
+docker compose logs -f
 
 # DB 마이그레이션 적용
-supabase db push
+supabase db push --linked
 
-# 로컬 Edge Functions 실행
-supabase functions serve
+# Edge Functions 배포
+supabase functions deploy
 
 # 전체 빌드
 npm run build
@@ -106,8 +103,8 @@ npm run type-check
 
 | Phase | 목표 | 상태 |
 |---|---|---|
-| Phase 0 | 프로젝트 초기화 및 인프라 셋업 | 진행 중 |
-| Phase 1 | UI/UX 기반 구축 (인증 플로우, HUD, 공통 컴포넌트) | 예정 |
+| Phase 0 | 프로젝트 초기화 및 인프라 셋업 | 완료 |
+| Phase 1 | UI/UX 기반 구축 (인증 플로우, HUD, 공통 컴포넌트) | 완료 |
 | Phase 2 | 단일 섹터 이동 + Supabase Realtime 위치 동기화 | 예정 |
 | Phase 3 | 멀티 섹터 Pre-Join + PostGIS 영구 저장 | 예정 |
 | Phase 4 | LiveKit Cloud 공간 음성 자동 연결 (반경 30m) | 예정 |

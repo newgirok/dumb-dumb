@@ -52,7 +52,7 @@
 | 백엔드 함수 | Supabase Edge Functions | 서버리스, 자동 스케일 |
 | 데이터베이스 | Supabase Pro ($25/월) | PostgreSQL + PostGIS 내장 |
 | 실시간 소켓 | Supabase Realtime | 위치·채팅 브로드캐스트 |
-| 인증 | Supabase Auth | 소셜 OAuth 2.0 |
+| 인증 | Supabase Auth | 이메일 OTP + 카카오 OAuth + Google OAuth |
 | 공간 음성 | LiveKit Cloud | 매니지드 SFU, 무료 티어 |
 
 월 고정비: **약 3.5만 원** ($25 Supabase Pro + LiveKit 무료 티어 범위)
@@ -111,7 +111,7 @@
 
 ```
 [최초 접속]
-  → 소셜 OAuth 가입 → 본인인증 → 약관 동의
+  → 이메일 OTP 인증 또는 소셜 OAuth (카카오·구글) → 약관 동의
   → 기본 캐릭터 + 가시거리 1단계 자동 귀속
 
 [로그인]
@@ -139,7 +139,7 @@
 - 지도가 아닌 **캐릭터(나)** 가 화면의 중심 주체
 - 3D 공간 광고만 허용, 2D 팝업 배너 전면 금지
 - 건물 클릭 시 팝업 없음 — 캐릭터 절레절레 No-Action 애니메이션으로 대응
-- ChatGPT 스타일 라운드 카드 박스 UI 컴포넌트 준수
+- Animal Crossing 감성 디자인 — Nunito 폰트, oklch 자연 색상 팔레트, 물리적 무게감 있는 라운드 카드 UI
 
 ---
 

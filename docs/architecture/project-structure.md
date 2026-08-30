@@ -8,8 +8,8 @@ project/
 │   │   │   └── page.tsx          ← 메인 오픈월드 캔버스
 │   │   └── layout.tsx
 │   ├── (auth)/                   ← 인증 라우트 그룹 (비인증 진입점)
-│   │   ├── login/page.tsx        ← 소셜 OAuth 로그인
-│   │   └── verify/page.tsx       ← 본인인증 (휴대폰 Pass)
+│   │   ├── login/page.tsx        ← 이메일 OTP + 소셜 OAuth 로그인 (Spot 스타일 58/42 스플릿 레이아웃)
+│   │   └── verify/page.tsx       ← 이메일 OTP 인증번호 입력
 │   ├── store/page.tsx            ← 상점 (아바타·라이선스 구매, 인증 필수)
 │   ├── admin/                    ← B2B 광고주 어드민 포탈 (role: advertiser 전용)
 │   │   ├── buildings/page.tsx    ← 건물 좌표 선택 + 텍스처 업로드
@@ -65,6 +65,7 @@ project/
 │       └── 0004_impressions.sql  ← ad_impressions 테이블
 │
 ├── public/
+│   ├── illustration-login.png    ← 로그인 화면 좌측 패널 일러스트 (Animal Crossing 스타일)
 │   └── assets/
 │       └── characters/           ← 기본 캐릭터 GLB 플레이스홀더 (구매 캐릭터는 Supabase Storage 제공)
 │

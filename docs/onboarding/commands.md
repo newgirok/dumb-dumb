@@ -65,14 +65,23 @@ supabase db run --file ./supabase/migrations/0001_init.sql
 
 ---
 
-## Docker
+## Docker Compose
 
 ```bash
-# Docker Desktop이 실행 중인지 확인
-docker info
+# 개발 서버 기동 (패키지 변경 후 볼륨 초기화 포함)
+docker compose down -v && docker compose up --build -d
 
-# Supabase 로컬 컨테이너 상태 확인
-docker ps | grep supabase
+# 개발 서버 기동 (코드만 변경한 경우)
+docker compose up -d
+
+# 로그 실시간 확인
+docker compose logs -f
+
+# 개발 서버 종료
+docker compose down
+
+# Docker Desktop 실행 여부 확인
+docker info
 ```
 
 ---

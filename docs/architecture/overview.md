@@ -58,12 +58,12 @@
 | **지도 엔진** | Mapbox GL JS v3 | 벡터 타일, 건물 폴리곤, 무료 티어 20만 건/월 |
 | **3D 엔진** | Three.js | 로우폴리 GLB 캐릭터 메시·애니메이션 |
 | **렌더링 파이프라인** | WebGL Context Sharing | 단일 canvas, 모바일 60fps ([ADR 001](../adr/001-webgl-context-sharing.md)) |
-| **UI 스타일** | CSS + Three.js Billboard | ChatGPT 스타일 라운드 카드 컴포넌트 |
+| **UI 스타일** | Tailwind CSS v4 + 커스텀 디자인 시스템 | Animal Crossing 감성 — Nunito 폰트, oklch 자연 색상 팔레트 |
 | **배포** | Vercel Edge Network | 정적 빌드 + GLB 에셋 CDN |
 | **데이터베이스** | Supabase Pro (PostgreSQL + PostGIS) | 공간 연산 내장 ([ADR 002](../adr/002-supabase-all-in-one.md)) |
 | **실시간 소켓** | Supabase Realtime | 위치·채팅 브로드캐스트 |
 | **백엔드 함수** | Supabase Edge Functions | 결제 웹훅, 공간 쿼리 |
-| **인증** | Supabase Auth | 소셜 OAuth 2.0 (카카오·네이버·구글) |
+| **인증** | Supabase Auth | 이메일 OTP + 카카오 OAuth + Google OAuth |
 | **스토리지** | Supabase Storage | GLB 에셋, RLS 보안 |
 | **공간 음성** | LiveKit Cloud | 매니지드 SFU ([ADR 003](../adr/003-livekit-cloud-sfu.md)) |
 | **PG 결제** | 토스페이먼츠 / 카카오페이 | 원화 직행 ([ADR 004](../adr/004-direct-krw-payment.md)) |

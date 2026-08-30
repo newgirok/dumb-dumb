@@ -8,7 +8,6 @@
 |---|---|---|
 | Node.js | 20 LTS | https://nodejs.org |
 | Docker Desktop | 최신 | https://docker.com |
-| Supabase CLI | 최신 | `npm install -g supabase` |
 | Git | 최신 | https://git-scm.com |
 
 ---
@@ -29,86 +28,73 @@ npm install
 cp .env.example .env.local
 ```
 
-`.env.local` 파일을 열고 각 값을 채운다. 로컬 Supabase 스택의 URL·키는 아래 3단계 완료 후 출력되는 값을 사용한다. 상세 설명은 [환경변수 레퍼런스](./env-vars.md)를 참고하라.
+`.env.local` 파일을 열고 Supabase Cloud 프로젝트의 값을 채운다. 최초 1회 클라우드 인프라 설정은 [클라우드 인프라 초기 셋업](./infra-setup.md)을 참고하라.
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+전체 항목 설명은 [환경변수 레퍼런스](./env-vars.md)를 참고하라.
 
 ---
 
-## 3. Supabase 로컬 스택 기동
-
-`supabase/config.toml`과 마이그레이션 파일이 저장소에 포함되어 있다. `supabase start`는 Docker를 이용해 PostgreSQL(PostGIS 포함)·Auth·Realtime·Storage·Edge Functions를 한 번에 기동한다.
+## 3. Docker Compose로 개발 서버 기동
 
 ```bash
-supabase start
+# 처음 실행하거나 npm 패키지를 추가/변경한 경우
+docker compose down -v && docker compose up --build -d
+
+# 코드만 변경한 경우 (빠른 재시작)
+docker compose up -d
 ```
 
-기동 완료 후 다음 URL들이 출력된다:
-
-```
-API URL:    http://localhost:54321
-GraphQL:    http://localhost:54321/graphql/v1
-DB URL:     postgresql://postgres:postgres@localhost:54322/postgres
-Studio:     http://localhost:54323
-Inbucket:   http://localhost:54324  ← 이메일 인증 Mock
-```
-
-출력된 `API URL`과 `anon key`를 `.env.local`에 채워 넣는다.
+`WATCHPACK_POLLING=true`가 `docker-compose.yml`에 설정되어 있어 Windows에서도 핫 리로드가 정상 작동한다. 내부적으로 `next dev --turbopack`으로 실행된다.
 
 ---
 
-## 4. DB 마이그레이션 적용
-
-```bash
-supabase db push
-```
-
-`supabase/migrations/` 내 SQL 파일 4개가 순서대로 적용된다. PostGIS 확장, GiST 인덱스, pg_cron 스케줄러가 자동 생성된다.
-
----
-
-## 5. Edge Functions 로컬 실행
-
-```bash
-supabase functions serve
-```
-
-로컬에서 Edge Functions를 핫리로드로 실행한다. 결제 웹훅 테스트 시 이 명령 실행 상태를 유지해야 한다.
-
----
-
-## 6. Next.js 개발 서버 시작
-
-```bash
-npm run dev
-```
+## 4. 접속 확인
 
 브라우저에서 http://localhost:3000 접속.
 
----
-
-## 7. Mapbox 로컬 토큰 확인
-
-`.env.local`의 `NEXT_PUBLIC_MAPBOX_TOKEN`이 설정되었는지 확인한다. Mapbox 계정이 없다면 [API 키 설정](./api-keys.md)을 참고하라.
+첫 번째 페이지 요청 시 Turbopack이 해당 라우트를 컴파일한다 (최초 ~5~9초, 이후 캐시됨).
 
 ---
 
-## 로컬 Supabase Studio
+## 5. 로그 확인
 
-http://localhost:54323 에서 DB 테이블을 GUI로 확인하고 편집할 수 있다.
+```bash
+docker compose logs -f
+```
+
+---
+
+## 6. DB 마이그레이션 (클라우드 반영)
+
+Supabase Cloud에 마이그레이션을 적용할 때는 CLI를 사용한다.
+
+```bash
+# 프로젝트 연결 (최초 1회)
+supabase link --project-ref <project-ref>
+
+# 마이그레이션 적용
+supabase db push --linked
+```
 
 ---
 
 ## 개발 스택 종료
 
 ```bash
-supabase stop
+docker compose down
 ```
-
-Docker 컨테이너가 중지된다. 데이터는 `supabase/volumes/`에 유지된다.
 
 ---
 
 ## 관련 문서
 
 - [환경변수 레퍼런스](./env-vars.md)
-- [API 키 설정](./api-keys.md)
+- [클라우드 인프라 초기 셋업](./infra-setup.md)
 - [개발 명령어](./commands.md)
