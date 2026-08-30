@@ -1,0 +1,17 @@
+services:
+  app:
+    build:
+      context: .
+      target: dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    env_file:
+      - .env.local
+    environment:
+      # Windows Docker Desktop 에서 핫리로드 활성화
+      - WATCHPACK_POLLING=true
+    restart: unless-stopped
