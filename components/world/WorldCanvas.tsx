@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { initWorldMap, type WorldContext } from '@/lib/map/context'
 import { lockCamera, followPlayer } from '@/lib/map/camera'
@@ -11,18 +11,40 @@ import { PruneManager } from '@/lib/three/prune'
 import { createPositionChannel, broadcastPosition } from '@/lib/realtime/position'
 import { createChatChannel, sendChat } from '@/lib/realtime/chat'
 import { isValidMove, type StampedPos } from '@/lib/geo/validator'
-import { requiredSectors } from '@/lib/geo/sector'
+import { requiredSectors, currentSectorId } from '@/lib/geo/sector'
+import { VoiceManager, type PeerAudioInfo } from '@/lib/voice/livekit'
 import { createClient } from '@/lib/supabase/client'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import * as THREE from 'three'
 
-const ORIGIN: [number, number] = [126.9784, 37.5666] // 광화문
-const MOVE_SPEED = 0.00003        // degrees per frame at 60fps ≈ 3 m/s
-const BROADCAST_INTERVAL = 100   // ms
+const ORIGIN: [number, number] = [126.9784, 37.5666]
+const MOVE_SPEED = 0.00003
+const BROADCAST_INTERVAL = 100
+const VOICE_SECTOR_PREFIX = 'voice-'
 
 interface Props {
   onRegisterMoveHandler: (fn: (dx: number, dy: number) => void) => void
   onRegisterChatHandler: (fn: (msg: string) => void) => void
+}
+
+function haversineM(lng1: number, lat1: number, lng2: number, lat2: number): number {
+  const R = 6371000
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLng = ((lng2 - lng1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function bearingRad(fromLng: number, fromLat: number, toLng: number, toLat: number): number {
+  const dLng = ((toLng - fromLng) * Math.PI) / 180
+  const fLat = (fromLat * Math.PI) / 180
+  const tLat = (toLat * Math.PI) / 180
+  return Math.atan2(
+    Math.sin(dLng) * Math.cos(tLat),
+    Math.cos(fLat) * Math.sin(tLat) - Math.sin(fLat) * Math.cos(tLat) * Math.cos(dLng),
+  )
 }
 
 export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Props) {
@@ -37,9 +59,18 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
   const posChannels = useRef<Map<string, RealtimeChannel>>(new Map())
   const chatChannelRef = useRef<RealtimeChannel | null>(null)
   const pruneRef = useRef<PruneManager | null>(null)
+  const voiceRef = useRef<VoiceManager | null>(null)
+  const voiceSectorRef = useRef<string | null>(null)
   const userIdRef = useRef<string | null>(null)
   const rafRef = useRef<number | null>(null)
   const broadcastTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const [micState, setMicState] = useState<'idle' | 'on' | 'denied'>('idle')
+
+  const handleMicClick = () => {
+    voiceRef.current?.resumeAudio()
+    voiceRef.current?.enableMic().then((ok) => setMicState(ok ? 'on' : 'denied'))
+  }
 
   useEffect(() => {
     if (!containerRef.current || !fogRef.current) return
@@ -49,26 +80,25 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
     initFog(fogEl)
     setFogRadius(fogEl, 20)
 
-    // 유저 ID 미리 fetch
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) userIdRef.current = user.id
     })
+
+    voiceRef.current = new VoiceManager()
 
     initWorldMap(containerRef.current, ORIGIN).then((ctx) => {
       if (destroyed) return
       ctxRef.current = ctx
       lockCamera(ctx.map)
 
-      // 플레이어 캐릭터
       const mesh = createCharacterMesh(0x4f8ef7)
       playerMeshRef.current = mesh
       ctx.addAt(mesh, posRef.current[0], posRef.current[1])
 
-      // Prune 매니저
       pruneRef.current = new PruneManager(ORIGIN[0], ORIGIN[1])
 
-      // 섹터 채널 구독 (동적 관리)
+      // 섹터 채널 동적 관리
       const subscribeSector = (id: string) => {
         if (posChannels.current.has(id)) return
         const ch = createPositionChannel(id, (pos) => {
@@ -81,7 +111,6 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
           } else {
             ctx.moveTo(other, pos.lng, pos.lat)
           }
-          // Prune을 위해 실제 좌표 보관
           other.userData = { lng: pos.lng, lat: pos.lat }
         })
         posChannels.current.set(id, ch)
@@ -100,15 +129,24 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
         }
       }
 
-      // 초기 섹터 구독
-      syncSectors(ORIGIN[0], ORIGIN[1])
+      // 음성 룸 섹터 동기화
+      const syncVoice = async (lng: number, lat: number) => {
+        const sectorId = currentSectorId(lng, lat)
+        const roomName = `${VOICE_SECTOR_PREFIX}${sectorId}`
+        if (voiceSectorRef.current === roomName) return
+        voiceSectorRef.current = roomName
+        const userId = userIdRef.current
+        if (!userId || !voiceRef.current) return
+        await voiceRef.current.connect(roomName, userId)
+      }
 
-      // 채팅 채널 (단일 - 추후 섹터 기반으로 확장)
-      chatChannelRef.current = createChatChannel('chat-global', (_msg) => {
-        // Phase 5에서 말풍선 billboard 연결 예정
+      syncSectors(ORIGIN[0], ORIGIN[1])
+      syncVoice(ORIGIN[0], ORIGIN[1])
+
+      chatChannelRef.current = createChatChannel('chat-global', () => {
+        // Phase 5에서 말풍선 연결 예정
       })
 
-      // 브로드캐스트 타이머
       broadcastTimer.current = setInterval(async () => {
         const [lng, lat] = posRef.current
         const userId = userIdRef.current
@@ -117,28 +155,37 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
         const now = Date.now()
         const stamp: StampedPos = { lng, lat, ts: now }
         if (!isValidMove(lastStampRef.current, stamp)) return
-
         lastStampRef.current = stamp
 
         for (const ch of posChannels.current.values()) {
           await broadcastPosition(ch, { userId, lng, lat, bearing: 45 })
         }
+
+        // 공간 음성: 피어 거리/방위 계산 → Top-8 업데이트
+        if (voiceRef.current?.connected) {
+          const peers = new Map<string, PeerAudioInfo>()
+          for (const [uid, obj] of otherMeshes.current) {
+            const { lng: pLng, lat: pLat } = obj.userData as { lng?: number; lat?: number }
+            if (pLng == null || pLat == null) continue
+            peers.set(uid, {
+              distM: haversineM(lng, lat, pLng, pLat),
+              bearing: bearingRad(lng, lat, pLng, pLat),
+            })
+          }
+          voiceRef.current.updatePeers(peers)
+        }
       }, BROADCAST_INTERVAL)
 
-      // HUD 콜백 등록
       onRegisterMoveHandler((dx, dy) => { inputRef.current = { dx, dy } })
-
       onRegisterChatHandler(async (msg) => {
         const userId = userIdRef.current
         if (!chatChannelRef.current || !userId) return
         await sendChat(chatChannelRef.current, { userId, text: msg })
       })
 
-      // 게임 루프
       const loop = () => {
         if (destroyed) return
         const { dx, dy } = inputRef.current
-
         if ((dx !== 0 || dy !== 0) && ctx) {
           const [lng, lat] = posRef.current
           const newLng = lng + dx * MOVE_SPEED
@@ -148,20 +195,15 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
           posRef.current = [sLng, sLat]
           ctx.moveTo(playerMeshRef.current!, sLng, sLat)
           followPlayer(ctx.map, sLng, sLat)
-
-          // 섹터 동적 동기화
           syncSectors(sLng, sLat)
-
-          // Prune
+          syncVoice(sLng, sLat)
           pruneRef.current?.tick(ctx.scene, sLng, sLat, otherMeshes.current)
         }
-
         rafRef.current = requestAnimationFrame(loop)
       }
       rafRef.current = requestAnimationFrame(loop)
     })
 
-    // 키보드 입력
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return
       if (e.key === 'w' || e.key === 'ArrowUp')    inputRef.current.dy = -1
@@ -184,9 +226,13 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
       if (broadcastTimer.current) clearInterval(broadcastTimer.current)
       for (const ch of posChannels.current.values()) ch.unsubscribe()
       chatChannelRef.current?.unsubscribe()
+      voiceRef.current?.disconnect()
       ctxRef.current?.map.remove()
     }
   }, [onRegisterMoveHandler, onRegisterChatHandler])
+
+  const micLabel = micState === 'on' ? '🎙 ON' : micState === 'denied' ? '🔇' : '🎙'
+  const micBg = micState === 'on' ? 'rgba(79,142,247,0.8)' : 'rgba(0,0,0,0.5)'
 
   return (
     <>
@@ -201,6 +247,26 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
             'radial-gradient(ellipse at center, transparent var(--fog-radius, 12%), rgba(0,0,0,0.96) 70%)',
         }}
       />
+      {/* 마이크 옵트인 버튼 */}
+      <button
+        onClick={handleMicClick}
+        disabled={micState === 'on'}
+        style={{
+          position: 'absolute',
+          top: 20,
+          right: 20,
+          padding: '8px 14px',
+          borderRadius: 8,
+          border: '1px solid rgba(255,255,255,0.2)',
+          background: micBg,
+          color: '#fff',
+          fontSize: 14,
+          cursor: micState === 'on' ? 'default' : 'pointer',
+          backdropFilter: 'blur(4px)',
+        }}
+      >
+        {micLabel}
+      </button>
     </>
   )
 }
