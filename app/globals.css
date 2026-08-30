@@ -1,24 +1,27 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: oklch(0 0 0);
-  --color-foreground: oklch(1 0 0);
-  --color-card: oklch(0.14 0 0);
-  --color-card-foreground: oklch(1 0 0);
-  --color-primary: oklch(1 0 0);
-  --color-primary-foreground: oklch(0 0 0);
-  --color-secondary: oklch(0.25 0 0);
-  --color-muted: oklch(0.23 0 0);
-  --color-muted-foreground: oklch(0.64 0 0);
-  --color-accent: oklch(0.32 0 0);
-  --color-border: oklch(0.26 0 0);
-  --color-input: oklch(0.32 0 0);
-  --color-ring: oklch(0.72 0 0);
-  --color-sidebar: oklch(0.11 0 0);
-  --color-destructive: oklch(0.69 0.20 23.91);
+  /* ── 색상 ── */
+  --color-background: #000;
+  --color-foreground: #fff;
+  --color-surface: #0a0a0a;
+  --color-surface-2: #111;
+  --color-border: rgba(255,255,255,0.1);
+  --color-muted: rgba(255,255,255,0.35);
+  --color-dim: rgba(255,255,255,0.12);
 
-  --font-sans: var(--font-geist), system-ui, sans-serif;
-  --radius: 0.5rem;
+  /* ── 폰트 ── */
+  --font-display: var(--font-display), 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-sans:    var(--font-geist),   system-ui, sans-serif;
+  --font-mono:    var(--font-mono),    'JetBrains Mono', monospace;
+
+  /* ── 반경: 0 (press-01 각진 스타일) ── */
+  --radius: 0px;
+
+  /* ── 타입 스케일 ── */
+  --text-display:  clamp(3.5rem, 10vw, 9rem);
+  --text-headline: clamp(1.75rem, 4vw, 3rem);
+  --text-label:    0.6875rem; /* 11px */
 }
 
 @layer base {
@@ -28,8 +31,7 @@
     padding: 0;
   }
 
-  html,
-  body {
+  html, body {
     height: 100%;
   }
 
@@ -37,12 +39,19 @@
     background: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.01em;
+  }
+
+  /* 수평선 디자인 요소 */
+  hr {
+    border: none;
+    border-top: 1px solid var(--color-border);
   }
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
