@@ -1,13 +1,17 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono, Bricolage_Grotesque } from 'next/font/google'
+import { Nunito, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 
-const geist = Geist({ subsets: ['latin'], variable: '--font-geist' })
-const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-mono' })
-const bricolage = Bricolage_Grotesque({
+const nunito = Nunito({
   subsets: ['latin'],
   variable: '--font-display',
-  weight: ['200', '300', '400', '500', '600', '700', '800'],
+  display: 'swap',
+})
+
+const jetbrains = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  display: 'swap',
 })
 
 export const metadata: Metadata = {
@@ -17,7 +21,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko" className={`${geist.variable} ${geistMono.variable} ${bricolage.variable}`}>
+    <html lang="ko" className={`${nunito.variable} ${jetbrains.variable}`}>
       <body>{children}</body>
     </html>
   )
