@@ -5,7 +5,12 @@ import { DirectionPad } from './DirectionPad'
 import { Joystick } from './Joystick'
 import { ChatInput } from './ChatInput'
 
-export function Hud() {
+interface HudProps {
+  onMove?: (dx: number, dy: number) => void
+  onChat?: (message: string) => void
+}
+
+export function Hud({ onMove, onChat }: HudProps) {
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
@@ -16,13 +21,15 @@ export function Hud() {
     return () => mq.removeEventListener('change', onChange)
   }, [])
 
-  const handleMove = useCallback((_x: number, _y: number) => {
-    // Phase 2에서 캐릭터 이동 로직 연결
-  }, [])
+  const handleMove = useCallback(
+    (dx: number, dy: number) => onMove?.(dx, dy),
+    [onMove],
+  )
 
-  const handleChat = useCallback((_message: string) => {
-    // Phase 2에서 Supabase Realtime 채팅 연결
-  }, [])
+  const handleChat = useCallback(
+    (message: string) => onChat?.(message),
+    [onChat],
+  )
 
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
