@@ -86,7 +86,7 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
 
           {/* ── 좌측 일러스트 (58%) ── */}
           <div
