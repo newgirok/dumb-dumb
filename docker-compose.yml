@@ -1,3 +1,5 @@
+name: open-world-casual-journey
+
 services:
   app:
     build:
