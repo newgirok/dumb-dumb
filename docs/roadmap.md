@@ -46,6 +46,7 @@
   - Vercel 프로젝트 생성 + GitHub 연결 + 클라이언트 환경변수 등록
   - LiveKit Cloud 프로젝트 생성 (ap-northeast-1)
   - `supabase link --project-ref <id>` + Supabase Secrets 등록
+  - `Dockerfile` (멀티스테이지 dev/prod) + `docker-compose.yml` (app / app-prod 서비스) 구성
   - 검증
     - `npm run dev` 정상 기동
     - Vercel Preview 배포 성공
@@ -76,11 +77,29 @@
 - **P1-3.** 공통 컴포넌트 시스템 `[FE]`
   - `components/ui/` — 버튼, 카드, 토스트, 로딩 스피너
   - `components/avatar/` — 아바타 선택·미리보기 카드 (Phase 6 결제 플로우 연결 예정)
+  - `components/layout/` — PC 사이드바(`Sidebar`), 모바일 하단 내비게이션(`BottomNav`)
   - 로딩·에러·빈 상태 처리 패턴 확립
   - 검증
     - `npm run type-check` 오류 없음
 
+- **P1-4.** 랜딩 페이지 `[FE]`
+  - `app/page.tsx` — GSAP 스크롤 크로스페이드, 4개 씬 (hero / explore / voice / social)
+  - 히어로 카드 clip-path 애니메이션
+    - scrollY=0: 라운드 카드 (inset 64/16/24px, radius 40px) → 스크롤 시 full-bleed 확장
+    - SSR 초기 HTML에 clip-path 미포함 — 중간 스크롤 새로고침 시에도 항상 full-bleed 보장
+    - raw scroll 이벤트 + `window.scrollY` 직접 계산으로 지연 없는 즉각 반응 (GSAP ScrollTrigger scrub 제거)
+    - `requestAnimationFrame` 보정으로 브라우저 history 스크롤 복원 타이밍 대응
+  - 헤더 스크롤 방향 감지 자동 숨김·노출 (아래로 스크롤 시 숨김, 위로 복귀 시 노출)
+  - 좌측 스크롤 위치 내비게이션 도트 (데스크탑)
+  - `public/landing/` — 씬별 배경 사진 4장 (hero·explore·voice·social)
+  - 검증
+    - 중간 스크롤 위치 새로고침 시 full-bleed 이미지 초기 렌더링
+    - scrollY=0 복귀 시 라운드 카드 즉각 복원
+    - `prefers-reduced-motion` 시 애니메이션 정지
+    - 모바일·PC 정상 렌더링
+
 **완료 기준**
+- [x] 랜딩 페이지 스크롤 크로스페이드 정상 동작
 - [x] 로그인 → `/world` 인게임 화면 전환 완성
 - [x] 모바일·PC HUD 정상 렌더링
 - [x] `npm run type-check` 오류 없음
