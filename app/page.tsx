@@ -79,7 +79,13 @@ export default function Home() {
     // 초기 상태 렌더
     layers.forEach((_, i) => setLayer(i, 0))
 
+    // dev 환경 Fast Refresh로 이 effect가 재실행될 때 이전 트리거가 안 정리된 채 남아
+    // 서로 다른 값을 동시에 밀어붙이는 걸 방지 (예: 스크롤 위치에 따라 라운드가 이상하게 적용되는 문제)
+    ScrollTrigger.getById('scene-crossfade')?.kill()
+    ScrollTrigger.getById('hero-clip')?.kill()
+
     ScrollTrigger.create({
+      id: 'scene-crossfade',
       trigger: '[data-scene-stack]',
       start: 'top top',
       end: 'bottom bottom',
@@ -101,6 +107,82 @@ export default function Home() {
         })
       },
     })
+
+    // 히어로 진입 — 토스처럼 라운드+인셋 카드가 스크롤과 함께 풀블리드로 확대.
+    // margin/height(레이아웃 속성)를 매 틱 바꾸면 스크롤마다 리플로우가 발생해 걸리는 느낌이 나서,
+    // 리플로우 없는 clip-path로 시각적 인셋+라운드를 표현 (레이아웃 크기는 처음부터 풀스크린 고정)
+    ScrollTrigger.create({
+      id: 'hero-clip',
+      trigger: '[data-hero-frame]',
+      start: 'top top',
+      end: () => '+=' + window.innerHeight * 0.6,
+      scrub: 0.5,
+      onUpdate: (self) => {
+        const p = self.progress
+        // 소수점 px 값이 헤더의 정수 경계(64px)와 미묘하게 어긋나면 서브픽셀 이음선이 생겨서 정수로 반올림
+        const top = Math.round(64 * (1 - p))
+        const right = Math.round(16 * (1 - p))
+        const bottom = Math.round(24 * (1 - p))
+        const left = Math.round(16 * (1 - p))
+        const radius = Math.round(40 * (1 - p))
+        gsap.set('[data-hero-frame]', {
+          clipPath: `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`,
+        })
+      },
+    })
+
+    // 헤더 — 아래로 스크롤하면 숨고, 위로 스크롤하면 다시 나타남 (토스와 동일)
+    // ScrollTrigger가 아니라 순수 scroll 이벤트로 처리 (trigger 없는 start/end 설정이 안정적으로 안 붙는 문제 회피).
+    // dev StrictMode에서 effect가 두 번 실행돼도 상태가 꼬이지 않도록 DOM 자체를 공유 상태로 사용하고,
+    // 매 틱의 미세한 델타가 아니라 마지막으로 판단한 지점 기준 누적 이동량으로 방향을 결정
+    const onHeaderScroll = () => {
+      const header = document.querySelector<HTMLElement>('[data-header]')
+      if (!header) return
+
+      const y = window.scrollY
+      if (header.dataset.refY === undefined) {
+        header.dataset.refY = String(y) // 최초 1회만 기준점 설정 — 매번 y로 폴백하면 누적값이 항상 0이 됨
+      }
+      const refY = Number(header.dataset.refY)
+      const isVisible = header.dataset.visible !== 'false'
+
+      if (y < 10) {
+        header.dataset.refY = String(y)
+        if (!isVisible) {
+          header.dataset.visible = 'true'
+          gsap.to(header, { yPercent: 0, duration: 0.3, ease: 'power2.out', overwrite: true })
+        }
+        return
+      }
+
+      const cumulative = y - refY
+      if (Math.abs(cumulative) < 10) return // 누적 이동량이 쌓일 때까지 기준점 유지
+
+      header.dataset.refY = String(y)
+      const shouldShow = cumulative < 0
+      if (shouldShow !== isVisible) {
+        header.dataset.visible = String(shouldShow)
+        gsap.to(header, {
+          yPercent: shouldShow ? 0 : -100,
+          duration: 0.3,
+          ease: 'power2.out',
+          overwrite: true,
+        })
+      }
+    }
+    // Fast Refresh로 effect가 재실행돼도 이전 리스너가 중복으로 남지 않도록 window에 참조 저장 후 정리
+    const w = window as typeof window & { __headerScrollHandler?: () => void }
+    if (w.__headerScrollHandler) {
+      window.removeEventListener('scroll', w.__headerScrollHandler)
+    }
+    w.__headerScrollHandler = onHeaderScroll
+    window.addEventListener('scroll', onHeaderScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onHeaderScroll)
+      if (w.__headerScrollHandler === onHeaderScroll) {
+        w.__headerScrollHandler = undefined
+      }
+    }
   }, { scope: rootRef })
 
   return (
@@ -108,6 +190,7 @@ export default function Home() {
 
       {/* ── HEADER ────────────────────────────────────────────── */}
       <header
+        data-header
         style={{
           position: 'fixed',
           top: 0,
@@ -120,6 +203,7 @@ export default function Home() {
           height: '64px',
           padding: '0 var(--page-gutter)',
           background: 'var(--color-white)',
+          boxShadow: '0 1px 0 0 var(--color-white)', // clip-path 서브픽셀 오차로 생기는 이음선 방지용 1px 오버랩
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
@@ -186,7 +270,15 @@ export default function Home() {
 
       {/* ── 씬 스택 — 핀 고정된 화면 안에서 사진끼리 크로스페이드 ─────── */}
       <div data-scene-stack style={{ position: 'relative', height: `${SECTIONS.length * 100}svh` }}>
-        <div style={{ position: 'sticky', top: 0, height: '100svh', overflow: 'hidden' }}>
+        <div
+          data-hero-frame
+          style={{
+            position: 'sticky',
+            top: 0,
+            height: '100svh',
+            clipPath: 'inset(64px 16px 24px 16px round 40px)',
+          }}
+        >
           {SECTIONS.map(({ id, image, eyebrow, title, desc, cta }, i) => (
             <div
               key={id}
