@@ -186,7 +186,7 @@ export default function Home() {
   }, { scope: rootRef })
 
   return (
-    <main ref={rootRef} style={{ background: 'var(--color-paper)' }}>
+    <main ref={rootRef} style={{ background: 'var(--color-white)' }}>
 
       {/* ── HEADER ────────────────────────────────────────────── */}
       <header
@@ -206,20 +206,17 @@ export default function Home() {
           boxShadow: '0 1px 0 0 var(--color-white)', // clip-path 서브픽셀 오차로 생기는 이음선 방지용 1px 오버랩
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-          <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-grass)' }} />
-          <span
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontWeight: 800,
-              fontSize: '1rem',
-              color: 'oklch(20% 0.01 250)',
-              letterSpacing: '-0.01em',
-            }}
-          >
-            OPENWORLD
-          </span>
-        </div>
+        <span
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontWeight: 800,
+            fontSize: '1rem',
+            color: 'oklch(20% 0.01 250)',
+            letterSpacing: '-0.01em',
+          }}
+        >
+          숲친구
+        </span>
 
         <Link
           href="/login"
@@ -452,7 +449,7 @@ export default function Home() {
               letterSpacing: '0.02em',
             }}
           >
-            © 2026 Openworld
+            © 2026 숲친구
           </p>
         </div>
 
@@ -470,7 +467,7 @@ export default function Home() {
             transform: 'translateY(28%)',
           }}
         >
-          OPENWORLD
+          숲친구
         </h2>
       </section>
     </main>
