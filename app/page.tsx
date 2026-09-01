@@ -54,11 +54,11 @@ export default function Home() {
     const dots = gsap.utils.toArray<HTMLElement>('[data-nav-dot]')
     const n = layers.length
     const segLen = 1 / n
-    const halfW = segLen * 0.28 // 경계선 기준 양쪽으로 겹치는 크로스페이드 폭
+    const halfW = segLen * 0.28
 
     const setLayer = (i: number, progress: number) => {
-      const boundaryIn = i * segLen // 이 씬이 등장하는 경계
-      const boundaryOut = (i + 1) * segLen // 이 씬이 퇴장하는 경계
+      const boundaryIn = i * segLen
+      const boundaryOut = (i + 1) * segLen
 
       let opacity = 1
       if (i > 0 && progress < boundaryIn + halfW) {
@@ -68,7 +68,7 @@ export default function Home() {
       }
 
       const local = Math.min(1, Math.max(0, (progress - boundaryIn) / segLen))
-      const scale = 1.18 - local * 0.18 // 활성 구간 동안 계속 줌아웃
+      const scale = 1.18 - local * 0.18
       const y = (1 - opacity) * 16
 
       gsap.set(layers[i], { opacity })
@@ -76,13 +76,9 @@ export default function Home() {
       gsap.set(layers[i].querySelector('[data-scene-text]'), { y })
     }
 
-    // 초기 상태 렌더
     layers.forEach((_, i) => setLayer(i, 0))
 
-    // dev 환경 Fast Refresh로 이 effect가 재실행될 때 이전 트리거가 안 정리된 채 남아
-    // 서로 다른 값을 동시에 밀어붙이는 걸 방지 (예: 스크롤 위치에 따라 라운드가 이상하게 적용되는 문제)
     ScrollTrigger.getById('scene-crossfade')?.kill()
-    ScrollTrigger.getById('hero-clip')?.kill()
 
     ScrollTrigger.create({
       id: 'scene-crossfade',
@@ -108,40 +104,32 @@ export default function Home() {
       },
     })
 
-    // 히어로 진입 — 토스처럼 라운드+인셋 카드가 스크롤과 함께 풀블리드로 확대.
-    // margin/height(레이아웃 속성)를 매 틱 바꾸면 스크롤마다 리플로우가 발생해 걸리는 느낌이 나서,
-    // 리플로우 없는 clip-path로 시각적 인셋+라운드를 표현 (레이아웃 크기는 처음부터 풀스크린 고정)
-    ScrollTrigger.create({
-      id: 'hero-clip',
-      trigger: '[data-hero-frame]',
-      start: 'top top',
-      end: () => '+=' + window.innerHeight * 0.6,
-      scrub: 0.5,
-      onUpdate: (self) => {
-        const p = self.progress
-        // 소수점 px 값이 헤더의 정수 경계(64px)와 미묘하게 어긋나면 서브픽셀 이음선이 생겨서 정수로 반올림
-        const top = Math.round(64 * (1 - p))
-        const right = Math.round(16 * (1 - p))
-        const bottom = Math.round(24 * (1 - p))
-        const left = Math.round(16 * (1 - p))
-        const radius = Math.round(40 * (1 - p))
-        gsap.set('[data-hero-frame]', {
-          clipPath: `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`,
-        })
-      },
-    })
+    // 히어로 클립 — sticky 요소를 ScrollTrigger trigger로 쓰면 progress가 어긋나고
+    // scrub 지연으로 새로고침/복귀 시 잘못된 clip이 노출되는 문제가 있어서 순수 scroll 이벤트로 교체.
+    // clip-path로 시각적 인셋+라운드를 표현 (레이아웃 크기는 처음부터 풀스크린 고정)
+    const applyHeroClip = () => {
+      const p = Math.min(1, Math.max(0, window.scrollY / (window.innerHeight * 0.6)))
+      const top = Math.round(64 * (1 - p))
+      const right = Math.round(16 * (1 - p))
+      const bottom = Math.round(24 * (1 - p))
+      const left = Math.round(16 * (1 - p))
+      const radius = Math.round(40 * (1 - p))
+      gsap.set('[data-hero-frame]', {
+        clipPath: `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`,
+      })
+    }
+    applyHeroClip()
+    // 브라우저 scroll 복원(history navigation)이 useLayoutEffect 이후에 일어날 수 있어 rAF로 보정
+    requestAnimationFrame(applyHeroClip)
 
     // 헤더 — 아래로 스크롤하면 숨고, 위로 스크롤하면 다시 나타남 (토스와 동일)
-    // ScrollTrigger가 아니라 순수 scroll 이벤트로 처리 (trigger 없는 start/end 설정이 안정적으로 안 붙는 문제 회피).
-    // dev StrictMode에서 effect가 두 번 실행돼도 상태가 꼬이지 않도록 DOM 자체를 공유 상태로 사용하고,
-    // 매 틱의 미세한 델타가 아니라 마지막으로 판단한 지점 기준 누적 이동량으로 방향을 결정
     const onHeaderScroll = () => {
       const header = document.querySelector<HTMLElement>('[data-header]')
       if (!header) return
 
       const y = window.scrollY
       if (header.dataset.refY === undefined) {
-        header.dataset.refY = String(y) // 최초 1회만 기준점 설정 — 매번 y로 폴백하면 누적값이 항상 0이 됨
+        header.dataset.refY = String(y)
       }
       const refY = Number(header.dataset.refY)
       const isVisible = header.dataset.visible !== 'false'
@@ -156,7 +144,7 @@ export default function Home() {
       }
 
       const cumulative = y - refY
-      if (Math.abs(cumulative) < 10) return // 누적 이동량이 쌓일 때까지 기준점 유지
+      if (Math.abs(cumulative) < 10) return
 
       header.dataset.refY = String(y)
       const shouldShow = cumulative < 0
@@ -170,18 +158,18 @@ export default function Home() {
         })
       }
     }
-    // Fast Refresh로 effect가 재실행돼도 이전 리스너가 중복으로 남지 않도록 window에 참조 저장 후 정리
-    const w = window as typeof window & { __headerScrollHandler?: () => void }
-    if (w.__headerScrollHandler) {
-      window.removeEventListener('scroll', w.__headerScrollHandler)
-    }
+    const w = window as typeof window & { __heroClipHandler?: () => void; __headerScrollHandler?: () => void }
+    if (w.__heroClipHandler) window.removeEventListener('scroll', w.__heroClipHandler)
+    if (w.__headerScrollHandler) window.removeEventListener('scroll', w.__headerScrollHandler)
+    w.__heroClipHandler = applyHeroClip
     w.__headerScrollHandler = onHeaderScroll
+    window.addEventListener('scroll', applyHeroClip, { passive: true })
     window.addEventListener('scroll', onHeaderScroll, { passive: true })
     return () => {
+      window.removeEventListener('scroll', applyHeroClip)
       window.removeEventListener('scroll', onHeaderScroll)
-      if (w.__headerScrollHandler === onHeaderScroll) {
-        w.__headerScrollHandler = undefined
-      }
+      if (w.__heroClipHandler === applyHeroClip) w.__heroClipHandler = undefined
+      if (w.__headerScrollHandler === onHeaderScroll) w.__headerScrollHandler = undefined
     }
   }, { scope: rootRef })
 
@@ -203,7 +191,7 @@ export default function Home() {
           height: '64px',
           padding: '0 var(--page-gutter)',
           background: 'var(--color-white)',
-          boxShadow: '0 1px 0 0 var(--color-white)', // clip-path 서브픽셀 오차로 생기는 이음선 방지용 1px 오버랩
+          boxShadow: '0 1px 0 0 var(--color-white)',
         }}
       >
         <span
@@ -273,7 +261,6 @@ export default function Home() {
             position: 'sticky',
             top: 0,
             height: '100svh',
-            clipPath: 'inset(64px 16px 24px 16px round 40px)',
           }}
         >
           {SECTIONS.map(({ id, image, eyebrow, title, desc, cta }, i) => (
