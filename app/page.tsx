@@ -214,6 +214,9 @@ export default function Home() {
       {/* ── HEADER ────────────────────────────────────────────── */}
       <header
         data-header
+        // 하단 동기 스크립트가 하이드레이션 전에 background/backdrop-filter를 직접 설정하므로
+        // React가 기대하는 값과 달라 하이드레이션 경고가 뜸 — 의도된 것이라 억제
+        suppressHydrationWarning
         className="fixed top-0 inset-x-0 z-50 flex items-center justify-between h-16 px-gutter bg-transparent transition-[background-color,backdrop-filter] duration-[400ms]"
       >
         <span className="font-display font-extrabold text-base text-[oklch(20%_0.01_250)] tracking-[-0.01em]">
@@ -255,9 +258,12 @@ export default function Home() {
       <div data-scene-stack className="relative" style={{ height: `${SECTIONS.length * 100}svh` }}>
         {/* clip-path 기본값을 scrollY=0 상태값으로 서버 렌더링 시점부터 고정 — JS(GSAP)가 마운트
             후에야 clip-path를 적용하면, 그 사이에 클리핑 없는 풀블리드 상태가 잠깐 보였다가
-            라운드 카드 모양으로 갑자기 줄어드는 초기 점프가 생김 */}
+            라운드 카드 모양으로 갑자기 줄어드는 초기 점프가 생김.
+            하단 동기 스크립트가 하이드레이션 전에 실제 스크롤 위치 기준으로 이 값을 다시 덮어쓰므로
+            React가 기대하는 값과 달라 하이드레이션 경고가 뜸 — 의도된 것이라 억제 */}
         <div
           data-hero-frame
+          suppressHydrationWarning
           className="sticky top-0 h-[100svh]"
           style={{ clipPath: 'inset(64px 16px 24px 16px round 40px)' }}
         >
@@ -268,7 +274,9 @@ export default function Home() {
               data-section-id={id}
               className="absolute inset-0 flex items-end overflow-hidden"
               // opacity는 gsap.set이 스크롤 진행도에 따라 직접 갈아끼우는 대상. 초기값(i===0만 1)은
-              // prefers-reduced-motion일 때 GSAP이 아예 안 돌아서 이 인라인 값이 그대로 최종값이 됨 — 클래스화 금지
+              // prefers-reduced-motion일 때 GSAP이 아예 안 돌아서 이 인라인 값이 그대로 최종값이 됨 — 클래스화 금지.
+              // 하단 동기 스크립트가 하이드레이션 전에 실제 스크롤 위치 기준으로 다시 덮어쓰므로 경고 억제
+              suppressHydrationWarning
               style={{ opacity: i === 0 ? 1 : 0 }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -277,12 +285,14 @@ export default function Home() {
                 src={image}
                 alt=""
                 aria-hidden="true"
+                suppressHydrationWarning
                 className="absolute inset-0 w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-[linear-gradient(180deg,oklch(15%_0.02_250/0.1)_40%,oklch(10%_0.02_250/0.75)_100%)]" />
 
               <div
                 data-scene-text
+                suppressHydrationWarning
                 className="relative z-[1] w-full max-w-page mx-auto pt-2xl px-gutter pb-3xl"
               >
                 {eyebrow && (
@@ -348,6 +358,67 @@ export default function Home() {
           숲친구
         </h2>
       </section>
+
+      {/* 새로고침/뒤로가기로 스크롤이 이미 중간에 내려가 있는 상태로 열릴 때, GSAP가 마운트되기
+          전까지 "맨 위" 모습이 잠깐 보였다가 실제 스크롤 위치에 맞는 모습으로 튀는 걸 막기 위한
+          동기 스크립트. HTML 파싱 중 첫 페인트보다 먼저 실행되므로, 실제 window.scrollY를 읽어
+          히어로 clip-path·씬 크로스페이드·헤더 배경/표시 여부를 처음부터 정확하게 맞춰 그린다.
+          (useGSAP의 applyHeroClip/setLayer/onHeaderScroll과 동일한 공식 — 로직 바뀌면 같이 맞출 것)
+          prefers-reduced-motion일 땐 useGSAP도 씬 크로스페이드를 아예 안 건드리므로 이 스크립트도
+          동일하게 씬 부분만 건너뛴다 (히어로 clip-path·헤더는 애니메이션이 아니라 정적 배치라 계속 적용) */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `(function(){
+            var y = window.scrollY;
+            var p = Math.min(1, Math.max(0, y / (window.innerHeight * 0.6)));
+            var top = Math.round(64 * (1 - p));
+            var right = Math.round(16 * (1 - p));
+            var bottom = Math.round(24 * (1 - p));
+            var left = Math.round(16 * (1 - p));
+            var radius = Math.round(40 * (1 - p));
+            var hero = document.querySelector('[data-hero-frame]');
+            if (hero) {
+              hero.style.clipPath = 'inset(' + top + 'px ' + right + 'px ' + bottom + 'px ' + left + 'px round ' + radius + 'px)';
+            }
+            var header = document.querySelector('[data-header]');
+            if (header) {
+              var scrolledBg = y > 180;
+              header.style.backgroundColor = scrolledBg ? 'rgba(255,255,255,0.75)' : 'transparent';
+              header.style.backdropFilter = scrolledBg ? 'blur(20px)' : 'none';
+              if (y >= 10) {
+                header.style.transform = 'translateY(-100%)';
+                header.dataset.visible = 'false';
+                header.dataset.refY = String(y);
+              }
+            }
+            var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (reduceMotion) return;
+            var n = ${SECTIONS.length};
+            var progress = Math.min(1, Math.max(0, y / ((n - 1) * window.innerHeight)));
+            var segLen = 1 / n;
+            var halfW = segLen * 0.28;
+            var layers = document.querySelectorAll('[data-scene-layer]');
+            for (var i = 0; i < layers.length; i++) {
+              var boundaryIn = i * segLen;
+              var boundaryOut = (i + 1) * segLen;
+              var opacity = 1;
+              if (i > 0 && progress < boundaryIn + halfW) {
+                opacity = Math.min(1, Math.max(0, (progress - (boundaryIn - halfW)) / (2 * halfW)));
+              } else if (i < n - 1 && progress > boundaryOut - halfW) {
+                opacity = Math.min(1, Math.max(0, 1 - (progress - (boundaryOut - halfW)) / (2 * halfW)));
+              }
+              var local = Math.min(1, Math.max(0, (progress - boundaryIn) / segLen));
+              var scale = 1.18 - local * 0.18;
+              var ty = (1 - opacity) * 16;
+              layers[i].style.opacity = String(opacity);
+              var bg = layers[i].querySelector('[data-scene-bg]');
+              if (bg) bg.style.transform = 'scale(' + scale + ')';
+              var text = layers[i].querySelector('[data-scene-text]');
+              if (text) text.style.transform = 'translate(0px, ' + ty + 'px)';
+            }
+          })();`,
+        }}
+      />
     </main>
   )
 }
