@@ -15,7 +15,7 @@ users (Supabase Auth)
   │
 advertisers
   │ 1
-  └─────── n ──▶ sponsor_buildings   (광고 건물)
+  └─────── n ──▶ sponsor_buildings   (광고 랜드마크)
                      │ 1
                      └─────── n ──▶ ad_impressions  (노출 로그)
 ```
@@ -105,14 +105,14 @@ CREATE TABLE user_licenses (
 
 ### `sponsor_buildings`
 
-B2B 광고 건물 마스터 테이블. `geom` 컬럼에 GiST 인덱스 필수.
+B2B 광고 랜드마크 마스터 테이블. `geom` 컬럼에 GiST 인덱스 필수.
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | `id` | BIGSERIAL PK | |
 | `advertiser_id` | UUID | 광고주 계정 |
-| `mapbox_feature_id` | TEXT | Mapbox 건물 폴리곤 Feature ID |
-| `geom` | GEOMETRY(Point, 4326) | 건물 중심 좌표 (GiST 인덱스 적용) |
+| `mapbox_feature_id` | TEXT | Mapbox 지형지물 폴리곤 Feature ID (숲 속 랜드마크로 표시) |
+| `geom` | GEOMETRY(Point, 4326) | 랜드마크 중심 좌표 (GiST 인덱스 적용) |
 | `texture_url` | TEXT | 브랜드 로고 URL (Supabase Storage) |
 | `default_texture_url` | TEXT | 광고 미집행 시 기본 텍스처 |
 | `is_active` | BOOLEAN | 광고 활성 여부 |
@@ -157,10 +157,10 @@ CREATE INDEX idx_sponsor_buildings_geom ON sponsor_buildings USING gist(geom);
 
 ## 주요 쿼리
 
-### 반경 내 스폰서 건물 탐지
+### 반경 내 스폰서 랜드마크 탐지
 
 ```sql
--- 현재 유저 위치 반경 R미터 이내의 활성 스폰서 건물
+-- 현재 유저 위치 반경 R미터 이내의 활성 스폰서 랜드마크
 SELECT id, texture_url,
        ST_Distance(geom::geography, ST_MakePoint($lon, $lat)::geography) AS dist_m
 FROM sponsor_buildings

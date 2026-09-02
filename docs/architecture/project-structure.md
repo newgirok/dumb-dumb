@@ -39,7 +39,7 @@ project/
 │   ├── map/
 │   │   ├── context.ts            ← WebGL Context Sharing 초기화 (단일 진입점)
 │   │   ├── camera.ts             ← Camera Hijack + 카메라 잠금
-│   │   └── snap.ts               ← 도로 스냅 알고리즘
+│   │   └── snap.ts               ← 오솔길 스냅 알고리즘
 │   ├── three/
 │   │   ├── character.ts          ← GLB 로드 + Walk/Idle 애니메이션
 │   │   ├── fog.ts                ← Fog of War CSS Vignette 제어
@@ -60,7 +60,7 @@ project/
 ├── supabase/
 │   ├── functions/                ← Edge Functions (각 함수: index.ts)
 │   │   ├── livekit-token/        ← LiveKit 룸 토큰 발급
-│   │   └── spatial-query/        ← 반경 내 스폰서 건물 탐지 (ST_DWithin)
+│   │   └── spatial-query/        ← 반경 내 스폰서 랜드마크 탐지 (ST_DWithin)
 │   └── migrations/               ← DB 마이그레이션 SQL
 │       ├── 0001_init.sql         ← 초기 스키마 (PostGIS, pg_cron, pgcrypto)
 │       ├── 0002_characters.sql   ← characters + orders 테이블
@@ -100,7 +100,7 @@ project/
 | `lib/geo/validator.ts` | 직전 좌표 대비 이동 속도 계산 → 30km/h 초과 시 좌표 드롭 |
 | `lib/auth/session.ts` | JWT Payload 파싱 (`visibility_radius_m` 추출) + Access Token 갱신 |
 | `lib/auth/middleware.ts` | `(game)`, `store`, `admin` 라우트 인증 검사 + 광고주 Role 검증 |
-| `supabase/functions/spatial-query/` | `ST_DWithin` 쿼리로 반경 내 스폰서 건물 목록 반환 |
+| `supabase/functions/spatial-query/` | `ST_DWithin` 쿼리로 반경 내 스폰서 랜드마크 목록 반환 |
 | `supabase/functions/livekit-token/` | LiveKit Cloud 룸 접속 JWT 토큰 발급 |
 
 ---
