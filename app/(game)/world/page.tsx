@@ -25,7 +25,7 @@ export default function WorldPage() {
   }, [])
 
   return (
-    <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+    <div className="relative w-screen h-screen overflow-hidden">
       <WorldCanvas
         onRegisterMoveHandler={registerMove}
         onRegisterChatHandler={registerChat}
