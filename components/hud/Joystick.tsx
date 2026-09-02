@@ -65,30 +65,15 @@ export function Joystick({ onMove }: Props) {
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
-      style={{
-        width: RADIUS * 2,
-        height: RADIUS * 2,
-        borderRadius: '50%',
-        background: 'rgba(255,255,255,0.15)',
-        backdropFilter: 'blur(4px)',
-        border: '1px solid rgba(255,255,255,0.2)',
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        touchAction: 'none',
-      }}
+      className="rounded-full bg-white/15 backdrop-blur-[4px] border border-white/20 relative flex items-center justify-center touch-none"
+      style={{ width: RADIUS * 2, height: RADIUS * 2 }} // RADIUS는 computeOffset의 클램핑 계산에도 쓰여서 크기와 이중 관리 — 상수 바꾸면 여기도 같이 확인
     >
       <div
         ref={knobRef}
-        style={{
-          width: KNOB_RADIUS * 2,
-          height: KNOB_RADIUS * 2,
-          borderRadius: '50%',
-          background: 'rgba(255,255,255,0.6)',
-          pointerEvents: 'none',
-          transition: 'transform 0.05s ease-out',
-        }}
+        // transform은 터치 드래그마다 위 onTouchMove/onTouchEnd에서 ref로 직접 쓰는 값이라
+        // 인라인 유지 (translate-* 클래스를 붙이면 서로 값을 덮어써서 충돌함)
+        className="rounded-full bg-white/60 pointer-events-none transition-transform duration-[50ms] ease-out"
+        style={{ width: KNOB_RADIUS * 2, height: KNOB_RADIUS * 2 }}
       />
     </div>
   )
