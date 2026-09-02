@@ -32,20 +32,11 @@ export function Hud({ onMove, onChat }: HudProps) {
   )
 
   return (
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-      <div style={{ position: 'absolute', bottom: 32, left: 32, pointerEvents: 'all' }}>
+    <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute bottom-8 left-8 pointer-events-auto">
         {isMobile ? <Joystick onMove={handleMove} /> : <DirectionPad onMove={handleMove} />}
       </div>
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 32,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 320,
-          pointerEvents: 'all',
-        }}
-      >
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-80 pointer-events-auto">
         <ChatInput onSend={handleChat} />
       </div>
     </div>
