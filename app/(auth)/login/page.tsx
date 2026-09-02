@@ -10,15 +10,26 @@ function toE164(display: string): string {
   return d.startsWith('0') ? `+82${d.slice(1)}` : `+82${d}`
 }
 
+// components/ui/Spinner와는 시각적 설계가 달라(테두리 색 원 + 투명한 윗부분으로
+// 회전하는 노치 방식) 공용 컴포넌트로 통합하지 않고 그대로 유지. color는 호출부마다
+// 다른 임의의 값이 올 수 있어 인라인 유지, 나머지는 클래스. 페이지 전용
+// @keyframes spin에 의존하던 걸 Tailwind 기본 animate-spin으로 교체(0.7s→1s로 속도
+// 미세 변경, 짧은 로딩 표시라 체감 차이 없음)
 function Spinner({ color = '#fff' }: { color?: string }) {
   return (
-    <span style={{
-      display: 'inline-block', width: '1rem', height: '1rem',
-      borderRadius: '50%', border: `2px solid ${color}`,
-      borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite',
-    }} />
+    <span
+      className="inline-block w-4 h-4 rounded-full border-2 animate-spin"
+      style={{ borderColor: color, borderTopColor: 'transparent' }}
+    />
   )
 }
+
+const OAUTH_BTN =
+  'flex items-center justify-center gap-2.5 w-full h-11 px-4 rounded-lg border border-[#e5e7eb] bg-white text-[#111] text-[0.9rem] font-semibold cursor-pointer font-display'
+const FIELD =
+  'w-full h-11 px-3.5 rounded-lg border border-[#e5e7eb] bg-white text-[#111] text-[0.9rem] font-display outline-none'
+const PRIMARY_BTN =
+  'w-full h-11 rounded-lg border-none bg-[#22c55e] text-white text-[0.9rem] font-bold cursor-pointer flex items-center justify-center gap-2 font-display'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -72,67 +83,53 @@ export default function LoginPage() {
 
   return (
     <>
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        * { box-sizing: border-box; }
-      `}</style>
-
-      <div style={{ height: '100svh', display: 'flex', flexDirection: 'column', background: '#fff', fontFamily: 'var(--font-display)' }}>
+      <div className="h-[100svh] flex flex-col bg-white font-display">
 
         {/* ── 뒤로가기 ── */}
-        <div style={{ position: 'absolute', top: '1.25rem', left: '1.5rem', zIndex: 10 }}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.875rem', color: '#6b7280', textDecoration: 'none', fontWeight: 500 }}>
+        <div className="absolute top-5 left-6 z-10">
+          <Link href="/" className="flex items-center gap-1 text-sm text-[#6b7280] no-underline font-medium">
             ← 홈페이지
           </Link>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
+        <div className="flex-1 flex overflow-hidden max-w-[1200px] mx-auto w-full">
 
           {/* ── 좌측 일러스트 (58%) ── */}
-          <div
-            className="hidden lg:flex"
-            style={{ width: '58%', background: '#fff', alignItems: 'center', justifyContent: 'center' }}
-          >
+          <div className="hidden lg:flex w-[58%] bg-white items-center justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/illustration-login.png"
               alt="오픈월드 일러스트"
-              style={{ width: '72%', maxWidth: '560px', objectFit: 'contain', userSelect: 'none', pointerEvents: 'none' }}
+              className="w-[72%] max-w-[560px] object-contain select-none pointer-events-none"
             />
           </div>
 
           {/* ── 우측 폼 (42%) ── */}
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1.5rem', overflowY: 'auto', background: '#fff' }}>
-            <div style={{ width: '100%', maxWidth: '320px' }}>
+          <div className="flex-1 flex items-center justify-center py-8 px-6 overflow-y-auto bg-white">
+            <div className="w-full max-w-[320px]">
 
               {step === 'main' && (
                 <>
                   {/* 로고 */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '1.125rem' }}>
-                      <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: 'var(--color-grass)' }} />
-                      <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#111', letterSpacing: '-0.01em' }}>openworld</span>
+                  <div className="flex flex-col items-center mb-6">
+                    <div className="flex items-center gap-1.5 mb-[1.125rem]">
+                      <span className="inline-block w-2.5 h-2.5 rounded-full bg-grass" />
+                      <span className="text-[0.9rem] font-bold text-[#111] tracking-[-0.01em]">openworld</span>
                     </div>
-                    <h1 style={{ fontSize: '1.625rem', fontWeight: 800, color: '#111', textAlign: 'center', marginBottom: '0.625rem', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                    <h1 className="text-[1.625rem] font-extrabold text-[#111] text-center mb-2.5 tracking-[-0.02em] leading-[1.2]">
                       오픈월드에 로그인
                     </h1>
-                    <p style={{ fontSize: '0.875rem', color: '#6b7280', textAlign: 'center', lineHeight: 1.6, margin: 0 }}>
+                    <p className="text-sm text-[#6b7280] text-center leading-[1.6] m-0">
                       다시 오신 것을 환영합니다! 선호하는 방법을<br />사용하여 아래에서 로그인하시오.
                     </p>
                   </div>
 
                   {/* OAuth 버튼들 */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+                  <div className="flex flex-col gap-2 mb-4">
                     <button
                       onClick={() => signInOAuth('kakao')}
                       disabled={!!loading}
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.625rem',
-                        width: '100%', height: '44px', padding: '0 1rem',
-                        borderRadius: '0.5rem', border: '1px solid #e5e7eb', background: '#fff',
-                        color: '#111', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer',
-                        opacity: loading === 'kakao' ? 0.6 : 1, fontFamily: 'var(--font-display)',
-                      }}
+                      className={`${OAUTH_BTN} ${loading === 'kakao' ? 'opacity-60' : 'opacity-100'}`}
                     >
                       {loading === 'kakao' ? <Spinner color="#111" /> : <><KakaoIcon /> 카카오(으)로 로그인</>}
                     </button>
@@ -140,25 +137,19 @@ export default function LoginPage() {
                     <button
                       onClick={() => signInOAuth('google')}
                       disabled={!!loading}
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.625rem',
-                        width: '100%', height: '44px', padding: '0 1rem',
-                        borderRadius: '0.5rem', border: '1px solid #e5e7eb', background: '#fff',
-                        color: '#111', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer',
-                        opacity: loading === 'google' ? 0.6 : 1, fontFamily: 'var(--font-display)',
-                      }}
+                      className={`${OAUTH_BTN} ${loading === 'google' ? 'opacity-60' : 'opacity-100'}`}
                     >
                       {loading === 'google' ? <Spinner color="#555" /> : <><GoogleIcon /> Google(으)로 로그인</>}
                     </button>
                   </div>
 
                   {/* 또는 (줄 없음) */}
-                  <p style={{ textAlign: 'center', fontSize: '0.875rem', color: '#9ca3af', margin: '0 0 1rem', fontWeight: 500 }}>
+                  <p className="text-center text-sm text-[#9ca3af] mt-0 mb-4 mx-0 font-medium">
                     또는
                   </p>
 
                   {/* 이메일 입력 + 버튼 */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div className="flex flex-col gap-2">
                     <input
                       type="email"
                       inputMode="email"
@@ -167,38 +158,26 @@ export default function LoginPage() {
                       autoFocus
                       onChange={e => setEmail(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && sendOtp()}
-                      style={{
-                        width: '100%', height: '44px', padding: '0 0.875rem',
-                        borderRadius: '0.5rem', border: '1px solid #e5e7eb',
-                        background: '#fff', color: '#111', fontSize: '0.9rem',
-                        fontFamily: 'var(--font-display)', outline: 'none',
-                      }}
+                      className={FIELD}
                     />
-                    {error && <p style={{ fontSize: '0.8rem', color: '#dc2626', margin: 0 }}>{error}</p>}
+                    {error && <p className="text-[0.8rem] text-[#dc2626] m-0">{error}</p>}
                     <button
                       onClick={sendOtp}
                       disabled={!!loading}
-                      style={{
-                        width: '100%', height: '44px',
-                        borderRadius: '0.5rem', border: 'none',
-                        background: '#22c55e', color: '#fff',
-                        fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                        opacity: loading === 'email' ? 0.6 : 1, fontFamily: 'var(--font-display)',
-                      }}
+                      className={`${PRIMARY_BTN} ${loading === 'email' ? 'opacity-60' : 'opacity-100'}`}
                     >
                       {loading === 'email' ? <Spinner /> : '이메일로 로그인'}
                     </button>
                   </div>
 
                   {/* 하단 링크들 */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.375rem', marginTop: '1rem' }}>
-                    <span style={{ fontSize: '0.85rem', color: '#3b82f6', cursor: 'pointer', fontWeight: 500 }}>
+                  <div className="flex flex-col items-center gap-1.5 mt-4">
+                    <span className="text-[0.85rem] text-[#3b82f6] cursor-pointer font-medium">
                       또는 비밀번호로 로그인
                     </span>
-                    <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 500 }}>
+                    <span className="text-[0.85rem] text-[#6b7280] font-medium">
                       계정이 없나요?{' '}
-                      <span style={{ color: '#3b82f6', cursor: 'pointer' }}>만들기</span>
+                      <span className="text-[#3b82f6] cursor-pointer">만들기</span>
                     </span>
                   </div>
                 </>
@@ -206,21 +185,21 @@ export default function LoginPage() {
 
               {step === 'otp' && (
                 <>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '1.125rem' }}>
-                      <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: 'var(--color-grass)' }} />
-                      <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#111' }}>openworld</span>
+                  <div className="flex flex-col items-center mb-6">
+                    <div className="flex items-center gap-1.5 mb-[1.125rem]">
+                      <span className="inline-block w-2.5 h-2.5 rounded-full bg-grass" />
+                      <span className="text-[0.9rem] font-bold text-[#111]">openworld</span>
                     </div>
-                    <h1 style={{ fontSize: '1.625rem', fontWeight: 800, color: '#111', textAlign: 'center', marginBottom: '0.625rem', letterSpacing: '-0.02em' }}>
+                    <h1 className="text-[1.625rem] font-extrabold text-[#111] text-center mb-2.5 tracking-[-0.02em]">
                       인증번호 입력
                     </h1>
-                    <p style={{ fontSize: '0.875rem', color: '#6b7280', textAlign: 'center', lineHeight: 1.6, margin: 0 }}>
-                      <span style={{ fontWeight: 700, color: '#111' }}>{email}</span>으로<br />발송된 인증번호를 입력하세요.
+                    <p className="text-sm text-[#6b7280] text-center leading-[1.6] m-0">
+                      <span className="font-bold text-[#111]">{email}</span>으로<br />발송된 인증번호를 입력하세요.
                     </p>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <div style={{ position: 'relative' }}>
+                  <div className="flex flex-col gap-2">
+                    <div className="relative">
                       <input
                         type="text"
                         inputMode="numeric"
@@ -230,39 +209,27 @@ export default function LoginPage() {
                         autoFocus
                         onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                         onKeyDown={e => e.key === 'Enter' && verifyOtp()}
-                        style={{
-                          width: '100%', height: '44px', padding: '0 3rem 0 0.875rem',
-                          borderRadius: '0.5rem', border: '1px solid #e5e7eb',
-                          textAlign: 'center', letterSpacing: '0.4em',
-                          fontSize: '1.125rem', fontFamily: 'var(--font-mono)',
-                          color: '#111', background: '#fff', outline: 'none',
-                        }}
+                        className="w-full h-11 pr-12 pl-3.5 rounded-lg border border-[#e5e7eb] text-center tracking-[0.4em] text-lg font-mono text-[#111] bg-white outline-none"
                       />
                       {countdown > 0 && (
-                        <span style={{ position: 'absolute', right: '0.875rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.8rem', color: '#ef4444', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
+                        <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[0.8rem] text-[#ef4444] font-mono font-bold">
                           {mm}:{ss}
                         </span>
                       )}
                     </div>
-                    {error && <p style={{ fontSize: '0.8rem', color: '#dc2626', margin: 0 }}>{error}</p>}
+                    {error && <p className="text-[0.8rem] text-[#dc2626] m-0">{error}</p>}
                     <button
                       onClick={verifyOtp}
                       disabled={loading === 'verify' || otp.length !== 6}
-                      style={{
-                        width: '100%', height: '44px',
-                        borderRadius: '0.5rem', border: 'none',
-                        background: '#22c55e', color: '#fff',
-                        fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        opacity: (loading === 'verify' || otp.length !== 6) ? 0.45 : 1,
-                        fontFamily: 'var(--font-display)',
-                      }}
+                      className={`w-full h-11 rounded-lg border-none bg-[#22c55e] text-white text-[0.9rem] font-bold cursor-pointer flex items-center justify-center font-display ${
+                        loading === 'verify' || otp.length !== 6 ? 'opacity-45' : 'opacity-100'
+                      }`}
                     >
                       {loading === 'verify' ? <Spinner /> : '확인'}
                     </button>
                     <button
                       onClick={() => { setStep('main'); setOtp(''); setError('') }}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: '#3b82f6', fontFamily: 'var(--font-display)', fontWeight: 500, padding: '0.25rem', textAlign: 'center' }}
+                      className="bg-transparent border-none cursor-pointer text-[0.85rem] text-[#3b82f6] font-display font-medium p-1 text-center"
                     >
                       이메일 다시 입력하기
                     </button>
