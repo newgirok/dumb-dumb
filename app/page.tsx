@@ -205,7 +205,7 @@ export default function Home() {
           alignItems: 'center',
           justifyContent: 'space-between',
           height: '64px',
-          padding: '0 var(--page-gutter)',
+          padding: '0 var(--spacing-gutter)',
           background: 'var(--color-white)',
           boxShadow: '0 1px 0 0 var(--color-white)',
         }}
@@ -263,7 +263,7 @@ export default function Home() {
               borderRadius: '50%',
               background: 'oklch(100% 0 0 / 0.5)',
               opacity: 0.4,
-              transition: `all var(--dur-short) var(--ease-out)`,
+              transition: `all var(--dur-short) var(--ease-smooth)`,
             }}
           />
         ))}
@@ -315,9 +315,9 @@ export default function Home() {
                   position: 'relative',
                   zIndex: 1,
                   width: '100%',
-                  maxWidth: 'var(--page-max)',
+                  maxWidth: 'var(--container-page)',
                   margin: '0 auto',
-                  padding: 'var(--space-2xl) var(--page-gutter) var(--space-3xl)',
+                  padding: 'var(--spacing-2xl) var(--spacing-gutter) var(--spacing-3xl)',
                 }}
               >
                 {eyebrow && (
@@ -392,7 +392,7 @@ export default function Home() {
         style={{
           position: 'relative',
           overflow: 'hidden',
-          padding: 'var(--space-3xl) var(--page-gutter) 0',
+          padding: 'var(--spacing-3xl) var(--spacing-gutter) 0',
           minHeight: '90svh',
           display: 'flex',
           flexDirection: 'column',
@@ -423,7 +423,7 @@ export default function Home() {
               lineHeight: 1.3,
               letterSpacing: '-0.02em',
               color: 'var(--color-white)',
-              marginBottom: 'var(--space-2xl)',
+              marginBottom: 'var(--spacing-2xl)',
             }}
           >
             이웃에서, 우정으로.
@@ -433,8 +433,8 @@ export default function Home() {
             style={{
               display: 'flex',
               flexWrap: 'wrap',
-              gap: 'var(--space-3xl)',
-              marginBottom: 'var(--space-2xl)',
+              gap: 'var(--spacing-3xl)',
+              marginBottom: 'var(--spacing-2xl)',
             }}
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>

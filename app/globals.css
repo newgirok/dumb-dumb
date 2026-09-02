@@ -4,65 +4,79 @@
   --font-display: var(--font-display), "Nunito", ui-sans-serif, system-ui, sans-serif;
   --font-body:    var(--font-display), "Nunito", ui-sans-serif, system-ui, sans-serif;
   --font-mono:    var(--font-mono),    "JetBrains Mono", ui-monospace, monospace;
+
+  /* ── AC 색상 팔레트 ─────────────────────────── */
+  --color-paper:       oklch(97% 0.015 82);
+  --color-paper-2:     oklch(94% 0.022 84);
+  --color-grass:       oklch(67% 0.13 142);
+  --color-grass-2:     oklch(55% 0.15 142);
+  --color-grass-light: oklch(91% 0.07 142);
+  --color-sky:         oklch(88% 0.07 228);
+  --color-sky-dark:    oklch(72% 0.10 228);
+  --color-sand:        oklch(90% 0.05 84);
+  --color-accent:      oklch(80% 0.17 88);
+  --color-accent-2:    oklch(72% 0.20 52);
+  --color-bark:        oklch(28% 0.06 50);
+  --color-bark-2:      oklch(48% 0.06 52);
+  --color-bark-3:      oklch(68% 0.04 55);
+  --color-white:       #ffffff;
+
+  /* ── 그림자 / 반경 ────────────────────────── */
+  --radius-card: 1.5rem;
+  --radius-btn:  2rem;
+  --shadow-card: 0 4px 24px oklch(40% 0.08 142 / 0.10);
+  --shadow-btn:  0 4px 12px oklch(40% 0.10 142 / 0.25);
+
+  /* ── 간격 (Tailwind v4 --spacing-* 네임스페이스: p-*, m-*, gap-*, w-*, h-* 등에 적용) ── */
+  --spacing:      0.25rem; /* 기본 스케일 유지 — 없으면 p-4 같은 기본 유틸리티가 깨짐 */
+  --spacing-2xs:  0.25rem;
+  --spacing-xs:   0.5rem;
+  --spacing-sm:   0.75rem;
+  --spacing-md:   1rem;
+  --spacing-lg:   1.5rem;
+  --spacing-xl:   2.5rem;
+  --spacing-2xl:  4rem;
+  --spacing-3xl:  6rem;
+  --spacing-sidebar: 4rem;
+  --spacing-nav:     3.5rem; /* 기존 --nav-height(4rem)는 미사용 dead token + 실제 BottomNav 높이(3.5rem)와 불일치 → 실측값으로 정정 */
+  --spacing-gutter:  clamp(1.25rem, 5vw, 4rem);
+
+  /* ── 컨테이너 ─────────────────────────────── */
+  --container-page: 72rem;
+
+  /* ── 타입 ─────────────────────────────────── */
+  --text-xs:      0.75rem;
+  --text-sm:      0.875rem;
+  --text-md:      1rem;
+  --text-lg:      1.125rem;
+  --text-display: clamp(2.5rem, 6vw + 0.5rem, 5rem);
+  --text-hero:    clamp(3rem, 8vw, 6.5rem);
+
+  /* ── 레이아웃 ────────────────────────────── */
+  --z-sticky-nav: 50;
+
+  /* ── 모션 ─────────────────────────────────── */
+  --dur-short:   200ms;
+  --dur-med:     350ms;
+  --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1); /* 기존 이름 --ease-out은 Tailwind 내장 ease-out 유틸리티와 충돌해서 개명 */
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── 애니메이션 (현재 사용처 없음 — 향후 animate-float 등으로 사용 가능하도록 정의만 유지) ── */
+  --animate-float:      float 4s ease-in-out infinite;
+  --animate-float-slow: float 6s ease-in-out infinite;
+  --animate-sway:       sway  5s ease-in-out infinite;
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(-10px); }
+  }
+  @keyframes sway {
+    0%, 100% { transform: rotate(-3deg); }
+    50%       { transform: rotate(3deg); }
+  }
 }
 
 @layer base {
-  :root {
-    /* ── AC 색상 팔레트 ─────────────────────────── */
-    --color-paper:       oklch(97% 0.015 82);
-    --color-paper-2:     oklch(94% 0.022 84);
-    --color-grass:       oklch(67% 0.13 142);
-    --color-grass-2:     oklch(55% 0.15 142);
-    --color-grass-light: oklch(91% 0.07 142);
-    --color-sky:         oklch(88% 0.07 228);
-    --color-sky-dark:    oklch(72% 0.10 228);
-    --color-sand:        oklch(90% 0.05 84);
-    --color-accent:      oklch(80% 0.17 88);
-    --color-accent-2:    oklch(72% 0.20 52);
-    --color-bark:        oklch(28% 0.06 50);
-    --color-bark-2:      oklch(48% 0.06 52);
-    --color-bark-3:      oklch(68% 0.04 55);
-    --color-white:       #ffffff;
-
-    /* ── 그림자 / 보더 ────────────────────────── */
-    --radius-card: 1.5rem;
-    --radius-btn:  2rem;
-    --shadow-card: 0 4px 24px oklch(40% 0.08 142 / 0.10);
-    --shadow-btn:  0 4px 12px oklch(40% 0.10 142 / 0.25);
-    --border-soft: 2px solid oklch(85% 0.06 142);
-
-    /* ── 간격 ─────────────────────────────────── */
-    --space-2xs: 0.25rem;
-    --space-xs:  0.5rem;
-    --space-sm:  0.75rem;
-    --space-md:  1rem;
-    --space-lg:  1.5rem;
-    --space-xl:  2.5rem;
-    --space-2xl: 4rem;
-    --space-3xl: 6rem;
-
-    /* ── 타입 ─────────────────────────────────── */
-    --text-xs:      0.75rem;
-    --text-sm:      0.875rem;
-    --text-md:      1rem;
-    --text-lg:      1.125rem;
-    --text-display: clamp(2.5rem, 6vw + 0.5rem, 5rem);
-    --text-hero:    clamp(3rem, 8vw, 6.5rem);
-
-    /* ── 레이아웃 ────────────────────────────── */
-    --sidebar-width: 4rem;
-    --nav-height:    4rem;
-    --page-gutter:   clamp(1.25rem, 5vw, 4rem);
-    --page-max:      72rem;
-    --z-sticky-nav:  50;
-
-    /* ── 모션 ─────────────────────────────────── */
-    --dur-short:   200ms;
-    --dur-med:     350ms;
-    --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
-    --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html { height: 100%; }
 
@@ -78,17 +92,3 @@
 
   a { color: inherit; text-decoration: none; }
 }
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-10px); }
-}
-
-@keyframes sway {
-  0%, 100% { transform: rotate(-3deg); }
-  50%       { transform: rotate(3deg); }
-}
-
-.float      { animation: float 4s ease-in-out infinite; will-change: transform; }
-.float-slow { animation: float 6s ease-in-out infinite; will-change: transform; }
-.sway       { animation: sway  5s ease-in-out infinite; will-change: transform; }

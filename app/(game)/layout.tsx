@@ -16,7 +16,7 @@ export default function GameLayout({ children }: { children: React.ReactNode }) 
         style={{
           flex: 1,
           position: 'relative',
-          marginInlineStart: 'var(--sidebar-width)',
+          marginInlineStart: 'var(--spacing-sidebar)',
           paddingBottom: '3.5rem',
         }}
         className="md:pb-0"

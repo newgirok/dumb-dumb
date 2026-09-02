@@ -23,8 +23,8 @@ export function Sidebar() {
     <aside
       className="hidden md:flex flex-col items-center justify-between shrink-0"
       style={{
-        width: 'var(--sidebar-width)',
-        paddingBlock: 'var(--space-md)',
+        width: 'var(--spacing-sidebar)',
+        paddingBlock: 'var(--spacing-md)',
         background: 'var(--color-white)',
         borderRight: '2px solid var(--color-grass-light)',
         position: 'fixed',
@@ -49,7 +49,7 @@ export function Sidebar() {
       </Link>
 
       {/* 네비게이션 */}
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', alignItems: 'center' }}>
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
         {SECTIONS.map(({ href, label, emoji }) => {
           const active = pathname.startsWith(href)
           return (
@@ -68,7 +68,7 @@ export function Sidebar() {
                 justifyContent: 'center',
                 background: active ? 'var(--color-grass-light)' : 'transparent',
                 border: active ? '2px solid var(--color-grass)' : '2px solid transparent',
-                transition: `all var(--dur-short) var(--ease-out)`,
+                transition: `all var(--dur-short) var(--ease-smooth)`,
                 textDecoration: 'none',
               }}
             >
@@ -102,7 +102,7 @@ export function Sidebar() {
           padding: '0.5rem',
           borderRadius: '0.75rem',
           opacity: 0.5,
-          transition: `opacity var(--dur-short) var(--ease-out)`,
+          transition: `opacity var(--dur-short) var(--ease-smooth)`,
         }}
         onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = '1')}
         onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = '0.5')}

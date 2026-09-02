@@ -51,7 +51,7 @@ export function BottomNav() {
               borderRadius: '1rem',
               background: active ? 'var(--color-grass-light)' : 'transparent',
               textDecoration: 'none',
-              transition: `all var(--dur-short) var(--ease-out)`,
+              transition: `all var(--dur-short) var(--ease-smooth)`,
             }}
           >
             <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>{emoji}</span>
