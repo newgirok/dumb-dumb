@@ -62,7 +62,7 @@ deviceOrientationHandler = (e: DeviceOrientationEvent) => {
 
 ## 줌 레벨 고정
 
-유저가 휠을 돌려 줌아웃해도 캐릭터 주변 골목길 수준의 줌(16~17)을 유지한다.
+유저가 휠을 돌려 줌아웃해도 캐릭터 주변 숲길 수준의 줌(16~17)을 유지한다.
 
 ```typescript
 map.setMinZoom(16);
