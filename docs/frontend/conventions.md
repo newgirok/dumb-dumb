@@ -79,8 +79,8 @@ Spot Virtual 스타일 스플릿 레이아웃 (`app/(auth)/login/page.tsx`):
 
 레이어는 반드시 아래 순서대로 추가해야 한다 (z-order 충돌 방지).
 
-1. Mapbox 기본 도로 레이어 (`road-*`) — 수정·삭제 금지
-2. `sponsor-fill-layer` — 스폰서 건물 바닥 오버레이
+1. Mapbox 기본 도로 레이어 (`road-*`, 화면엔 숲길로 표시) — 수정·삭제 금지
+2. `sponsor-fill-layer` — 스폰서 랜드마크 바닥 오버레이
 3. `three-character-layer` — Three.js WebGL 커스텀 레이어
 4. Fog of War Vignette — DOM 오버레이 (CSS, Mapbox 레이어 아님)
 
@@ -149,7 +149,7 @@ renderer.autoClear = false;                  // Mapbox가 clear 직접 제어
 |---|---|
 | `app/api/health/` | 헬스체크 |
 | `supabase/functions/payment-webhook/` | PG 웹훅 수신·캐릭터 발급 |
-| `supabase/functions/spatial-query/` | 반경 내 스폰서 건물 탐지 |
+| `supabase/functions/spatial-query/` | 반경 내 스폰서 랜드마크 탐지 |
 | `supabase/functions/livekit-token/` | LiveKit 룸 토큰 발급 |
 | `supabase/functions/impression-log/` | 유효 노출 기록 |
 
