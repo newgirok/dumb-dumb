@@ -126,6 +126,16 @@ export default function Home() {
       gsap.set('[data-hero-frame]', {
         clipPath: `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius}px)`,
       })
+
+      // 헤더 배경 — 토스 실측: 최상단에서는 완전 투명, 스크롤 시작 직후(~180px)부터
+      // rgba(255,255,255,0.75) + blur(20px)로 전환. GSAP는 이 속성을 안 건드리므로
+      // (yPercent만 건드림) 순수 CSS transition으로 처리해도 충돌 없음
+      const header = document.querySelector<HTMLElement>('[data-header]')
+      if (header) {
+        const scrolled = window.scrollY > 180
+        header.style.backgroundColor = scrolled ? 'rgba(255,255,255,0.75)' : 'transparent'
+        header.style.backdropFilter = scrolled ? 'blur(20px)' : 'none'
+      }
     }
     applyHeroClip()
     // 브라우저 scroll 복원(history navigation)이 useLayoutEffect 이후에 일어날 수 있어 rAF로 보정
@@ -204,7 +214,7 @@ export default function Home() {
       {/* ── HEADER ────────────────────────────────────────────── */}
       <header
         data-header
-        className="fixed top-0 inset-x-0 z-50 flex items-center justify-between h-16 px-gutter bg-white shadow-[0_1px_0_0_var(--color-white)]"
+        className="fixed top-0 inset-x-0 z-50 flex items-center justify-between h-16 px-gutter bg-transparent transition-[background-color,backdrop-filter] duration-[400ms]"
       >
         <span className="font-display font-extrabold text-base text-[oklch(20%_0.01_250)] tracking-[-0.01em]">
           숲친구
