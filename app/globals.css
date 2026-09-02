@@ -76,6 +76,12 @@
   }
 }
 
+/* WorldCanvas가 element.style.setProperty('--fog-radius', ...)로 런타임에 직접 쓰는
+   변수를 참조. --fog-radius 자체는 테마 토큰이 아니라 런타임 제어값이라 @theme에는 안 넣음 */
+@utility fog-vignette {
+  background: radial-gradient(ellipse at center, transparent var(--fog-radius, 12%), rgba(0, 0, 0, 0.96) 70%);
+}
+
 @layer base {
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html { height: 100%; }

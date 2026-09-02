@@ -232,38 +232,23 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
   }, [onRegisterMoveHandler, onRegisterChatHandler])
 
   const micLabel = micState === 'on' ? '🎙 ON' : micState === 'denied' ? '🔇' : '🎙'
-  const micBg = micState === 'on' ? 'rgba(79,142,247,0.8)' : 'rgba(0,0,0,0.5)'
+  // 리터럴 클래스 맵 — `bg-[${x}]` 문자열 보간은 Tailwind가 빌드 시점에 못 잡아서
+  // 프로덕션에서 클래스가 통째로 사라지므로 절대 금지
+  const MIC_BG: Record<typeof micState, string> = {
+    idle: 'bg-black/50',
+    on: 'bg-[rgba(79,142,247,0.8)]',
+    denied: 'bg-black/50',
+  }
 
   return (
     <>
-      <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
-      <div
-        ref={fogRef}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
-          background:
-            'radial-gradient(ellipse at center, transparent var(--fog-radius, 12%), rgba(0,0,0,0.96) 70%)',
-        }}
-      />
+      <div ref={containerRef} className="absolute inset-0" />
+      <div ref={fogRef} className="absolute inset-0 pointer-events-none fog-vignette" />
       {/* 마이크 옵트인 버튼 */}
       <button
         onClick={handleMicClick}
         disabled={micState === 'on'}
-        style={{
-          position: 'absolute',
-          top: 20,
-          right: 20,
-          padding: '8px 14px',
-          borderRadius: 8,
-          border: '1px solid rgba(255,255,255,0.2)',
-          background: micBg,
-          color: '#fff',
-          fontSize: 14,
-          cursor: micState === 'on' ? 'default' : 'pointer',
-          backdropFilter: 'blur(4px)',
-        }}
+        className={`absolute top-5 right-5 py-2 px-3.5 rounded-lg border border-white/20 text-white text-sm backdrop-blur-[4px] ${MIC_BG[micState]} ${micState === 'on' ? 'cursor-default' : 'cursor-pointer'}`}
       >
         {micLabel}
       </button>
