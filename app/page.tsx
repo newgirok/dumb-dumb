@@ -190,50 +190,20 @@ export default function Home() {
   }, { scope: rootRef })
 
   return (
-    <main ref={rootRef} style={{ background: 'var(--color-white)' }}>
+    <main ref={rootRef} className="bg-white">
 
       {/* ── HEADER ────────────────────────────────────────────── */}
       <header
         data-header
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 'var(--z-sticky-nav)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          height: '64px',
-          padding: '0 var(--spacing-gutter)',
-          background: 'var(--color-white)',
-          boxShadow: '0 1px 0 0 var(--color-white)',
-        }}
+        className="fixed top-0 inset-x-0 z-50 flex items-center justify-between h-16 px-gutter bg-white shadow-[0_1px_0_0_var(--color-white)]"
       >
-        <span
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 800,
-            fontSize: '1rem',
-            color: 'oklch(20% 0.01 250)',
-            letterSpacing: '-0.01em',
-          }}
-        >
+        <span className="font-display font-extrabold text-base text-[oklch(20%_0.01_250)] tracking-[-0.01em]">
           숲친구
         </span>
 
         <Link
           href="/login"
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 600,
-            fontSize: '0.85rem',
-            color: 'oklch(20% 0.01 250)',
-            background: 'oklch(95% 0.002 250)',
-            padding: '0.5rem 1rem',
-            borderRadius: '999px',
-            letterSpacing: '-0.01em',
-          }}
+          className="font-display font-semibold text-[0.85rem] text-[oklch(20%_0.01_250)] bg-[oklch(95%_0.002_250)] py-2 px-4 rounded-full tracking-[-0.01em]"
         >
           시작하기
         </Link>
@@ -242,25 +212,15 @@ export default function Home() {
       {/* ── 좌측 스크롤 위치 내비게이션 ──────────────────────────── */}
       <nav
         aria-hidden="true"
-        className="hidden md:flex"
-        style={{
-          position: 'fixed',
-          left: '1.5rem',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          zIndex: 'var(--z-sticky-nav)',
-          flexDirection: 'column',
-          gap: '0.625rem',
-        }}
+        className="hidden md:flex flex-col fixed left-6 top-1/2 -translate-y-1/2 z-50 gap-2.5"
       >
         {SECTIONS.map(({ id }) => (
           <span
             key={id}
             data-nav-dot={id}
+            className="size-1.5 rounded-full"
+            // opacity/background는 gsap.to가 스크롤에 따라 직접 값을 갈아끼우는 대상이라 인라인 유지
             style={{
-              width: '6px',
-              height: '6px',
-              borderRadius: '50%',
               background: 'oklch(100% 0 0 / 0.5)',
               opacity: 0.4,
               transition: `all var(--dur-short) var(--ease-smooth)`,
@@ -270,28 +230,18 @@ export default function Home() {
       </nav>
 
       {/* ── 씬 스택 — 핀 고정된 화면 안에서 사진끼리 크로스페이드 ─────── */}
-      <div data-scene-stack style={{ position: 'relative', height: `${SECTIONS.length * 100}svh` }}>
-        <div
-          data-hero-frame
-          style={{
-            position: 'sticky',
-            top: 0,
-            height: '100svh',
-          }}
-        >
+      {/* height는 SECTIONS.length로 매번 다르게 계산되는 동적 값이라 스캐너가 못 잡음 → 인라인 유지 */}
+      <div data-scene-stack className="relative" style={{ height: `${SECTIONS.length * 100}svh` }}>
+        <div data-hero-frame className="sticky top-0 h-[100svh]">
           {SECTIONS.map(({ id, image, eyebrow, title, desc, cta }, i) => (
             <div
               key={id}
               data-scene-layer
               data-section-id={id}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'flex-end',
-                overflow: 'hidden',
-                opacity: i === 0 ? 1 : 0,
-              }}
+              className="absolute inset-0 flex items-end overflow-hidden"
+              // opacity는 gsap.set이 스크롤 진행도에 따라 직접 갈아끼우는 대상. 초기값(i===0만 1)은
+              // prefers-reduced-motion일 때 GSAP이 아예 안 돌아서 이 인라인 값이 그대로 최종값이 됨 — 클래스화 금지
+              style={{ opacity: i === 0 ? 1 : 0 }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -299,65 +249,24 @@ export default function Home() {
                 src={image}
                 alt=""
                 aria-hidden="true"
-                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                className="absolute inset-0 w-full h-full object-cover"
               />
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  background: 'linear-gradient(180deg, oklch(15% 0.02 250 / 0.1) 40%, oklch(10% 0.02 250 / 0.75) 100%)',
-                }}
-              />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,oklch(15%_0.02_250/0.1)_40%,oklch(10%_0.02_250/0.75)_100%)]" />
 
               <div
                 data-scene-text
-                style={{
-                  position: 'relative',
-                  zIndex: 1,
-                  width: '100%',
-                  maxWidth: 'var(--container-page)',
-                  margin: '0 auto',
-                  padding: 'var(--spacing-2xl) var(--spacing-gutter) var(--spacing-3xl)',
-                }}
+                className="relative z-[1] w-full max-w-page mx-auto pt-2xl px-gutter pb-3xl"
               >
                 {eyebrow && (
-                  <p
-                    style={{
-                      fontFamily: 'var(--font-display)',
-                      fontWeight: 600,
-                      fontSize: 'var(--text-sm)',
-                      color: 'oklch(100% 0 0 / 0.75)',
-                      letterSpacing: '0.02em',
-                      marginBottom: '0.75rem',
-                    }}
-                  >
+                  <p className="font-display font-semibold text-sm text-[oklch(100%_0_0/0.75)] tracking-[0.02em] mb-3">
                     {eyebrow}
                   </p>
                 )}
-                <h2
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    fontWeight: 800,
-                    fontSize: 'clamp(2rem, 5.5vw, 4rem)',
-                    lineHeight: 1.15,
-                    letterSpacing: '-0.03em',
-                    color: 'var(--color-white)',
-                    marginBottom: '1rem',
-                    whiteSpace: 'pre-line',
-                  }}
-                >
+                <h2 className="font-display font-extrabold text-[clamp(2rem,5.5vw,4rem)] leading-[1.15] tracking-[-0.03em] text-white mb-4 whitespace-pre-line">
                   {title}
                 </h2>
                 <p
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    fontWeight: 400,
-                    fontSize: 'var(--text-md)',
-                    color: 'oklch(92% 0.01 142)',
-                    maxWidth: '32ch',
-                    lineHeight: 1.6,
-                    marginBottom: cta ? '1.75rem' : 0,
-                  }}
+                  className={`font-display font-normal text-md text-[oklch(92%_0.01_142)] max-w-[32ch] leading-[1.6] ${cta ? 'mb-7' : 'mb-0'}`}
                 >
                   {desc}
                 </p>
@@ -365,18 +274,7 @@ export default function Home() {
                 {cta && (
                   <Link
                     href="/login"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      fontFamily: 'var(--font-display)',
-                      fontWeight: 700,
-                      fontSize: '0.9rem',
-                      color: 'var(--color-bark)',
-                      background: 'var(--color-white)',
-                      padding: '0.8rem 1.75rem',
-                      borderRadius: 'var(--radius-btn)',
-                      letterSpacing: '-0.01em',
-                    }}
+                    className="inline-flex items-center font-display font-bold text-[0.9rem] text-bark bg-white py-[0.8rem] px-7 rounded-btn tracking-[-0.01em]"
                   >
                     시작하기
                   </Link>
@@ -388,87 +286,36 @@ export default function Home() {
       </div>
 
       {/* ── 엔딩 ──────────────────────────────────────────────── */}
-      <section
-        style={{
-          position: 'relative',
-          overflow: 'hidden',
-          padding: 'var(--spacing-3xl) var(--spacing-gutter) 0',
-          minHeight: '90svh',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
+      <section className="relative overflow-hidden pt-3xl px-gutter min-h-[90svh] flex flex-col">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/landing/social.jpg"
           alt=""
           aria-hidden="true"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            filter: 'blur(50px) brightness(0.55) saturate(0.9)',
-            transform: 'scale(1.15)',
-          }}
+          className="absolute inset-0 w-full h-full object-cover blur-[50px] brightness-[0.55] saturate-[0.9] scale-[1.15]"
         />
 
-        <div style={{ position: 'relative', zIndex: 1, flex: 1 }}>
-          <h2
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontWeight: 800,
-              fontSize: 'clamp(1.5rem, 3vw, 2rem)',
-              lineHeight: 1.3,
-              letterSpacing: '-0.02em',
-              color: 'var(--color-white)',
-              marginBottom: 'var(--spacing-2xl)',
-            }}
-          >
+        <div className="relative z-[1] flex-1">
+          <h2 className="font-display font-extrabold text-[clamp(1.5rem,3vw,2rem)] leading-[1.3] tracking-[-0.02em] text-white mb-2xl">
             이웃에서, 우정으로.
           </h2>
 
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 'var(--spacing-3xl)',
-              marginBottom: 'var(--spacing-2xl)',
-            }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '0.8rem', color: 'oklch(100% 0 0 / 0.5)' }}>서비스</span>
-              <Link href="/login" style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: '0.875rem', color: 'oklch(100% 0 0 / 0.85)' }}>로그인</Link>
-              <Link href="/world" style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: '0.875rem', color: 'oklch(100% 0 0 / 0.85)' }}>월드 구경하기</Link>
+          <div className="flex flex-wrap gap-3xl mb-2xl">
+            <div className="flex flex-col gap-2.5">
+              <span className="font-display font-bold text-[0.8rem] text-[oklch(100%_0_0/0.5)]">서비스</span>
+              <Link href="/login" className="font-display font-medium text-sm text-[oklch(100%_0_0/0.85)]">로그인</Link>
+              <Link href="/world" className="font-display font-medium text-sm text-[oklch(100%_0_0/0.85)]">월드 구경하기</Link>
             </div>
           </div>
 
-          <p
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 'var(--text-xs)',
-              color: 'oklch(100% 0 0 / 0.4)',
-              letterSpacing: '0.02em',
-            }}
-          >
+          <p className="font-mono text-xs text-[oklch(100%_0_0/0.4)] tracking-[0.02em]">
             © 2026 숲친구
           </p>
         </div>
 
         <h2
           aria-hidden="true"
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontWeight: 900,
-            fontSize: 'clamp(4rem, 14vw, 11rem)',
-            lineHeight: 0.85,
-            letterSpacing: '-0.04em',
-            color: 'oklch(100% 0 0 / 0.12)',
-            margin: '0',
-            whiteSpace: 'nowrap',
-            transform: 'translateY(28%)',
-          }}
+          className="font-display font-black text-[clamp(4rem,14vw,11rem)] leading-[0.85] tracking-[-0.04em] text-[oklch(100%_0_0/0.12)] m-0 whitespace-nowrap translate-y-[28%]"
         >
           숲친구
         </h2>
