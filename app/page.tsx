@@ -253,7 +253,14 @@ export default function Home() {
       {/* ── 씬 스택 — 핀 고정된 화면 안에서 사진끼리 크로스페이드 ─────── */}
       {/* height는 SECTIONS.length로 매번 다르게 계산되는 동적 값이라 스캐너가 못 잡음 → 인라인 유지 */}
       <div data-scene-stack className="relative" style={{ height: `${SECTIONS.length * 100}svh` }}>
-        <div data-hero-frame className="sticky top-0 h-[100svh]">
+        {/* clip-path 기본값을 scrollY=0 상태값으로 서버 렌더링 시점부터 고정 — JS(GSAP)가 마운트
+            후에야 clip-path를 적용하면, 그 사이에 클리핑 없는 풀블리드 상태가 잠깐 보였다가
+            라운드 카드 모양으로 갑자기 줄어드는 초기 점프가 생김 */}
+        <div
+          data-hero-frame
+          className="sticky top-0 h-[100svh]"
+          style={{ clipPath: 'inset(64px 16px 24px 16px round 40px)' }}
+        >
           {SECTIONS.map(({ id, image, eyebrow, title, desc, cta }, i) => (
             <div
               key={id}
