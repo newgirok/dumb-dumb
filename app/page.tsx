@@ -80,6 +80,10 @@ export default function Home() {
 
     ScrollTrigger.getById('scene-crossfade')?.kill()
 
+    // activeIndex가 실제로 바뀔 때만 도트 트윈을 걸어야 함 — 안 그러면 매 스크롤 프레임마다
+    // (바뀐 게 없어도) 새 트윈이 계속 재시작되면서 아래 CSS transition과 겹쳐 깜빡거림 발생
+    let prevActiveIndex = -1
+
     ScrollTrigger.create({
       id: 'scene-crossfade',
       trigger: '[data-scene-stack]',
@@ -91,16 +95,21 @@ export default function Home() {
         layers.forEach((_, i) => setLayer(i, progress))
 
         const activeIndex = Math.min(n - 1, Math.floor(progress * n))
-        dots.forEach((dot, i) => {
-          const isActive = i === activeIndex
-          gsap.to(dot, {
-            opacity: isActive ? 1 : 0.4,
-            scale: isActive ? 1.6 : 1,
-            backgroundColor: isActive ? 'var(--color-white)' : 'oklch(100% 0 0 / 0.5)',
-            duration: 0.3,
-            overwrite: 'auto',
+        if (activeIndex !== prevActiveIndex) {
+          prevActiveIndex = activeIndex
+          dots.forEach((dot, i) => {
+            const isActive = i === activeIndex
+            // 토스 실측 결과: 활성/비활성 전환 시 크기(scale)는 절대 안 바뀌고 색상만 바뀜
+            // (opacity와 색상 알파를 같이 쓰면 배경 사진 색이 비쳐서 알록달록해지므로 opacity는 안 씀).
+            // 색상은 반드시 rgba()로 — GSAP가 oklch(... / alpha) 같은 CSS Color 4 문법의 알파를
+            // 제대로 보간하지 못해 트윈 중간에 값이 범위를 벗어나며 깜빡거리는 문제가 있었음
+            gsap.to(dot, {
+              backgroundColor: isActive ? 'rgba(255,255,255,1)' : 'rgba(255,255,255,0.55)',
+              duration: 0.3,
+              overwrite: 'auto',
+            })
           })
-        })
+        }
       },
     })
 
@@ -218,12 +227,14 @@ export default function Home() {
           <span
             key={id}
             data-nav-dot={id}
-            className="size-1.5 rounded-full"
-            // opacity/background는 gsap.to가 스크롤에 따라 직접 값을 갈아끼우는 대상이라 인라인 유지
+            className="w-3.5 h-0.5"
+            // background는 gsap.to가 스크롤에 따라 직접 값을 갈아끼우는 대상이라 인라인 유지.
+            // opacity는 안 씀 — 엘리먼트 opacity와 색상 알파를 같이 쓰면 배경 사진 색이 비쳐서
+            // 알록달록해짐, 색상 알파 하나로만 반투명을 표현.
+            // CSS transition은 일부러 안 씀 — GSAP가 이미 duration/이징으로 트윈하는 같은 속성에
+            // CSS transition까지 걸리면 두 애니메이션 시스템이 겹쳐서 깜빡거림이 생김
             style={{
-              background: 'oklch(100% 0 0 / 0.5)',
-              opacity: 0.4,
-              transition: `all var(--dur-short) var(--ease-smooth)`,
+              background: 'rgba(255,255,255,0.55)',
             }}
           />
         ))}
