@@ -27,7 +27,7 @@
 | `lib/geo/validator.ts` | 시속 30km 초과 좌표 드롭 / 정상 좌표 통과 |
 | `lib/geo/sector.ts` | 섹터 경계 판별 / Pre-Join 임계값 50m 진입 감지 |
 | `lib/payment/idempotency.ts` | 동일 UUID 재제출 시 중복 방어 |
-| `lib/map/snap.ts` | 15m 이내 도로 스냅 / 15m 초과 미정렬 |
+| `lib/map/snap.ts` | 15m 이내 오솔길 스냅 / 15m 초과 미정렬 |
 | `lib/three/prune.ts` | 반경 450m 외곽 오브젝트 `dispose()` 호출 여부 |
 | `lib/auth/session.ts` | 만료 토큰 파싱 거부 / 갱신 성공 |
 
@@ -37,7 +37,7 @@
 |---|---|
 | `payment-webhook` | 동일 `orderId` 재수신 → 200 `idempotent: true` 반환 |
 | `payment-webhook` | `INSERT` 실패 → PG사 자동 취소 호출 + `cs_logs` 기록 |
-| `spatial-query` | 반경 내 건물만 반환 / 반경 외 건물 제외 |
+| `spatial-query` | 반경 내 랜드마크만 반환 / 반경 외 랜드마크 제외 |
 | `livekit-token` | 만료 토큰으로 재발급 요청 거부 |
 | `impression-log` | 노출 시간 1초 미만 기록 차단 |
 
@@ -76,7 +76,7 @@
 ### 시나리오 5 — Fog of War + 라이선스 확장 (Phase 5)
 
 1. 무료 유저 기본 가시거리 20~30m 확인
-2. 35m 지점 스폰서 건물 실루엣 노출 확인
+2. 35m 지점 스폰서 랜드마크 실루엣 노출 확인
 3. 라이선스 구매 후 가시거리 100m 즉시 확장 (0.1초 이내) 확인
 4. JWT Payload `visibility_radius_m` 업데이트 확인
 
