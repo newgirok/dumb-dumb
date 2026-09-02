@@ -122,12 +122,22 @@ export default function Home() {
     // 브라우저 scroll 복원(history navigation)이 useLayoutEffect 이후에 일어날 수 있어 rAF로 보정
     requestAnimationFrame(applyHeroClip)
 
-    // 헤더 — 아래로 스크롤하면 숨고, 위로 스크롤하면 다시 나타남 (토스와 동일)
+    // 헤더 — 아래로 스크롤하면 숨고, 위로 스크롤하면 다시 나타남 (토스와 동일).
+    // 새로고침/뒤로가기로 스크롤이 이미 중간에 내려가 있는 상태로 열려도, 토스 실측 결과
+    // 처음엔 보이는 채로 잠깐 유지되다가 짧은 지연 뒤 같은 슬라이드업 애니메이션으로 부드럽게 사라짐.
+    // 스크롤 복원이 지연 타이머와 거의 동시에 별도의 scroll 이벤트를 발생시켜 두 애니메이션이
+    // 서로 덮어쓰며 중간값에 멈추는 경합이 있었어서, 초기 판정이 끝날 때까지는 scroll 리스너를 걸지 않음
+    let scrollListenerAttached = false
     const onHeaderScroll = () => {
       const header = document.querySelector<HTMLElement>('[data-header]')
       if (!header) return
 
       const y = window.scrollY
+      const applyVisibility = (visible: boolean) => {
+        header.dataset.visible = String(visible)
+        gsap.to(header, { yPercent: visible ? 0 : -100, duration: 0.3, ease: 'power2.out', overwrite: true })
+      }
+
       if (header.dataset.refY === undefined) {
         header.dataset.refY = String(y)
       }
@@ -136,10 +146,7 @@ export default function Home() {
 
       if (y < 10) {
         header.dataset.refY = String(y)
-        if (!isVisible) {
-          header.dataset.visible = 'true'
-          gsap.to(header, { yPercent: 0, duration: 0.3, ease: 'power2.out', overwrite: true })
-        }
+        if (!isVisible) applyVisibility(true)
         return
       }
 
@@ -148,28 +155,37 @@ export default function Home() {
 
       header.dataset.refY = String(y)
       const shouldShow = cumulative < 0
-      if (shouldShow !== isVisible) {
-        header.dataset.visible = String(shouldShow)
-        gsap.to(header, {
-          yPercent: shouldShow ? 0 : -100,
-          duration: 0.3,
-          ease: 'power2.out',
-          overwrite: true,
-        })
-      }
+      if (shouldShow !== isVisible) applyVisibility(shouldShow)
     }
+    const onHeaderScrollHandler = () => onHeaderScroll()
     const w = window as typeof window & { __heroClipHandler?: () => void; __headerScrollHandler?: () => void }
     if (w.__heroClipHandler) window.removeEventListener('scroll', w.__heroClipHandler)
     if (w.__headerScrollHandler) window.removeEventListener('scroll', w.__headerScrollHandler)
     w.__heroClipHandler = applyHeroClip
-    w.__headerScrollHandler = onHeaderScroll
     window.addEventListener('scroll', applyHeroClip, { passive: true })
-    window.addEventListener('scroll', onHeaderScroll, { passive: true })
+
+    const initialHideTimer = window.setTimeout(() => {
+      const header = document.querySelector<HTMLElement>('[data-header]')
+      if (header) {
+        header.dataset.refY = String(window.scrollY)
+        if (window.scrollY >= 10) {
+          header.dataset.visible = 'false'
+          gsap.to(header, { yPercent: -100, duration: 0.3, ease: 'power2.out', overwrite: true })
+        }
+      }
+      if (!scrollListenerAttached) {
+        scrollListenerAttached = true
+        w.__headerScrollHandler = onHeaderScrollHandler
+        window.addEventListener('scroll', onHeaderScrollHandler, { passive: true })
+      }
+    }, 150)
+
     return () => {
+      window.clearTimeout(initialHideTimer)
       window.removeEventListener('scroll', applyHeroClip)
-      window.removeEventListener('scroll', onHeaderScroll)
+      window.removeEventListener('scroll', onHeaderScrollHandler)
       if (w.__heroClipHandler === applyHeroClip) w.__heroClipHandler = undefined
-      if (w.__headerScrollHandler === onHeaderScroll) w.__headerScrollHandler = undefined
+      if (w.__headerScrollHandler === onHeaderScrollHandler) w.__headerScrollHandler = undefined
     }
   }, { scope: rootRef })
 
