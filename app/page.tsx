@@ -223,9 +223,10 @@ export default function Home() {
           숲친구
         </span>
 
+        {/* 토스 실측: 앱 다운로드 버튼 — rounded-full 아님, radius 12px + 옅은 네이비 틴트 배경 */}
         <Link
           href="/login"
-          className="font-display font-semibold text-[0.85rem] text-[oklch(20%_0.01_250)] bg-[oklch(95%_0.002_250)] py-2 px-4 rounded-full tracking-[-0.01em]"
+          className="font-display font-medium text-base text-[rgb(51,56,64)] bg-[rgba(7,25,76,0.05)] h-9 px-3 rounded-xl flex items-center tracking-[-0.01em]"
         >
           시작하기
         </Link>
