@@ -223,13 +223,24 @@ export default function Home() {
           숲친구
         </span>
 
-        {/* 토스 실측: 앱 다운로드 버튼 — rounded-full 아님, radius 12px + 옅은 네이비 틴트 배경 */}
-        <Link
-          href="/login"
-          className="font-display font-medium text-base text-[rgb(51,56,64)] bg-[rgba(7,25,76,0.05)] h-9 px-3 rounded-xl flex items-center tracking-[-0.01em]"
-        >
-          시작하기
-        </Link>
+        {/* 토스 실측: 로고/버튼이 양끝에 따로 있는 게 아니라, 내비게이션 링크와 CTA 버튼이
+            하나의 오른쪽 flex 그룹으로 묶여서 로고 반대편에 배치되는 구조 */}
+        <div className="flex items-center gap-16">
+          <Link
+            href="/world"
+            className="font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]"
+          >
+            월드 구경하기
+          </Link>
+
+          {/* 토스 실측: 앱 다운로드 버튼 — rounded-full 아님, radius 12px + 옅은 네이비 틴트 배경 */}
+          <Link
+            href="/login"
+            className="font-display font-medium text-base text-[rgb(51,56,64)] bg-[rgba(7,25,76,0.05)] h-9 px-3 rounded-xl flex items-center tracking-[-0.01em]"
+          >
+            시작하기
+          </Link>
+        </div>
       </header>
 
       {/* ── 좌측 스크롤 위치 내비게이션 ──────────────────────────── */}
