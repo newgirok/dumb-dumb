@@ -223,7 +223,7 @@ export default function Home() {
       >
         {/* 토스 실측: 로고 자리에 아이콘+워드마크 조합. 토스 로고 이미지 자체는 토스의
             저작물이라 그대로 쓸 수 없어 우리 아이콘으로 대체, 크기/배치만 동일하게 맞춤 */}
-        <span className="flex items-center gap-1.5 font-display font-extrabold text-base text-[oklch(20%_0.01_250)] tracking-[-0.01em]">
+        <span className="flex items-center gap-1.5 font-display font-extrabold text-base text-[oklch(20%_0.01_250)] tracking-[-0.02em]">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 22c0-6-4-8-4-13a4 4 0 0 1 8 0c0 5-4 7-4 13Z" />
             <path d="M12 13c3-1 5-3.5 5-7" />
@@ -239,15 +239,15 @@ export default function Home() {
             (토스 실측: 서비스/비즈니스 버튼도 height:64px, display:flex, align-items:center) */}
         <div className="flex items-center gap-[255px]">
           <nav className="hidden md:flex items-center gap-8 h-16">
-            <span className="h-16 flex items-center font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]">서비스</span>
-            <span className="h-16 flex items-center font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]">비즈니스</span>
-            <span className="h-16 flex items-center font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]">회사소개</span>
-            <span className="h-16 flex items-center font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]">뉴스룸</span>
-            <span className="h-16 flex items-center font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]">채용</span>
+            <span className="h-16 flex items-center font-display font-medium text-base leading-[1.6] text-[rgb(51,56,64)] tracking-[-0.02em]">서비스</span>
+            <span className="h-16 flex items-center font-display font-medium text-base leading-[1.6] text-[rgb(51,56,64)] tracking-[-0.02em]">비즈니스</span>
+            <span className="h-16 flex items-center font-display font-medium text-base leading-[1.6] text-[rgb(51,56,64)] tracking-[-0.02em]">회사소개</span>
+            <span className="h-16 flex items-center font-display font-medium text-base leading-[1.6] text-[rgb(51,56,64)] tracking-[-0.02em]">뉴스룸</span>
+            <span className="h-16 flex items-center font-display font-medium text-base leading-[1.6] text-[rgb(51,56,64)] tracking-[-0.02em]">채용</span>
           </nav>
 
           <div className="flex items-center gap-2">
-            <span className="hidden md:flex items-center gap-1 font-display font-medium text-base text-[rgb(51,56,64)]">
+            <span className="hidden md:flex items-center gap-1 font-display font-medium text-base leading-[1.6] text-[rgb(51,56,64)]">
               KOR
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M6 9l6 6 6-6" />
@@ -258,7 +258,7 @@ export default function Home() {
                 문구도 "앱 다운로드"로 동일하게 맞춤(실제로 앱은 없어 /login으로 연결) */}
             <Link
               href="/login"
-              className="font-display font-medium text-base text-[rgb(51,56,64)] bg-[rgba(7,25,76,0.05)] h-9 px-3 rounded-xl flex items-center tracking-[-0.01em]"
+              className="font-display font-medium text-base leading-[1.6] text-[rgb(51,56,64)] bg-[rgba(7,25,76,0.05)] h-9 px-3 rounded-xl flex items-center tracking-[-0.02em]"
             >
               앱 다운로드
             </Link>
