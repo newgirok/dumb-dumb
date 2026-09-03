@@ -221,27 +221,29 @@ export default function Home() {
         // md 이상에서만 108px로 덮어써서 좁은 화면에서 여백이 과도해지는 걸 방지
         className="fixed top-0 inset-x-0 z-50 flex items-center justify-between h-16 px-gutter md:px-[108px] bg-transparent transition-[background-color,backdrop-filter] duration-[400ms]"
       >
-        <span className="font-display font-extrabold text-base text-[oklch(20%_0.01_250)] tracking-[-0.01em]">
+        {/* 토스 실측: 로고 자리에 아이콘+워드마크 조합. 토스 로고 이미지 자체는 토스의
+            저작물이라 그대로 쓸 수 없어 우리 아이콘으로 대체, 크기/배치만 동일하게 맞춤 */}
+        <span className="flex items-center gap-1.5 font-display font-extrabold text-base text-[oklch(20%_0.01_250)] tracking-[-0.01em]">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22c0-6-4-8-4-13a4 4 0 0 1 8 0c0 5-4 7-4 13Z" />
+            <path d="M12 13c3-1 5-3.5 5-7" />
+            <path d="M12 13c-3-1-5-3.5-5-7" />
+          </svg>
           숲친구
         </span>
 
-        {/* 토스 실측 구조: 로고/버튼이 양끝에 따로 있는 게 아니라, [내비게이션 링크 5개 그룹] +
-            [언어 드롭다운 + CTA 버튼 그룹] 이 하나의 오른쪽 flex 그룹으로 묶여서 로고 반대편에
-            배치됨. 우리는 페이지가 없어 링크 자체는 안 눌리지만(클릭 이벤트 없음), 구조/간격은
-            동일하게 재현 — 실제 이동 가능한 건 "월드 구경하기"/"시작하기" 둘뿐.
-            토스 실측: nav 링크 그룹과 KOR/버튼 그룹 사이 간격이 255px — 정확한 값으로 맞춤 */}
+        {/* 토스 실측 구조 그대로: 로고/버튼이 양끝에 따로 있는 게 아니라, [내비게이션 링크 5개
+            그룹] + [언어 드롭다운 + CTA 버튼 그룹] 이 하나의 오른쪽 flex 그룹으로 묶여서 로고
+            반대편에 배치됨. 문구도 토스와 동일한 텍스트로 맞춤(클릭 이벤트는 없음 — 해당 페이지가
+            없어 실제 이동은 불가). 각 항목은 헤더 전체 높이(h-16)만큼 채워서 세로 중앙 정렬
+            (토스 실측: 서비스/비즈니스 버튼도 height:64px, display:flex, align-items:center) */}
         <div className="flex items-center gap-[255px]">
-          <nav className="hidden md:flex items-center gap-8">
-            <Link
-              href="/world"
-              className="font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]"
-            >
-              월드 구경하기
-            </Link>
-            <span className="font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]">탐험</span>
-            <span className="font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]">소셜</span>
-            <span className="font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]">이용안내</span>
-            <span className="font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]">문의</span>
+          <nav className="hidden md:flex items-center gap-8 h-16">
+            <span className="h-16 flex items-center font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]">서비스</span>
+            <span className="h-16 flex items-center font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]">비즈니스</span>
+            <span className="h-16 flex items-center font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]">회사소개</span>
+            <span className="h-16 flex items-center font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]">뉴스룸</span>
+            <span className="h-16 flex items-center font-display font-medium text-base text-[rgb(51,56,64)] tracking-[-0.01em]">채용</span>
           </nav>
 
           <div className="flex items-center gap-2">
@@ -252,12 +254,13 @@ export default function Home() {
               </svg>
             </span>
 
-            {/* 토스 실측: 앱 다운로드 버튼 — rounded-full 아님, radius 12px + 옅은 네이비 틴트 배경 */}
+            {/* 토스 실측: 앱 다운로드 버튼 — rounded-full 아님, radius 12px + 옅은 네이비 틴트 배경.
+                문구도 "앱 다운로드"로 동일하게 맞춤(실제로 앱은 없어 /login으로 연결) */}
             <Link
               href="/login"
               className="font-display font-medium text-base text-[rgb(51,56,64)] bg-[rgba(7,25,76,0.05)] h-9 px-3 rounded-xl flex items-center tracking-[-0.01em]"
             >
-              시작하기
+              앱 다운로드
             </Link>
           </div>
         </div>
