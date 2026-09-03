@@ -217,7 +217,9 @@ export default function Home() {
         // 하단 동기 스크립트가 하이드레이션 전에 background/backdrop-filter를 직접 설정하므로
         // React가 기대하는 값과 달라 하이드레이션 경고가 뜸 — 의도된 것이라 억제
         suppressHydrationWarning
-        className="fixed top-0 inset-x-0 z-50 flex items-center justify-between h-16 px-gutter bg-transparent transition-[background-color,backdrop-filter] duration-[400ms]"
+        // 토스 실측: 좌우 패딩 108px (데스크톱). 우리 기본 px-gutter는 최대 64px라 모바일엔 그대로,
+        // md 이상에서만 108px로 덮어써서 좁은 화면에서 여백이 과도해지는 걸 방지
+        className="fixed top-0 inset-x-0 z-50 flex items-center justify-between h-16 px-gutter md:px-[108px] bg-transparent transition-[background-color,backdrop-filter] duration-[400ms]"
       >
         <span className="font-display font-extrabold text-base text-[oklch(20%_0.01_250)] tracking-[-0.01em]">
           숲친구
@@ -226,8 +228,9 @@ export default function Home() {
         {/* 토스 실측 구조: 로고/버튼이 양끝에 따로 있는 게 아니라, [내비게이션 링크 5개 그룹] +
             [언어 드롭다운 + CTA 버튼 그룹] 이 하나의 오른쪽 flex 그룹으로 묶여서 로고 반대편에
             배치됨. 우리는 페이지가 없어 링크 자체는 안 눌리지만(클릭 이벤트 없음), 구조/간격은
-            동일하게 재현 — 실제 이동 가능한 건 "월드 구경하기"/"시작하기" 둘뿐 */}
-        <div className="flex items-center gap-16">
+            동일하게 재현 — 실제 이동 가능한 건 "월드 구경하기"/"시작하기" 둘뿐.
+            토스 실측: nav 링크 그룹과 KOR/버튼 그룹 사이 간격이 255px — 정확한 값으로 맞춤 */}
+        <div className="flex items-center gap-[255px]">
           <nav className="hidden md:flex items-center gap-8">
             <Link
               href="/world"
