@@ -391,8 +391,10 @@ export default function Home() {
       {/* 새로고침/뒤로가기로 스크롤이 이미 중간에 내려가 있는 상태로 열릴 때, GSAP가 마운트되기
           전까지 "맨 위" 모습이 잠깐 보였다가 실제 스크롤 위치에 맞는 모습으로 튀는 걸 막기 위한
           동기 스크립트. HTML 파싱 중 첫 페인트보다 먼저 실행되므로, 실제 window.scrollY를 읽어
-          히어로 clip-path·씬 크로스페이드·헤더 배경/표시 여부를 처음부터 정확하게 맞춰 그린다.
-          (useGSAP의 applyHeroClip/setLayer/onHeaderScroll과 동일한 공식 — 로직 바뀌면 같이 맞출 것)
+          히어로 clip-path·씬 크로스페이드·헤더 배경(투명/블러)을 처음부터 정확하게 맞춰 그린다.
+          헤더 표시/숨김 애니메이션 자체는 건드리지 않음 — "먼저 보였다가 스무스하게 슬라이드업"
+          되는 연출은 기존 initialHideTimer/onHeaderScroll(GSAP)이 그대로 담당해야 함.
+          (useGSAP의 applyHeroClip/setLayer와 동일한 공식 — 로직 바뀌면 같이 맞출 것)
           prefers-reduced-motion일 땐 useGSAP도 씬 크로스페이드를 아예 안 건드리므로 이 스크립트도
           동일하게 씬 부분만 건너뛴다 (히어로 clip-path·헤더는 애니메이션이 아니라 정적 배치라 계속 적용) */}
       <script
@@ -414,11 +416,8 @@ export default function Home() {
               var scrolledBg = y > 180;
               header.style.backgroundColor = scrolledBg ? 'rgba(255,255,255,0.75)' : 'transparent';
               header.style.backdropFilter = scrolledBg ? 'blur(20px)' : 'none';
-              if (y >= 10) {
-                header.style.transform = 'translateY(-100%)';
-                header.dataset.visible = 'false';
-                header.dataset.refY = String(y);
-              }
+              // 표시/숨김 자체는 여기서 건드리지 않음 — 기존 initialHideTimer(150ms 뒤 GSAP
+              // 슬라이드업)가 "먼저 보였다가 스무스하게 사라지는" 토스 특유의 연출을 그대로 담당
             }
             var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
             if (reduceMotion) return;
