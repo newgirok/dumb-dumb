@@ -108,6 +108,31 @@ export function initWorldMap(
       },
     }
 
-    map.on('load', () => map.addLayer(customLayer))
+    map.on('load', () => {
+      // dark-v11의 기본 'building' 레이어는 fill(평면)이라 건물이 전부 납작하게
+      // 보임 — 평면 레이어는 숨기고, 같은 소스의 height/min_height 데이터로
+      // fill-extrusion 3D 건물 레이어를 새로 추가
+      map.setLayoutProperty('building', 'visibility', 'none')
+      map.addLayer({
+        id: 'building-3d',
+        type: 'fill-extrusion',
+        source: 'composite',
+        'source-layer': 'building',
+        minzoom: 15,
+        filter: [
+          'all',
+          ['!=', ['get', 'type'], 'building:part'],
+          ['==', ['get', 'underground'], 'false'],
+        ],
+        paint: {
+          'fill-extrusion-color': 'hsl(0, 0%, 18%)',
+          'fill-extrusion-height': ['coalesce', ['get', 'height'], 5],
+          'fill-extrusion-base': ['coalesce', ['get', 'min_height'], 0],
+          'fill-extrusion-opacity': 0.9,
+        },
+      })
+
+      map.addLayer(customLayer)
+    })
   })
 }
