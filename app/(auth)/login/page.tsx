@@ -67,7 +67,7 @@ export default function LoginPage() {
     const { error: e } = await supabase.auth.verifyOtp({ email, token: otp, type: 'email' })
     setLoading(null)
     if (e) { setError('인증번호가 올바르지 않습니다.'); return }
-    router.push('/world')
+    router.push('/dashboard')
   }
 
   const signInOAuth = async (provider: 'kakao' | 'google') => {
