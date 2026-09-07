@@ -39,8 +39,8 @@ export function initWorldMap(
       container,
       style: 'mapbox://styles/mapbox/standard',
       center,
-      zoom: 18,
-      pitch: 48,
+      zoom: 17,
+      pitch: 40,
       bearing: 0,
       antialias: true,
     })
