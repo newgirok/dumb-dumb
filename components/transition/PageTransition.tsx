@@ -115,11 +115,19 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
 
   // pathname이 바뀌었다는 건 새 라우트의 컴포넌트 트리가 커밋됐다는 뜻 —
   // 이 시점에 reveal 시도. 아무도 useTransitionReady(false)를 안 불렀으면
-  // pageReadyRef가 그대로 true라 바로 사라짐(기존 동작과 동일). 최초 마운트
-  // 시에는 애초에 로딩 중이 아니라 아무 동작 안 함
+  // pageReadyRef가 그대로 true라 바로 사라짐(기존 동작과 동일)
   useEffect(() => {
     if (isFirstPathRef.current) {
       isFirstPathRef.current = false
+      // 새로고침(하드 리로드)처럼 링크 클릭/뒤로가기 없이 처음부터 이
+      // 페이지로 들어온 경우 — 자식(useTransitionReady)이 effect 실행
+      // 순서상 이미 pageReadyRef를 false로 세팅해뒀을 수 있음. 그 경우엔
+      // startLoading 없이도 로더를 바로 띄워야 새로고침 시에도 보임
+      if (!pageReadyRef.current) {
+        loadingRef.current = true
+        startedAtRef.current = performance.now()
+        setVisible(true)
+      }
       return
     }
     reveal()
