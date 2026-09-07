@@ -37,7 +37,7 @@ export function initWorldMap(
 
     const map = new mapboxgl.Map({
       container,
-      style: 'mapbox://styles/mapbox/dark-v11',
+      style: 'mapbox://styles/mapbox/standard',
       center,
       zoom: 18,
       pitch: 45,
@@ -109,30 +109,13 @@ export function initWorldMap(
     }
 
     map.on('load', () => {
-      // dark-v11의 기본 'building' 레이어는 fill(평면)이라 건물이 전부 납작하게
-      // 보임 — 평면 레이어는 숨기고, 같은 소스의 height/min_height 데이터로
-      // fill-extrusion 3D 건물 레이어를 새로 추가
-      map.setLayoutProperty('building', 'visibility', 'none')
-      map.addLayer({
-        id: 'building-3d',
-        type: 'fill-extrusion',
-        source: 'composite',
-        'source-layer': 'building',
-        minzoom: 15,
-        filter: [
-          'all',
-          ['!=', ['get', 'type'], 'building:part'],
-          ['==', ['get', 'underground'], 'false'],
-        ],
-        paint: {
-          'fill-extrusion-color': 'hsl(0, 0%, 18%)',
-          'fill-extrusion-height': ['coalesce', ['get', 'height'], 5],
-          'fill-extrusion-base': ['coalesce', ['get', 'min_height'], 0],
-          'fill-extrusion-opacity': 0.9,
-        },
-      })
+      // Standard 스타일은 3D 건물이 기본 내장(show3dBuildings)이라 dark-v11에서
+      // 수동으로 추가하던 fill-extrusion 레이어가 더 이상 필요 없음. 대신 다크
+      // 게임 톤에 맞춰 시간대 프리셋만 night로 고정
+      map.setConfigProperty('basemap', 'lightPreset', 'night')
 
-      map.addLayer(customLayer)
+      // slot 'top' — 건물·라벨보다 위, 항상 위에 그려지는 이전(dark-v11) 동작과 동일하게 유지
+      map.addLayer({ ...customLayer, slot: 'top' } as mapboxgl.CustomLayerInterface)
     })
   })
 }
