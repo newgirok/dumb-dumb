@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Nunito, JetBrains_Mono } from 'next/font/google'
+import { PageTransition } from '@/components/transition/PageTransition'
 import './globals.css'
 
 const nunito = Nunito({
@@ -30,7 +31,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <PageTransition>{children}</PageTransition>
+      </body>
     </html>
   )
 }
