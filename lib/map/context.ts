@@ -43,7 +43,11 @@ export function initWorldMap(
       pitch: 45,
       bearing: 45,
       antialias: true,
+      // Mapbox/OSM 저작권 표기는 이용약관상 반드시 표시해야 함(완전 삭제 불가) —
+      // 기본 컨트롤은 끄고 아래에서 compact 모드로 직접 추가해 최소화
+      attributionControl: false,
     })
+    map.addControl(new mapboxgl.AttributionControl({ compact: true }))
 
     const scene = new THREE.Scene()
     const camera = new THREE.Camera()
@@ -113,6 +117,15 @@ export function initWorldMap(
       // 수동으로 추가하던 fill-extrusion 레이어가 더 이상 필요 없음. 대신 다크
       // 게임 톤에 맞춰 시간대 프리셋만 night로 고정
       map.setConfigProperty('basemap', 'lightPreset', 'night')
+
+      // 건물·도로만 남기고 글자/아이콘류는 전부 끔 — 게임 화면을 어지럽히는
+      // 지명·POI·교통 라벨과 아이콘 제거 (도로 자체 지오메트리는 유지됨)
+      map.setConfigProperty('basemap', 'showPlaceLabels', false)
+      map.setConfigProperty('basemap', 'showRoadLabels', false)
+      map.setConfigProperty('basemap', 'showTransitLabels', false)
+      map.setConfigProperty('basemap', 'showPointOfInterestLabels', false)
+      map.setConfigProperty('basemap', 'showLandmarkIcons', false)
+      map.setConfigProperty('basemap', 'showLandmarkIconLabels', false)
 
       // slot 'top' — 건물·라벨보다 위, 항상 위에 그려지는 이전(dark-v11) 동작과 동일하게 유지
       map.addLayer({ ...customLayer, slot: 'top' } as mapboxgl.CustomLayerInterface)
