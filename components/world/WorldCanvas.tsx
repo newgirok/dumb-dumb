@@ -299,7 +299,7 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
     return stopWatching
   }, [movementMode])
 
-  const micLabel = micState === 'on' ? '🎙 ON' : micState === 'denied' ? '🔇' : '🎙'
+  const micLabel = micState === 'on' ? '마이크 켜짐' : micState === 'denied' ? '마이크 거부됨' : '마이크'
   // 리터럴 클래스 맵 — `bg-[${x}]` 문자열 보간은 Tailwind가 빌드 시점에 못 잡아서
   // 프로덕션에서 클래스가 통째로 사라지므로 절대 금지
   const MIC_BG: Record<typeof micState, string> = {

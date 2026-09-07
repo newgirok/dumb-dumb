@@ -42,7 +42,7 @@ export function AvatarCard({ name, previewUrl, selected, onClick }: Props) {
           fontSize: 32,
         }}
       >
-        {!previewUrl && '👤'}
+        {!previewUrl && name.charAt(0)}
       </div>
       <span style={{ color: '#fff', fontSize: 12, fontWeight: 600 }}>{name}</span>
     </div>
