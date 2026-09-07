@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { TossSpinner } from './TossSpinner'
+import { CuteLoader } from './CuteLoader'
 
 // 스피너가 한 프레임 반짝이고 사라지면 오히려 더 조잡해 보여서, 아무리
 // 빨리 끝나는 전환이라도 최소 이만큼은 보여줘 "전환이 있었다"는 걸 인지시킴
@@ -130,11 +130,11 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       {children}
       <div
         aria-hidden={!visible}
-        className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 backdrop-blur-md transition-opacity duration-300 ease-out ${
+        className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-md transition-opacity duration-300 ease-out ${
           visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
-        <TossSpinner />
+        <CuteLoader />
       </div>
     </ReadyContext.Provider>
   )
