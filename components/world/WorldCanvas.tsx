@@ -20,7 +20,11 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import * as THREE from 'three'
 
 const ORIGIN: [number, number] = [126.9784, 37.5666]
-const MOVE_SPEED = 0.00003
+// 도보 속도(3 m/s)를 위도 1도≈111,320m 기준 degrees/sec로 환산 — 기존
+// MOVE_SPEED(0.00003)는 "프레임당" 값인데 매 requestAnimationFrame(≈60fps)마다
+// 그대로 더해져서 실제로는 초속 200m(시속 720km)로 움직이던 버그였음.
+// dt(경과 초)를 곱해 프레임레이트와 무관하게 항상 같은 실제 속도로 걷도록 함
+const WALK_SPEED_DEG_PER_SEC = 3 / 111320
 const BROADCAST_INTERVAL = 100
 const VOICE_SECTOR_PREFIX = 'voice-'
 // 이동 방향으로 카메라 bearing을 부드럽게 정렬하는 보간 계수 — 값이 낮을수록
@@ -60,6 +64,7 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
   const voiceSectorRef = useRef<string | null>(null)
   const userIdRef = useRef<string | null>(null)
   const rafRef = useRef<number | null>(null)
+  const lastFrameRef = useRef<number | null>(null)
   const broadcastTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const [micState, setMicState] = useState<'idle' | 'on' | 'denied'>('idle')
@@ -187,10 +192,13 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
         await sendChat(chatChannelRef.current, { userId, text: msg })
       })
 
-      const loop = () => {
+      const loop = (now: number) => {
         if (destroyed) return
+        const dt = lastFrameRef.current == null ? 0 : (now - lastFrameRef.current) / 1000
+        lastFrameRef.current = now
+
         const { dx, dy } = inputRef.current
-        if ((dx !== 0 || dy !== 0) && ctx) {
+        if ((dx !== 0 || dy !== 0) && ctx && dt > 0) {
           const [lng, lat] = posRef.current
 
           // 카메라가 이동 방향으로 회전하므로, 방향키 입력도 화면 기준(카메라가
@@ -203,8 +211,9 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
           const east = forward * Math.sin(headingRad) + right * Math.cos(headingRad)
           const north = forward * Math.cos(headingRad) - right * Math.sin(headingRad)
 
-          const newLng = lng + east * MOVE_SPEED
-          const newLat = lat + north * MOVE_SPEED
+          const dist = WALK_SPEED_DEG_PER_SEC * dt
+          const newLng = lng + east * dist
+          const newLat = lat + north * dist
           const [sLng, sLat] = snapToRoad(ctx.map, newLng, newLat)
 
           posRef.current = [sLng, sLat]
