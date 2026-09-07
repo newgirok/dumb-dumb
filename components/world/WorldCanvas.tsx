@@ -6,6 +6,7 @@ import CheapRuler from 'cheap-ruler'
 import { initWorldMap, type WorldContext } from '@/lib/map/context'
 import { setupCamera, followPlayer } from '@/lib/map/camera'
 import { getCurrentPosition } from '@/lib/geo/currentPosition'
+import { watchPosition } from '@/lib/geo/watchPosition'
 import { snapToRoad } from '@/lib/map/snap'
 import { createCharacterMesh } from '@/lib/three/character'
 import { initFog, setFogRadius } from '@/lib/three/fog'
@@ -66,9 +67,21 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
   const rafRef = useRef<number | null>(null)
   const lastFrameRef = useRef<number | null>(null)
   const broadcastTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  // ctx가 준비된 뒤 movePlayerTo를 담아두는 ref — GPS 워치 이펙트가 별도로
+  // 시작/종료되므로, 무거운 초기화 이펙트를 다시 돌리지 않고도 최신 함수를 호출 가능
+  const movePlayerToRef = useRef<((lng: number, lat: number) => void) | null>(null)
+  const movementModeRef = useRef<'keyboard' | 'gps'>('keyboard')
 
   const [micState, setMicState] = useState<'idle' | 'on' | 'denied'>('idle')
   const [unsupported, setUnsupported] = useState(false)
+  const [movementMode, setMovementModeState] = useState<'keyboard' | 'gps'>('keyboard')
+  const [gpsError, setGpsError] = useState(false)
+
+  const setMovementMode = (mode: 'keyboard' | 'gps') => {
+    movementModeRef.current = mode
+    setMovementModeState(mode)
+    if (mode === 'gps') setGpsError(false)
+  }
 
   const handleMicClick = () => {
     voiceRef.current?.resumeAudio()
@@ -192,13 +205,38 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
         await sendChat(chatChannelRef.current, { userId, text: msg })
       })
 
+      // 키보드(가짜 이동)와 GPS(실제 이동) 양쪽이 공유하는 "새 위치 적용" 로직 —
+      // 도로 스냅, 카메라 bearing 정렬, 섹터/음성 동기화, 프루닝까지 동일하게 처리
+      const movePlayerTo = (targetLng: number, targetLat: number) => {
+        const [lng, lat] = posRef.current
+        const [sLng, sLat] = snapToRoad(ctx.map, targetLng, targetLat)
+
+        posRef.current = [sLng, sLat]
+        ctx.moveTo(playerMeshRef.current!, sLng, sLat)
+
+        // 카메라 bearing을 실제 이동 방향(도로 방향)으로 부드럽게 정렬 —
+        // 각도는 360도에서 순환하므로 최단 경로(-180~180)로 보간해야
+        // 0°/360° 경계에서 반대로 도는 현상이 없음
+        if (sLng !== lng || sLat !== lat) {
+          const targetHeading = ruler.bearing([lng, lat], [sLng, sLat])
+          const diff = ((targetHeading - headingRef.current + 540) % 360) - 180
+          headingRef.current = (headingRef.current + diff * HEADING_LERP + 360) % 360
+        }
+
+        followPlayer(ctx.map, sLng, sLat, headingRef.current)
+        syncSectors(sLng, sLat)
+        syncVoice(sLng, sLat)
+        pruneRef.current?.tick(ctx.scene, sLng, sLat, otherMeshes.current)
+      }
+      movePlayerToRef.current = movePlayerTo
+
       const loop = (now: number) => {
         if (destroyed) return
         const dt = lastFrameRef.current == null ? 0 : (now - lastFrameRef.current) / 1000
         lastFrameRef.current = now
 
         const { dx, dy } = inputRef.current
-        if ((dx !== 0 || dy !== 0) && ctx && dt > 0) {
+        if (movementModeRef.current === 'keyboard' && (dx !== 0 || dy !== 0) && dt > 0) {
           const [lng, lat] = posRef.current
 
           // 카메라가 이동 방향으로 회전하므로, 방향키 입력도 화면 기준(카메라가
@@ -212,26 +250,7 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
           const north = forward * Math.cos(headingRad) - right * Math.sin(headingRad)
 
           const dist = WALK_SPEED_DEG_PER_SEC * dt
-          const newLng = lng + east * dist
-          const newLat = lat + north * dist
-          const [sLng, sLat] = snapToRoad(ctx.map, newLng, newLat)
-
-          posRef.current = [sLng, sLat]
-          ctx.moveTo(playerMeshRef.current!, sLng, sLat)
-
-          // 카메라 bearing을 실제 이동 방향(도로 방향)으로 부드럽게 정렬 —
-          // 각도는 360도에서 순환하므로 최단 경로(-180~180)로 보간해야
-          // 0°/360° 경계에서 반대로 도는 현상이 없음
-          if (sLng !== lng || sLat !== lat) {
-            const targetHeading = ruler.bearing([lng, lat], [sLng, sLat])
-            const diff = ((targetHeading - headingRef.current + 540) % 360) - 180
-            headingRef.current = (headingRef.current + diff * HEADING_LERP + 360) % 360
-          }
-
-          followPlayer(ctx.map, sLng, sLat, headingRef.current)
-          syncSectors(sLng, sLat)
-          syncVoice(sLng, sLat)
-          pruneRef.current?.tick(ctx.scene, sLng, sLat, otherMeshes.current)
+          movePlayerTo(lng + east * dist, lat + north * dist)
         }
         rafRef.current = requestAnimationFrame(loop)
       }
@@ -265,8 +284,20 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
       chatChannelRef.current?.unsubscribe()
       voiceRef.current?.disconnect()
       ctxRef.current?.map.remove()
+      movePlayerToRef.current = null
     }
   }, [onRegisterMoveHandler, onRegisterChatHandler])
+
+  // GPS(실제 이동) 모드일 때만 위치 추적을 켬 — 무거운 지도 초기화 이펙트와
+  // 분리해서, 모드를 토글해도 지도가 다시 만들어지지 않음
+  useEffect(() => {
+    if (movementMode !== 'gps') return
+    const stopWatching = watchPosition(
+      (lng, lat) => movePlayerToRef.current?.(lng, lat),
+      () => setGpsError(true),
+    )
+    return stopWatching
+  }, [movementMode])
 
   const micLabel = micState === 'on' ? '🎙 ON' : micState === 'denied' ? '🔇' : '🎙'
   // 리터럴 클래스 맵 — `bg-[${x}]` 문자열 보간은 Tailwind가 빌드 시점에 못 잡아서
@@ -303,6 +334,19 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
       >
         {micLabel}
       </button>
+      {/* 가짜 이동(키보드) / 실제 이동(GPS) 토글 — PRD: PC는 가짜 이동 전용,
+          모바일은 실제 GPS 이동 또는 가짜 이동 토글 */}
+      <button
+        onClick={() => setMovementMode(movementMode === 'gps' ? 'keyboard' : 'gps')}
+        className="absolute top-5 left-5 py-2 px-3.5 rounded-lg border border-white/20 text-white text-sm backdrop-blur-[4px] bg-black/50 cursor-pointer"
+      >
+        {movementMode === 'gps' ? 'GPS 이동' : '키보드 이동'}
+      </button>
+      {gpsError && (
+        <div className="absolute top-16 left-5 py-1.5 px-3 rounded-lg bg-[rgba(247,79,79,0.8)] text-white text-xs">
+          GPS 위치를 가져올 수 없습니다 — 위치 권한을 확인해주세요
+        </div>
+      )}
     </>
   )
 }
