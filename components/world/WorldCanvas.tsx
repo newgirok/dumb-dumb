@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import CheapRuler from 'cheap-ruler'
 import { initWorldMap, type WorldContext } from '@/lib/map/context'
 import { lockCamera, followPlayer } from '@/lib/map/camera'
 import { snapToRoad } from '@/lib/map/snap'
@@ -27,24 +28,15 @@ interface Props {
   onRegisterChatHandler: (fn: (msg: string) => void) => void
 }
 
-function haversineM(lng1: number, lat1: number, lng2: number, lat2: number): number {
-  const R = 6371000
-  const dLat = ((lat2 - lat1) * Math.PI) / 180
-  const dLng = ((lng2 - lng1) * Math.PI) / 180
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+const ruler = new CheapRuler(37.5, 'meters')
+
+function distanceM(lng1: number, lat1: number, lng2: number, lat2: number): number {
+  return ruler.distance([lng1, lat1], [lng2, lat2])
 }
 
+// cheap-ruler는 도(degree) 단위 방위각을 반환 — livekit.ts의 PeerAudioInfo.bearing은 라디안 기준이라 변환
 function bearingRad(fromLng: number, fromLat: number, toLng: number, toLat: number): number {
-  const dLng = ((toLng - fromLng) * Math.PI) / 180
-  const fLat = (fromLat * Math.PI) / 180
-  const tLat = (toLat * Math.PI) / 180
-  return Math.atan2(
-    Math.sin(dLng) * Math.cos(tLat),
-    Math.cos(fLat) * Math.sin(tLat) - Math.sin(fLat) * Math.cos(tLat) * Math.cos(dLng),
-  )
+  return (ruler.bearing([fromLng, fromLat], [toLng, toLat]) * Math.PI) / 180
 }
 
 export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Props) {
@@ -168,7 +160,7 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
             const { lng: pLng, lat: pLat } = obj.userData as { lng?: number; lat?: number }
             if (pLng == null || pLat == null) continue
             peers.set(uid, {
-              distM: haversineM(lng, lat, pLng, pLat),
+              distM: distanceM(lng, lat, pLng, pLat),
               bearing: bearingRad(lng, lat, pLng, pLat),
             })
           }
