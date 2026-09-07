@@ -245,7 +245,13 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
 
   return (
     <>
-      <div ref={containerRef} className="absolute inset-0" />
+      {/* mapbox-gl.css가 .mapboxgl-map에 position:relative를 강제하는데, CSS 주입
+          순서에 따라 Tailwind의 absolute 유틸리티보다 나중에 적용되면 컨테이너
+          높이가 0으로 붕괴됨 — 실제 위치잡기는 이 바깥 래퍼가 담당하고,
+          mapboxgl.Map의 container로 넘기는 안쪽 div는 위치 클래스를 갖지 않음 */}
+      <div className="absolute inset-0">
+        <div ref={containerRef} className="w-full h-full" />
+      </div>
       <div ref={fogRef} className="absolute inset-0 pointer-events-none fog-vignette" />
       {/* 마이크 옵트인 버튼 */}
       <button
