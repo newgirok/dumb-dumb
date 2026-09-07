@@ -16,6 +16,7 @@ import { isValidMove, type StampedPos } from '@/lib/geo/validator'
 import { requiredSectors, currentSectorId } from '@/lib/geo/sector'
 import { VoiceManager, type PeerAudioInfo } from '@/lib/voice/livekit'
 import { createClient } from '@/lib/supabase/client'
+import { useTransitionReady } from '@/components/transition/PageTransition'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import * as THREE from 'three'
 
@@ -69,9 +70,16 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
   const rafRef = useRef<number | null>(null)
   const lastFrameRef = useRef<number | null>(null)
   const broadcastTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+  // 사이드바의 "내 위치로" 버튼이 커스텀 이벤트로 재조회를 요청하면 이 ref를 통해 호출
+  const movePlayerToRef = useRef<((lng: number, lat: number) => void) | null>(null)
 
   const [unsupported, setUnsupported] = useState(false)
   const [gpsError, setGpsError] = useState(false)
+  // GPS 조회 + Mapbox 스타일 로드 + Three.js 초기화가 끝날 때까지는 페이지
+  // 전환 스피너가 계속 떠 있도록 알림 — 라우트 커밋만 보고 스피너를 끄면
+  // 지도가 아직 안 뜬 검은 화면이 스피너 없이 노출되는 문제가 있었음
+  const [mapReady, setMapReady] = useState(false)
+  useTransitionReady(mapReady)
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -96,6 +104,7 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
         if (destroyed) return
         ctxRef.current = ctx
         setupCamera(ctx.map)
+        setMapReady(true)
 
         const mesh = createCharacterMesh(0x4f8ef7)
         playerMeshRef.current = mesh
@@ -202,6 +211,7 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
           syncVoice(sLng, sLat)
           pruneRef.current?.tick(ctx.scene, sLng, sLat, otherMeshes.current)
         }
+        movePlayerToRef.current = movePlayerTo
 
         if (mobile) {
           stopWatchingGps = watchPosition(
@@ -225,7 +235,10 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
           rafRef.current = requestAnimationFrame(loop)
         }
       }).catch(() => {
-        if (!destroyed) setUnsupported(true)
+        if (!destroyed) {
+          setUnsupported(true)
+          setMapReady(true)
+        }
       })
     })
 
@@ -243,10 +256,19 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
 
+    // 사이드바 "내 위치로" 버튼 — 현재 GPS를 다시 조회해서 그 위치로 점프
+    const onRecenterRequest = () => {
+      getCurrentPosition(posRef.current).then(([lng, lat]) => {
+        movePlayerToRef.current?.(lng, lat)
+      })
+    }
+    window.addEventListener('recenter-request', onRecenterRequest)
+
     return () => {
       destroyed = true
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('recenter-request', onRecenterRequest)
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       if (broadcastTimer.current) clearInterval(broadcastTimer.current)
       stopWatchingGps?.()
@@ -254,6 +276,7 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
       chatChannelRef.current?.unsubscribe()
       voiceRef.current?.disconnect()
       ctxRef.current?.map.remove()
+      movePlayerToRef.current = null
     }
   }, [onRegisterMoveHandler, onRegisterChatHandler])
 
