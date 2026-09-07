@@ -8,8 +8,11 @@ import { CuteLoader } from './CuteLoader'
 // 빨리 끝나는 전환이라도 최소 이만큼은 보여줘 "전환이 있었다"는 걸 인지시킴
 const MIN_VISIBLE_MS = 350
 
-type SetReady = (ready: boolean) => void
-const ReadyContext = createContext<SetReady | null>(null)
+interface TransitionCtx {
+  setReady: (ready: boolean) => void
+  startLoading: () => void
+}
+const TransitionContext = createContext<TransitionCtx | null>(null)
 
 /**
  * 지도 초기화처럼 라우트 커밋 이후에도 한참 더 걸리는 무거운 페이지가
@@ -18,10 +21,21 @@ const ReadyContext = createContext<SetReady | null>(null)
  * 커밋 직후 바로 해제됨.
  */
 export function useTransitionReady(ready: boolean) {
-  const setReady = useContext(ReadyContext)
+  const ctx = useContext(TransitionContext)
   useEffect(() => {
-    setReady?.(ready)
-  }, [setReady, ready])
+    ctx?.setReady(ready)
+  }, [ctx, ready])
+}
+
+/**
+ * router.push처럼 <a> 클릭을 거치지 않는 프로그래매틱 이동 전에 불러서
+ * 로더를 띄우는 훅 — <Link>/<a> 클릭은 document 캡처 리스너가 자동으로
+ * 감지하지만, 버튼의 onClick 안에서 router.push하는 경우(로그아웃 등)는
+ * 감지할 방법이 없어 직접 호출이 필요함.
+ */
+export function useStartPageLoading() {
+  const ctx = useContext(TransitionContext)
+  return () => ctx?.startLoading()
 }
 
 /**
@@ -134,7 +148,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
   }, [pathname, reveal])
 
   return (
-    <ReadyContext.Provider value={setReady}>
+    <TransitionContext.Provider value={{ setReady, startLoading }}>
       {children}
       <div
         aria-hidden={!visible}
@@ -144,6 +158,6 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       >
         <CuteLoader />
       </div>
-    </ReadyContext.Provider>
+    </TransitionContext.Provider>
   )
 }
