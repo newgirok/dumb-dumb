@@ -4,11 +4,14 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { LayoutDashboard, LogOut } from 'lucide-react'
 
+// youtube-shorts-automation의 BottomNav.tsx를 그대로 포팅 — flex-1로 균등 분할되는
+// 다크 글래스 하단 바 스타일까지 동일. 원본은 Home/채널설정/유튜브연결/로그아웃
+// 4개였는데 우리는 대시보드/로그아웃 2개만 남김
 export function BottomNav() {
   const pathname = usePathname()
   const router = useRouter()
 
-  // 로그인/로그아웃 인증이 임시로 비활성화된 상태라, 실제 세션 종료 없이 단순히 홈으로 이동
+  // 인증이 임시 비활성화된 상태라 실제 세션 종료 없이 단순히 홈으로 이동
   const signOut = () => {
     router.push('/')
   }
@@ -16,21 +19,21 @@ export function BottomNav() {
   const active = pathname.startsWith('/dashboard')
 
   return (
-    <nav className="md:hidden fixed inset-x-0 bottom-0 z-50 flex items-center justify-around h-14 bg-white border-t-2 border-grass-light shadow-[0_-2px_12px_oklch(40%_0.08_142/0.08)] pb-[env(safe-area-inset-bottom)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 flex border-t border-white/20 bg-black/80 backdrop-blur-md md:hidden pb-[env(safe-area-inset-bottom)]">
       <Link
         href="/dashboard"
-        className={`flex items-center justify-center py-[0.35rem] px-4 rounded-2xl transition-all duration-200 ease-smooth ${
-          active ? 'bg-grass-light text-grass-2' : 'bg-transparent text-bark-3'
+        className={`flex flex-1 items-center justify-center py-3 transition-colors ${
+          active ? 'text-white' : 'text-white/50 hover:text-white'
         }`}
       >
-        <LayoutDashboard className="w-5 h-5" />
+        <LayoutDashboard className="h-5 w-5" />
       </Link>
 
       <button
         onClick={signOut}
-        className="flex items-center justify-center py-[0.35rem] px-4 rounded-2xl bg-transparent border-none cursor-pointer text-bark-3 opacity-50"
+        className="flex flex-1 items-center justify-center py-3 text-white/50 transition-colors hover:text-white"
       >
-        <LogOut className="w-5 h-5" />
+        <LogOut className="h-5 w-5" />
       </button>
     </nav>
   )
