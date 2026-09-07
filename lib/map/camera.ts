@@ -19,6 +19,9 @@ export function setupCamera(map: mapboxgl.Map) {
   map.setMaxZoom(20)
 }
 
-export function followPlayer(map: mapboxgl.Map, lng: number, lat: number) {
-  map.setCenter([lng, lat])
+// bearing은 호출부(WorldCanvas)에서 이미 프레임 단위로 lerp된 값 — 여기서는
+// jumpTo로 즉시 반영만 함 (map.easeTo를 매 프레임 걸면 애니메이션 큐가 계속
+// 새로 쌓이며 서로 끊고 들어가 뚝뚝 끊기는 현상이 생김)
+export function followPlayer(map: mapboxgl.Map, lng: number, lat: number, bearing: number) {
+  map.jumpTo({ center: [lng, lat], bearing })
 }

@@ -23,6 +23,9 @@ const ORIGIN: [number, number] = [126.9784, 37.5666]
 const MOVE_SPEED = 0.00003
 const BROADCAST_INTERVAL = 100
 const VOICE_SECTOR_PREFIX = 'voice-'
+// 이동 방향으로 카메라 bearing을 부드럽게 정렬하는 보간 계수 — 값이 낮을수록
+// 천천히 따라가서 급격한 회전에 의한 어지러움을 줄임
+const HEADING_LERP = 0.15
 
 interface Props {
   onRegisterMoveHandler: (fn: (dx: number, dy: number) => void) => void
@@ -46,6 +49,7 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
   const ctxRef = useRef<WorldContext | null>(null)
   const playerMeshRef = useRef<THREE.Group | null>(null)
   const posRef = useRef<[number, number]>([...ORIGIN])
+  const headingRef = useRef(0)
   const inputRef = useRef({ dx: 0, dy: 0 })
   const lastStampRef = useRef<StampedPos>({ lng: ORIGIN[0], lat: ORIGIN[1], ts: 0 })
   const otherMeshes = useRef<Map<string, THREE.Object3D>>(new Map())
@@ -194,7 +198,17 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
 
           posRef.current = [sLng, sLat]
           ctx.moveTo(playerMeshRef.current!, sLng, sLat)
-          followPlayer(ctx.map, sLng, sLat)
+
+          // 카메라 bearing을 실제 이동 방향(도로 방향)으로 부드럽게 정렬 —
+          // 각도는 360도에서 순환하므로 최단 경로(-180~180)로 보간해야
+          // 0°/360° 경계에서 반대로 도는 현상이 없음
+          if (sLng !== lng || sLat !== lat) {
+            const targetHeading = ruler.bearing([lng, lat], [sLng, sLat])
+            const diff = ((targetHeading - headingRef.current + 540) % 360) - 180
+            headingRef.current = (headingRef.current + diff * HEADING_LERP + 360) % 360
+          }
+
+          followPlayer(ctx.map, sLng, sLat, headingRef.current)
           syncSectors(sLng, sLat)
           syncVoice(sLng, sLat)
           pruneRef.current?.tick(ctx.scene, sLng, sLat, otherMeshes.current)
