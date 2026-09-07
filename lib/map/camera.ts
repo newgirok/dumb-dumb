@@ -1,20 +1,22 @@
 import mapboxgl from 'mapbox-gl'
 
-export function lockCamera(map: mapboxgl.Map) {
+// ADR 007(쿼터뷰 카메라 고정)을 실험적으로 완화 — 캐릭터 이동은 여전히 키보드/
+// 팔로우캠이 담당하므로 dragPan·keyboard는 그대로 막고, 줌·시점 회전만 유저가
+// 직접 조작 가능하게 풂. 무제한 줌아웃은 ADR이 우려한 Mapbox 무료 타일 티어
+// 소진으로 이어지므로 줌 범위는 14~20으로 제한.
+export function setupCamera(map: mapboxgl.Map) {
   map.dragPan.disable()
-  map.scrollZoom.disable()
-  map.boxZoom.disable()
-  map.dragRotate.disable()
   map.keyboard.disable()
-  map.doubleClickZoom.disable()
-  map.touchZoomRotate.disable()
-  map.touchPitch.disable()
 
-  // bearing·pitch 강제 고정: move 이벤트마다 리셋
-  map.on('move', () => {
-    if (map.getBearing() !== 45) map.setBearing(45)
-    if (map.getPitch() !== 45) map.setPitch(45)
-  })
+  map.scrollZoom.enable()
+  map.boxZoom.enable()
+  map.dragRotate.enable()
+  map.doubleClickZoom.enable()
+  map.touchZoomRotate.enable()
+  map.touchPitch.enable()
+
+  map.setMinZoom(14)
+  map.setMaxZoom(20)
 }
 
 export function followPlayer(map: mapboxgl.Map, lng: number, lat: number) {

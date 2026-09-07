@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import CheapRuler from 'cheap-ruler'
 import { initWorldMap, type WorldContext } from '@/lib/map/context'
-import { lockCamera, followPlayer } from '@/lib/map/camera'
+import { setupCamera, followPlayer } from '@/lib/map/camera'
 import { getCurrentPosition } from '@/lib/geo/currentPosition'
 import { snapToRoad } from '@/lib/map/snap'
 import { createCharacterMesh } from '@/lib/three/character'
@@ -90,7 +90,7 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
       initWorldMap(container, posRef.current).then((ctx) => {
       if (destroyed) return
       ctxRef.current = ctx
-      lockCamera(ctx.map)
+      setupCamera(ctx.map)
 
       const mesh = createCharacterMesh(0x4f8ef7)
       playerMeshRef.current = mesh
