@@ -1,4 +1,5 @@
 import mapboxgl from 'mapbox-gl'
+import { isSupported as isMapboxSupported } from '@mapbox/mapbox-gl-supported'
 import * as THREE from 'three'
 
 export interface WorldContext {
@@ -26,7 +27,12 @@ export function initWorldMap(
   container: HTMLElement,
   center: [number, number],
 ): Promise<WorldContext> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    if (!isMapboxSupported()) {
+      reject(new Error('mapbox-gl-unsupported'))
+      return
+    }
+
     mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
     const map = new mapboxgl.Map({

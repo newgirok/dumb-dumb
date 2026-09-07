@@ -58,6 +58,7 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
   const broadcastTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const [micState, setMicState] = useState<'idle' | 'on' | 'denied'>('idle')
+  const [unsupported, setUnsupported] = useState(false)
 
   const handleMicClick = () => {
     voiceRef.current?.resumeAudio()
@@ -194,6 +195,8 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
         rafRef.current = requestAnimationFrame(loop)
       }
       rafRef.current = requestAnimationFrame(loop)
+    }).catch(() => {
+      if (!destroyed) setUnsupported(true)
     })
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -230,6 +233,14 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
     idle: 'bg-black/50',
     on: 'bg-[rgba(79,142,247,0.8)]',
     denied: 'bg-black/50',
+  }
+
+  if (unsupported) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-black text-white text-sm px-6 text-center">
+        이 브라우저는 3D 월드를 지원하지 않습니다. 최신 Chrome, Edge, Safari로 다시 시도해주세요.
+      </div>
+    )
   }
 
   return (
