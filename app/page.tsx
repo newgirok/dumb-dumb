@@ -15,7 +15,6 @@ const SECTIONS = [
     eyebrow: null,
     title: '이웃에서,\n우정으로',
     desc: '가까운 사람들과 함께 서울을 걷다.',
-    cta: true,
   },
   {
     id: 'explore',
@@ -23,7 +22,6 @@ const SECTIONS = [
     eyebrow: '탐험',
     title: '걸을 때마다\n새로운 이웃',
     desc: '쿼터뷰 지도 위에서 실시간으로 이동하며 도시를 탐험하세요.',
-    cta: false,
   },
   {
     id: 'voice',
@@ -31,7 +29,6 @@ const SECTIONS = [
     eyebrow: '대화',
     title: '가까이 있으면,\n자연스럽게',
     desc: '반경 500m 이내 사람들과 거리 기반 공간 음성으로 대화해요.',
-    cta: false,
   },
   {
     id: 'social',
@@ -39,7 +36,6 @@ const SECTIONS = [
     eyebrow: '관계',
     title: '이웃이\n친구가 되기까지',
     desc: '함께 탐험하고 대화하며 오픈월드 네트워크를 키워가세요.',
-    cta: false,
   },
 ] as const
 
@@ -224,15 +220,8 @@ export default function Home() {
         className="fixed top-0 inset-x-0 z-50 h-16 bg-transparent transition-[background-color,backdrop-filter] duration-[400ms]"
       >
         <div className="max-w-[1440px] mx-auto flex items-center justify-between h-16 px-gutter md:px-[108px]">
-          {/* 토스 실측: 로고 자리에 아이콘+워드마크 조합. 토스 로고 이미지 자체는 토스의
-              저작물이라 그대로 쓸 수 없어 우리 아이콘으로 대체, 크기/배치만 동일하게 맞춤 */}
-          <span className="flex items-center gap-1.5 font-['Pretendard'] font-extrabold text-base text-[oklch(20%_0.01_250)] tracking-[-0.02em]">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22c0-6-4-8-4-13a4 4 0 0 1 8 0c0 5-4 7-4 13Z" />
-              <path d="M12 13c3-1 5-3.5 5-7" />
-              <path d="M12 13c-3-1-5-3.5-5-7" />
-            </svg>
-            숲친구
+          <span className="flex items-center font-['Pretendard'] font-extrabold text-base text-[oklch(20%_0.01_250)] tracking-[-0.02em]">
+            테스트
           </span>
 
           {/* 토스 실측 구조 그대로: 로고/버튼이 양끝에 따로 있는 게 아니라, [내비게이션 링크 5개
@@ -260,9 +249,9 @@ export default function Home() {
               </span>
 
               {/* 토스 실측: 앱 다운로드 버튼 — rounded-full 아님, radius 12px + 옅은 네이비 틴트 배경.
-                  문구도 "앱 다운로드"로 동일하게 맞춤(실제로 앱은 없어 /login으로 연결) */}
+                  클릭 시 로그인 없이 맵 화면(/dashboard)으로 바로 진입 */}
               <Link
-                href="/login"
+                href="/dashboard"
                 className="font-['Pretendard'] font-medium text-base leading-[1.6] text-[rgb(51,56,64)] bg-[rgba(7,25,76,0.05)] h-9 px-3 rounded-xl flex items-center tracking-[-0.02em]"
               >
                 앱 다운로드
@@ -308,7 +297,7 @@ export default function Home() {
           className="sticky top-0 h-[100svh]"
           style={{ clipPath: 'inset(64px 16px 24px 16px round 40px)' }}
         >
-          {SECTIONS.map(({ id, image, eyebrow, title, desc, cta }, i) => (
+          {SECTIONS.map(({ id, image, eyebrow, title, desc }, i) => (
             <div
               key={id}
               data-scene-layer
@@ -344,20 +333,9 @@ export default function Home() {
                 <h2 className="font-display font-extrabold text-[clamp(2rem,5.5vw,4rem)] leading-[1.15] tracking-[-0.03em] text-white mb-4 whitespace-pre-line">
                   {title}
                 </h2>
-                <p
-                  className={`font-display font-normal text-md text-[oklch(92%_0.01_142)] max-w-[32ch] leading-[1.6] ${cta ? 'mb-7' : 'mb-0'}`}
-                >
+                <p className="font-display font-normal text-md text-[oklch(92%_0.01_142)] max-w-[32ch] leading-[1.6] mb-0">
                   {desc}
                 </p>
-
-                {cta && (
-                  <Link
-                    href="/login"
-                    className="inline-flex items-center font-display font-bold text-[0.9rem] text-bark bg-white py-[0.8rem] px-7 rounded-btn tracking-[-0.01em]"
-                  >
-                    시작하기
-                  </Link>
-                )}
               </div>
             </div>
           ))}
@@ -374,29 +352,13 @@ export default function Home() {
           className="absolute inset-0 w-full h-full object-cover blur-[50px] brightness-[0.55] saturate-[0.9] scale-[1.15]"
         />
 
-        <div className="relative z-[1] flex-1">
-          <h2 className="font-display font-extrabold text-[clamp(1.5rem,3vw,2rem)] leading-[1.3] tracking-[-0.02em] text-white mb-2xl">
-            이웃에서, 우정으로.
-          </h2>
-
-          <div className="flex flex-wrap gap-3xl mb-2xl">
-            <div className="flex flex-col gap-2.5">
-              <span className="font-display font-bold text-[0.8rem] text-[oklch(100%_0_0/0.5)]">서비스</span>
-              <Link href="/login" className="font-display font-medium text-sm text-[oklch(100%_0_0/0.85)]">로그인</Link>
-              <Link href="/world" className="font-display font-medium text-sm text-[oklch(100%_0_0/0.85)]">월드 구경하기</Link>
-            </div>
-          </div>
-
-          <p className="font-mono text-xs text-[oklch(100%_0_0/0.4)] tracking-[0.02em]">
-            © 2026 숲친구
-          </p>
-        </div>
+        <div className="relative z-[1] flex-1" />
 
         <h2
           aria-hidden="true"
           className="font-display font-black text-[clamp(4rem,14vw,11rem)] leading-[0.85] tracking-[-0.04em] text-[oklch(100%_0_0/0.12)] m-0 whitespace-nowrap translate-y-[28%]"
         >
-          숲친구
+          테스트
         </h2>
       </section>
 
