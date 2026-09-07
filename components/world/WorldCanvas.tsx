@@ -9,7 +9,6 @@ import { getCurrentPosition } from '@/lib/geo/currentPosition'
 import { watchPosition } from '@/lib/geo/watchPosition'
 import { snapToRoad } from '@/lib/map/snap'
 import { createCharacterMesh } from '@/lib/three/character'
-import { initFog, setFogRadius } from '@/lib/three/fog'
 import { PruneManager } from '@/lib/three/prune'
 import { createPositionChannel, broadcastPosition } from '@/lib/realtime/position'
 import { createChatChannel, sendChat } from '@/lib/realtime/chat'
@@ -28,9 +27,9 @@ const ORIGIN: [number, number] = [126.9784, 37.5666]
 const WALK_SPEED_DEG_PER_SEC = 3 / 111320
 const BROADCAST_INTERVAL = 100
 const VOICE_SECTOR_PREFIX = 'voice-'
-// 이동 방향으로 카메라 bearing을 부드럽게 정렬하는 보간 계수 — 값이 낮을수록
-// 천천히 따라가서 급격한 회전에 의한 어지러움을 줄임
-const HEADING_LERP = 0.15
+// ADR 007 — 쿼터뷰 카메라는 pitch/bearing을 고정해 멀미·타일 낭비를 막음.
+// 회전하는 체이스캠은 방향 혼동만 키워서 원래의 고정 대각선 시점으로 되돌림
+const FIXED_BEARING = 45
 
 interface Props {
   onRegisterMoveHandler: (fn: (dx: number, dy: number) => void) => void
@@ -48,13 +47,16 @@ function bearingRad(fromLng: number, fromLat: number, toLng: number, toLat: numb
   return (ruler.bearing([fromLng, fromLat], [toLng, toLat]) * Math.PI) / 180
 }
 
+// 모바일(터치 기반)은 실제 GPS 이동, 웹(마우스/키보드)은 가짜 이동(키보드)으로 고정 — PRD 기준
+function isMobileDevice(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+}
+
 export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const fogRef = useRef<HTMLDivElement>(null)
   const ctxRef = useRef<WorldContext | null>(null)
   const playerMeshRef = useRef<THREE.Group | null>(null)
   const posRef = useRef<[number, number]>([...ORIGIN])
-  const headingRef = useRef(0)
   const inputRef = useRef({ dx: 0, dy: 0 })
   const lastStampRef = useRef<StampedPos>({ lng: ORIGIN[0], lat: ORIGIN[1], ts: 0 })
   const otherMeshes = useRef<Map<string, THREE.Object3D>>(new Map())
@@ -67,34 +69,15 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
   const rafRef = useRef<number | null>(null)
   const lastFrameRef = useRef<number | null>(null)
   const broadcastTimer = useRef<ReturnType<typeof setInterval> | null>(null)
-  // ctx가 준비된 뒤 movePlayerTo를 담아두는 ref — GPS 워치 이펙트가 별도로
-  // 시작/종료되므로, 무거운 초기화 이펙트를 다시 돌리지 않고도 최신 함수를 호출 가능
-  const movePlayerToRef = useRef<((lng: number, lat: number) => void) | null>(null)
-  const movementModeRef = useRef<'keyboard' | 'gps'>('keyboard')
 
-  const [micState, setMicState] = useState<'idle' | 'on' | 'denied'>('idle')
   const [unsupported, setUnsupported] = useState(false)
-  const [movementMode, setMovementModeState] = useState<'keyboard' | 'gps'>('keyboard')
   const [gpsError, setGpsError] = useState(false)
 
-  const setMovementMode = (mode: 'keyboard' | 'gps') => {
-    movementModeRef.current = mode
-    setMovementModeState(mode)
-    if (mode === 'gps') setGpsError(false)
-  }
-
-  const handleMicClick = () => {
-    voiceRef.current?.resumeAudio()
-    voiceRef.current?.enableMic().then((ok) => setMicState(ok ? 'on' : 'denied'))
-  }
-
   useEffect(() => {
-    if (!containerRef.current || !fogRef.current) return
+    if (!containerRef.current) return
     let destroyed = false
-    const fogEl = fogRef.current
-
-    initFog(fogEl)
-    setFogRadius(fogEl, 20)
+    let stopWatchingGps: (() => void) | null = null
+    const mobile = isMobileDevice()
 
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -110,151 +93,137 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
       lastStampRef.current = { lng, lat, ts: 0 }
 
       initWorldMap(container, posRef.current).then((ctx) => {
-      if (destroyed) return
-      ctxRef.current = ctx
-      setupCamera(ctx.map)
-
-      const mesh = createCharacterMesh(0x4f8ef7)
-      playerMeshRef.current = mesh
-      ctx.addAt(mesh, posRef.current[0], posRef.current[1])
-
-      pruneRef.current = new PruneManager(posRef.current[0], posRef.current[1])
-
-      // 섹터 채널 동적 관리
-      const subscribeSector = (id: string) => {
-        if (posChannels.current.has(id)) return
-        const ch = createPositionChannel(id, (pos) => {
-          if (destroyed || pos.userId === userIdRef.current) return
-          let other = otherMeshes.current.get(pos.userId) as THREE.Group | undefined
-          if (!other) {
-            other = createCharacterMesh(0xf74f4f)
-            ctx.addAt(other, pos.lng, pos.lat)
-            otherMeshes.current.set(pos.userId, other)
-          } else {
-            ctx.moveTo(other, pos.lng, pos.lat)
-          }
-          other.userData = { lng: pos.lng, lat: pos.lat }
-        })
-        posChannels.current.set(id, ch)
-      }
-
-      const unsubscribeSector = (id: string) => {
-        posChannels.current.get(id)?.unsubscribe()
-        posChannels.current.delete(id)
-      }
-
-      const syncSectors = (lng: number, lat: number) => {
-        const needed = new Set(requiredSectors(lng, lat))
-        for (const id of needed) subscribeSector(id)
-        for (const id of posChannels.current.keys()) {
-          if (!needed.has(id)) unsubscribeSector(id)
-        }
-      }
-
-      // 음성 룸 섹터 동기화
-      const syncVoice = async (lng: number, lat: number) => {
-        const sectorId = currentSectorId(lng, lat)
-        const roomName = `${VOICE_SECTOR_PREFIX}${sectorId}`
-        if (voiceSectorRef.current === roomName) return
-        voiceSectorRef.current = roomName
-        const userId = userIdRef.current
-        if (!userId || !voiceRef.current) return
-        await voiceRef.current.connect(roomName, userId)
-      }
-
-      syncSectors(posRef.current[0], posRef.current[1])
-      syncVoice(posRef.current[0], posRef.current[1])
-
-      chatChannelRef.current = createChatChannel('chat-global', () => {
-        // Phase 5에서 말풍선 연결 예정
-      })
-
-      broadcastTimer.current = setInterval(async () => {
-        const [lng, lat] = posRef.current
-        const userId = userIdRef.current
-        if (!userId) return
-
-        const now = Date.now()
-        const stamp: StampedPos = { lng, lat, ts: now }
-        if (!isValidMove(lastStampRef.current, stamp)) return
-        lastStampRef.current = stamp
-
-        for (const ch of posChannels.current.values()) {
-          await broadcastPosition(ch, { userId, lng, lat, bearing: 45 })
-        }
-
-        // 공간 음성: 피어 거리/방위 계산 → Top-8 업데이트
-        if (voiceRef.current?.connected) {
-          const peers = new Map<string, PeerAudioInfo>()
-          for (const [uid, obj] of otherMeshes.current) {
-            const { lng: pLng, lat: pLat } = obj.userData as { lng?: number; lat?: number }
-            if (pLng == null || pLat == null) continue
-            peers.set(uid, {
-              distM: distanceM(lng, lat, pLng, pLat),
-              bearing: bearingRad(lng, lat, pLng, pLat),
-            })
-          }
-          voiceRef.current.updatePeers(peers)
-        }
-      }, BROADCAST_INTERVAL)
-
-      onRegisterMoveHandler((dx, dy) => { inputRef.current = { dx, dy } })
-      onRegisterChatHandler(async (msg) => {
-        const userId = userIdRef.current
-        if (!chatChannelRef.current || !userId) return
-        await sendChat(chatChannelRef.current, { userId, text: msg })
-      })
-
-      // 키보드(가짜 이동)와 GPS(실제 이동) 양쪽이 공유하는 "새 위치 적용" 로직 —
-      // 도로 스냅, 카메라 bearing 정렬, 섹터/음성 동기화, 프루닝까지 동일하게 처리
-      const movePlayerTo = (targetLng: number, targetLat: number) => {
-        const [lng, lat] = posRef.current
-        const [sLng, sLat] = snapToRoad(ctx.map, targetLng, targetLat)
-
-        posRef.current = [sLng, sLat]
-        ctx.moveTo(playerMeshRef.current!, sLng, sLat)
-
-        // 카메라 bearing을 실제 이동 방향(도로 방향)으로 부드럽게 정렬 —
-        // 각도는 360도에서 순환하므로 최단 경로(-180~180)로 보간해야
-        // 0°/360° 경계에서 반대로 도는 현상이 없음
-        if (sLng !== lng || sLat !== lat) {
-          const targetHeading = ruler.bearing([lng, lat], [sLng, sLat])
-          const diff = ((targetHeading - headingRef.current + 540) % 360) - 180
-          headingRef.current = (headingRef.current + diff * HEADING_LERP + 360) % 360
-        }
-
-        followPlayer(ctx.map, sLng, sLat, headingRef.current)
-        syncSectors(sLng, sLat)
-        syncVoice(sLng, sLat)
-        pruneRef.current?.tick(ctx.scene, sLng, sLat, otherMeshes.current)
-      }
-      movePlayerToRef.current = movePlayerTo
-
-      const loop = (now: number) => {
         if (destroyed) return
-        const dt = lastFrameRef.current == null ? 0 : (now - lastFrameRef.current) / 1000
-        lastFrameRef.current = now
+        ctxRef.current = ctx
+        setupCamera(ctx.map)
 
-        const { dx, dy } = inputRef.current
-        if (movementModeRef.current === 'keyboard' && (dx !== 0 || dy !== 0) && dt > 0) {
-          const [lng, lat] = posRef.current
+        const mesh = createCharacterMesh(0x4f8ef7)
+        playerMeshRef.current = mesh
+        ctx.addAt(mesh, posRef.current[0], posRef.current[1])
 
-          // 카메라가 이동 방향으로 회전하므로, 방향키 입력도 화면 기준(카메라가
-          // 보는 방향 = 앞)으로 변환해야 함 — 그냥 dx/dy를 그대로 lng/lat에
-          // 더하면 카메라가 돈 뒤에는 "위"를 눌러도 예전 절대 방위(북쪽)로
-          // 움직여서 화면과 실제 이동이 어긋나 보임
-          const headingRad = (headingRef.current * Math.PI) / 180
-          const forward = -dy
-          const right = dx
-          const east = forward * Math.sin(headingRad) + right * Math.cos(headingRad)
-          const north = forward * Math.cos(headingRad) - right * Math.sin(headingRad)
+        pruneRef.current = new PruneManager(posRef.current[0], posRef.current[1])
 
-          const dist = WALK_SPEED_DEG_PER_SEC * dt
-          movePlayerTo(lng + east * dist, lat + north * dist)
+        // 섹터 채널 동적 관리
+        const subscribeSector = (id: string) => {
+          if (posChannels.current.has(id)) return
+          const ch = createPositionChannel(id, (pos) => {
+            if (destroyed || pos.userId === userIdRef.current) return
+            let other = otherMeshes.current.get(pos.userId) as THREE.Group | undefined
+            if (!other) {
+              other = createCharacterMesh(0xf74f4f)
+              ctx.addAt(other, pos.lng, pos.lat)
+              otherMeshes.current.set(pos.userId, other)
+            } else {
+              ctx.moveTo(other, pos.lng, pos.lat)
+            }
+            other.userData = { lng: pos.lng, lat: pos.lat }
+          })
+          posChannels.current.set(id, ch)
         }
-        rafRef.current = requestAnimationFrame(loop)
-      }
-      rafRef.current = requestAnimationFrame(loop)
+
+        const unsubscribeSector = (id: string) => {
+          posChannels.current.get(id)?.unsubscribe()
+          posChannels.current.delete(id)
+        }
+
+        const syncSectors = (lng: number, lat: number) => {
+          const needed = new Set(requiredSectors(lng, lat))
+          for (const id of needed) subscribeSector(id)
+          for (const id of posChannels.current.keys()) {
+            if (!needed.has(id)) unsubscribeSector(id)
+          }
+        }
+
+        // 음성 룸 섹터 동기화
+        const syncVoice = async (lng: number, lat: number) => {
+          const sectorId = currentSectorId(lng, lat)
+          const roomName = `${VOICE_SECTOR_PREFIX}${sectorId}`
+          if (voiceSectorRef.current === roomName) return
+          voiceSectorRef.current = roomName
+          const userId = userIdRef.current
+          if (!userId || !voiceRef.current) return
+          await voiceRef.current.connect(roomName, userId)
+        }
+
+        syncSectors(posRef.current[0], posRef.current[1])
+        syncVoice(posRef.current[0], posRef.current[1])
+
+        chatChannelRef.current = createChatChannel('chat-global', () => {
+          // Phase 5에서 말풍선 연결 예정
+        })
+
+        broadcastTimer.current = setInterval(async () => {
+          const [lng, lat] = posRef.current
+          const userId = userIdRef.current
+          if (!userId) return
+
+          const now = Date.now()
+          const stamp: StampedPos = { lng, lat, ts: now }
+          if (!isValidMove(lastStampRef.current, stamp)) return
+          lastStampRef.current = stamp
+
+          for (const ch of posChannels.current.values()) {
+            await broadcastPosition(ch, { userId, lng, lat, bearing: FIXED_BEARING })
+          }
+
+          // 공간 음성: 피어 거리/방위 계산 → Top-8 업데이트
+          if (voiceRef.current?.connected) {
+            const peers = new Map<string, PeerAudioInfo>()
+            for (const [uid, obj] of otherMeshes.current) {
+              const { lng: pLng, lat: pLat } = obj.userData as { lng?: number; lat?: number }
+              if (pLng == null || pLat == null) continue
+              peers.set(uid, {
+                distM: distanceM(lng, lat, pLng, pLat),
+                bearing: bearingRad(lng, lat, pLng, pLat),
+              })
+            }
+            voiceRef.current.updatePeers(peers)
+          }
+        }, BROADCAST_INTERVAL)
+
+        onRegisterMoveHandler((dx, dy) => { inputRef.current = { dx, dy } })
+        onRegisterChatHandler(async (msg) => {
+          const userId = userIdRef.current
+          if (!chatChannelRef.current || !userId) return
+          await sendChat(chatChannelRef.current, { userId, text: msg })
+        })
+
+        // 키보드(웹, 가짜 이동)와 GPS(모바일, 실제 이동) 양쪽이 공유하는
+        // "새 위치 적용" 로직 — 도로 스냅, 섹터/음성 동기화, 프루닝까지 동일하게 처리.
+        // 카메라 bearing은 ADR 007에 따라 항상 고정값이라 별도 계산 없음
+        const movePlayerTo = (targetLng: number, targetLat: number) => {
+          const [sLng, sLat] = snapToRoad(ctx.map, targetLng, targetLat)
+
+          posRef.current = [sLng, sLat]
+          ctx.moveTo(playerMeshRef.current!, sLng, sLat)
+
+          followPlayer(ctx.map, sLng, sLat)
+          syncSectors(sLng, sLat)
+          syncVoice(sLng, sLat)
+          pruneRef.current?.tick(ctx.scene, sLng, sLat, otherMeshes.current)
+        }
+
+        if (mobile) {
+          stopWatchingGps = watchPosition(
+            (lng, lat) => movePlayerTo(lng, lat),
+            () => setGpsError(true),
+          )
+        } else {
+          const loop = (now: number) => {
+            if (destroyed) return
+            const dt = lastFrameRef.current == null ? 0 : (now - lastFrameRef.current) / 1000
+            lastFrameRef.current = now
+
+            const { dx, dy } = inputRef.current
+            if ((dx !== 0 || dy !== 0) && dt > 0) {
+              const [lng, lat] = posRef.current
+              const dist = WALK_SPEED_DEG_PER_SEC * dt
+              movePlayerTo(lng + dx * dist, lat + (-dy) * dist)
+            }
+            rafRef.current = requestAnimationFrame(loop)
+          }
+          rafRef.current = requestAnimationFrame(loop)
+        }
       }).catch(() => {
         if (!destroyed) setUnsupported(true)
       })
@@ -280,33 +249,13 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
       window.removeEventListener('keyup', onKeyUp)
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       if (broadcastTimer.current) clearInterval(broadcastTimer.current)
+      stopWatchingGps?.()
       for (const ch of posChannels.current.values()) ch.unsubscribe()
       chatChannelRef.current?.unsubscribe()
       voiceRef.current?.disconnect()
       ctxRef.current?.map.remove()
-      movePlayerToRef.current = null
     }
   }, [onRegisterMoveHandler, onRegisterChatHandler])
-
-  // GPS(실제 이동) 모드일 때만 위치 추적을 켬 — 무거운 지도 초기화 이펙트와
-  // 분리해서, 모드를 토글해도 지도가 다시 만들어지지 않음
-  useEffect(() => {
-    if (movementMode !== 'gps') return
-    const stopWatching = watchPosition(
-      (lng, lat) => movePlayerToRef.current?.(lng, lat),
-      () => setGpsError(true),
-    )
-    return stopWatching
-  }, [movementMode])
-
-  const micLabel = micState === 'on' ? '마이크 켜짐' : micState === 'denied' ? '마이크 거부됨' : '마이크'
-  // 리터럴 클래스 맵 — `bg-[${x}]` 문자열 보간은 Tailwind가 빌드 시점에 못 잡아서
-  // 프로덕션에서 클래스가 통째로 사라지므로 절대 금지
-  const MIC_BG: Record<typeof micState, string> = {
-    idle: 'bg-black/50',
-    on: 'bg-[rgba(79,142,247,0.8)]',
-    denied: 'bg-black/50',
-  }
 
   if (unsupported) {
     return (
@@ -325,25 +274,8 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
       <div className="absolute inset-0">
         <div ref={containerRef} className="w-full h-full" />
       </div>
-      <div ref={fogRef} className="absolute inset-0 pointer-events-none fog-vignette" />
-      {/* 마이크 옵트인 버튼 */}
-      <button
-        onClick={handleMicClick}
-        disabled={micState === 'on'}
-        className={`absolute top-5 right-5 py-2 px-3.5 rounded-lg border border-white/20 text-white text-sm backdrop-blur-[4px] ${MIC_BG[micState]} ${micState === 'on' ? 'cursor-default' : 'cursor-pointer'}`}
-      >
-        {micLabel}
-      </button>
-      {/* 가짜 이동(키보드) / 실제 이동(GPS) 토글 — PRD: PC는 가짜 이동 전용,
-          모바일은 실제 GPS 이동 또는 가짜 이동 토글 */}
-      <button
-        onClick={() => setMovementMode(movementMode === 'gps' ? 'keyboard' : 'gps')}
-        className="absolute top-5 left-5 py-2 px-3.5 rounded-lg border border-white/20 text-white text-sm backdrop-blur-[4px] bg-black/50 cursor-pointer"
-      >
-        {movementMode === 'gps' ? 'GPS 이동' : '키보드 이동'}
-      </button>
       {gpsError && (
-        <div className="absolute top-16 left-5 py-1.5 px-3 rounded-lg bg-[rgba(247,79,79,0.8)] text-white text-xs">
+        <div className="absolute top-5 left-5 py-1.5 px-3 rounded-lg bg-[rgba(247,79,79,0.8)] text-white text-xs">
           GPS 위치를 가져올 수 없습니다 — 위치 권한을 확인해주세요
         </div>
       )}

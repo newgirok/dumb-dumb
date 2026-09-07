@@ -40,8 +40,8 @@ export function initWorldMap(
       style: 'mapbox://styles/mapbox/standard',
       center,
       zoom: 17,
-      pitch: 40,
-      bearing: 0,
+      pitch: 45,
+      bearing: 45,
       antialias: true,
     })
 
