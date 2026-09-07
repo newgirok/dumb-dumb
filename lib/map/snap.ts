@@ -35,13 +35,19 @@ export function snapToRoad(
   lat: number,
 ): [number, number] {
   const pt = map.project([lng, lat])
-  const features = map.queryRenderedFeatures(
-    [
-      [pt.x - PIXEL_QUERY, pt.y - PIXEL_QUERY],
-      [pt.x + PIXEL_QUERY, pt.y + PIXEL_QUERY],
-    ],
-    { filter: ['==', '$type', 'LineString'] },
-  )
+  // $type=='LineString'만으로는 행정경계·수로·울타리·활주로 등 도로가 아닌
+  // 선형 피처까지 다 걸려서(특히 Standard 스타일은 이런 레이어가 훨씬 많음)
+  // 엉뚱한 선에 캐릭터가 붙는 문제가 있었음 — source-layer가 실제 도로
+  // 벡터타일 레이어인 'road'인 것만 추려서 진짜 도로에만 스냅되도록 함
+  const features = map
+    .queryRenderedFeatures(
+      [
+        [pt.x - PIXEL_QUERY, pt.y - PIXEL_QUERY],
+        [pt.x + PIXEL_QUERY, pt.y + PIXEL_QUERY],
+      ],
+      { filter: ['==', '$type', 'LineString'] },
+    )
+    .filter((f) => f.sourceLayer === 'road')
 
   if (!features.length) return [lng, lat]
 
