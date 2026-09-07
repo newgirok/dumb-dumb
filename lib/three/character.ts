@@ -19,6 +19,17 @@ export function createCharacterMesh(color = 0x4f8ef7): THREE.Group {
   head.position.y = 1.45
   group.add(head)
 
+  // 발밑 위치 표시 링 — 지도 줌(14~20)에서 건물 한 채가 20~30m대라, 몸체
+  // 크기로는 화면에서 거의 안 보임. 조명 영향을 안 받는 밝은 unlit 재질로
+  // 큼직하게 표시해 어디 있는지 바로 알아볼 수 있게 함
+  const marker = new THREE.Mesh(
+    new THREE.RingGeometry(3, 4, 32),
+    new THREE.MeshBasicMaterial({ color: 0xffe14f, side: THREE.DoubleSide }),
+  )
+  marker.rotation.x = -Math.PI / 2
+  marker.position.y = 0.05
+  group.add(marker)
+
   // Three.js Y-up → Mapbox Mercator Z-up 변환
   group.rotation.x = Math.PI / 2
 
