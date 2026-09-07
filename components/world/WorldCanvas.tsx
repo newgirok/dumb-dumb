@@ -192,8 +192,19 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
         const { dx, dy } = inputRef.current
         if ((dx !== 0 || dy !== 0) && ctx) {
           const [lng, lat] = posRef.current
-          const newLng = lng + dx * MOVE_SPEED
-          const newLat = lat + (-dy) * MOVE_SPEED
+
+          // 카메라가 이동 방향으로 회전하므로, 방향키 입력도 화면 기준(카메라가
+          // 보는 방향 = 앞)으로 변환해야 함 — 그냥 dx/dy를 그대로 lng/lat에
+          // 더하면 카메라가 돈 뒤에는 "위"를 눌러도 예전 절대 방위(북쪽)로
+          // 움직여서 화면과 실제 이동이 어긋나 보임
+          const headingRad = (headingRef.current * Math.PI) / 180
+          const forward = -dy
+          const right = dx
+          const east = forward * Math.sin(headingRad) + right * Math.cos(headingRad)
+          const north = forward * Math.cos(headingRad) - right * Math.sin(headingRad)
+
+          const newLng = lng + east * MOVE_SPEED
+          const newLat = lat + north * MOVE_SPEED
           const [sLng, sLat] = snapToRoad(ctx.map, newLng, newLat)
 
           posRef.current = [sLng, sLat]
