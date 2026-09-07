@@ -1,17 +1,14 @@
+import CheapRuler from 'cheap-ruler'
+
 /** 클라이언트 GPS 속도 검증 — 30km/h 초과 패킷 드롭 */
 
 const MAX_SPEED_MS = 30 / 3.6  // ≈ 8.33 m/s
 
-function haversineM(lng1: number, lat1: number, lng2: number, lat2: number): number {
-  const R = 6371000
-  const dLat = ((lat2 - lat1) * Math.PI) / 180
-  const dLng = ((lng2 - lng1) * Math.PI) / 180
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+// 서울 위도(37.5) 기준 — 프로젝트 전역이 서울 인근이라 위도 재계산 없이 고정 ruler 재사용
+const ruler = new CheapRuler(37.5, 'meters')
+
+function distanceM(lng1: number, lat1: number, lng2: number, lat2: number): number {
+  return ruler.distance([lng1, lat1], [lng2, lat2])
 }
 
 export interface StampedPos {
@@ -27,6 +24,6 @@ export interface StampedPos {
 export function isValidMove(prev: StampedPos, next: StampedPos): boolean {
   const dtS = (next.ts - prev.ts) / 1000
   if (dtS <= 0) return false
-  const distM = haversineM(prev.lng, prev.lat, next.lng, next.lat)
+  const distM = distanceM(prev.lng, prev.lat, next.lng, next.lat)
   return distM / dtS <= MAX_SPEED_MS
 }
