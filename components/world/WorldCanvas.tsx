@@ -5,6 +5,7 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import CheapRuler from 'cheap-ruler'
 import { initWorldMap, type WorldContext } from '@/lib/map/context'
 import { lockCamera, followPlayer } from '@/lib/map/camera'
+import { getCurrentPosition } from '@/lib/geo/currentPosition'
 import { snapToRoad } from '@/lib/map/snap'
 import { createCharacterMesh } from '@/lib/three/character'
 import { initFog, setFogRadius } from '@/lib/three/fog'
@@ -79,8 +80,14 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
     })
 
     voiceRef.current = new VoiceManager()
+    const container = containerRef.current
 
-    initWorldMap(containerRef.current, ORIGIN).then((ctx) => {
+    getCurrentPosition(ORIGIN).then(([lng, lat]) => {
+      if (destroyed) return
+      posRef.current = [lng, lat]
+      lastStampRef.current = { lng, lat, ts: 0 }
+
+      initWorldMap(container, posRef.current).then((ctx) => {
       if (destroyed) return
       ctxRef.current = ctx
       lockCamera(ctx.map)
@@ -89,7 +96,7 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
       playerMeshRef.current = mesh
       ctx.addAt(mesh, posRef.current[0], posRef.current[1])
 
-      pruneRef.current = new PruneManager(ORIGIN[0], ORIGIN[1])
+      pruneRef.current = new PruneManager(posRef.current[0], posRef.current[1])
 
       // 섹터 채널 동적 관리
       const subscribeSector = (id: string) => {
@@ -133,8 +140,8 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
         await voiceRef.current.connect(roomName, userId)
       }
 
-      syncSectors(ORIGIN[0], ORIGIN[1])
-      syncVoice(ORIGIN[0], ORIGIN[1])
+      syncSectors(posRef.current[0], posRef.current[1])
+      syncVoice(posRef.current[0], posRef.current[1])
 
       chatChannelRef.current = createChatChannel('chat-global', () => {
         // Phase 5에서 말풍선 연결 예정
@@ -195,8 +202,9 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
         rafRef.current = requestAnimationFrame(loop)
       }
       rafRef.current = requestAnimationFrame(loop)
-    }).catch(() => {
-      if (!destroyed) setUnsupported(true)
+      }).catch(() => {
+        if (!destroyed) setUnsupported(true)
+      })
     })
 
     const onKeyDown = (e: KeyboardEvent) => {
