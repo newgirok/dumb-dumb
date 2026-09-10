@@ -346,7 +346,12 @@ export function createGrassMaterial(
       )
       .replace(
         '#include <opaque_fragment>',
-        `if (diffuseColor.a < 0.5) discard;
+        `// grass-patches는 2048×256 = 256px 스프라이트 8칸 아틀라스다.
+         // 쿼드 UV(0~1)를 그대로 쓰면 8칸 전체를 훑어 대부분 알파 0 → 전부
+         // discard 됐다. 인스턴스 random으로 한 칸을 골라 그 칸만 샘플링한다.
+         float grassCell = floor(vRand.z * 8.0);
+         vec2 grassUv = vec2((grassCell + vMapUv.x) / 8.0, vMapUv.y);
+         if (texture2D(map, grassUv).a < 0.5) discard;
          vec3 wPos = vWorldPos;
          float rampID = 58.0 + step(0.8, fract(vRand.x + vRand.y));
          vec3 outColor = texture2D(tRamp, vec2(_shadow0, getRamp(rampID))).rgb;
@@ -354,8 +359,9 @@ export function createGrassMaterial(
          ${CLOUD_SHADOW}
          outColor *= fit(cloudsMult, 0.0, 1.0, 0.7, 1.0);
          float lenCam = length(wPos - cameraPosition);
-         // 원본 FADE_AWAY 60 — 멀어지면 사라진다
-         if (lenCam > 60.0) discard;
+         // 원본 FADE_AWAY 60 — 하드 컷 대신 45~60m에서 디더링으로 서서히
+         // 사라지게 해 걸을 때 잔디가 뭉텅이로 팝핑하는 것을 없앤다
+         if (rand(gl_FragCoord.xy) < smoothstep(45.0, 60.0, lenCam)) discard;
          addFog(outColor, lenCam);
          gl_FragColor = vec4(outColor, 1.0);`,
       )
