@@ -300,3 +300,77 @@ export function createInstancedLOD(
 
   return group
 }
+
+export interface VertexAnimation {
+  /** position/normal/uv를 1프레임 값으로 채운 지오메트리 + vposition 인덱스 */
+  geometry: THREE.BufferGeometry
+  uniforms: {
+    /** (fps, frames, 정점수, 텍스처 한 변) */
+    uAnimInfo: { value: THREE.Vector4 }
+    tPosition: { value: THREE.DataTexture }
+    tNormal: { value: THREE.DataTexture }
+  }
+}
+
+/**
+ * 프레임별 속성(position_1..N)을 가진 지오메트리를 정점 애니메이션으로 만든다.
+ *
+ * 프레임 전체를 하나의 float 텍스처에 1D로 펼쳐 담고, 셰이더가 vposition
+ * (정점 인덱스)과 time으로 두 프레임을 뽑아 보간한다. 본이 없는 날갯짓 같은
+ * 변형에 쓰는 원본 방식.
+ */
+export function createVertexAnimation(source: THREE.BufferGeometry): VertexAnimation {
+  const { fps, frames } = source.userData as AnimationUserData
+  const names = Object.keys(source.attributes)
+  const base = names.filter((n) => n.endsWith('_1')).map((n) => n.slice(0, -2))
+  const animated = names.filter((n) => n.endsWith('_2')).map((n) => n.slice(0, -2))
+
+  const geometry = new THREE.BufferGeometry()
+  if (source.index) geometry.setIndex(source.index.clone())
+  for (const name of base) geometry.setAttribute(name, source.attributes[`${name}_1`].clone())
+
+  const count = source.attributes[`${animated[0]}_1`].count
+  // 프레임 × 정점을 1D로 이어 붙인 뒤 정사각 텍스처에 담는다
+  const size = Math.max(2, THREE.MathUtils.ceilPowerOfTwo(count * frames))
+
+  const vposition = new Float32Array(count)
+  for (let i = 0; i < count; i++) vposition[i] = i
+  geometry.setAttribute('vposition', new THREE.BufferAttribute(vposition, 1))
+
+  const textures: Record<string, THREE.DataTexture> = {}
+  for (const name of animated) {
+    const data = new Float32Array(size * size * 4)
+    for (let f = 0; f < frames; f++) {
+      const src = source.attributes[`${name}_${f + 1}`].array
+      for (let v = 0; v < count; v++) {
+        const o = (f * count + v) * 4
+        data[o] = src[v * 3]
+        data[o + 1] = src[v * 3 + 1]
+        data[o + 2] = src[v * 3 + 2]
+        data[o + 3] = 1
+      }
+    }
+    const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.FloatType)
+    texture.needsUpdate = true
+    textures[name] = texture
+  }
+
+  return {
+    geometry,
+    uniforms: {
+      uAnimInfo: { value: new THREE.Vector4(fps, frames, count, size) },
+      tPosition: { value: textures.position },
+      tNormal: { value: textures.normal },
+    },
+  }
+}
+
+/** 곡선 지오메트리(position_1)를 닫힌 CatmullRom 경로로 만든다 */
+export function createClosedCurve(source: THREE.BufferGeometry): THREE.CatmullRomCurve3 {
+  const attr = source.attributes.position_1 ?? source.attributes.position
+  const points: THREE.Vector3[] = []
+  for (let i = 0; i < attr.count; i++) {
+    points.push(new THREE.Vector3(attr.getX(i), attr.getY(i), attr.getZ(i)))
+  }
+  return new THREE.CatmullRomCurve3(points, true)
+}

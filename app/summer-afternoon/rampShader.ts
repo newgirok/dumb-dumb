@@ -112,6 +112,17 @@ const SHAKE = /* glsl */ `
   }
 `
 
+/** 전선 — 나무와 달리 z축 주기로 길게 출렁인다 (원본 LIGHTWIRES) */
+const LIGHTWIRES = /* glsl */ `
+  {
+    float mult = colorInfo.y;
+    float peri = _wPos.z * 0.05;
+    float ttotal = (sin(time * 0.2 + peri) + 1.0) * 0.5;
+    float amp = mult * ttotal * 0.75;
+    _wPos.x += sin(time * 0.5 + peri) * amp;
+  }
+`
+
 /** 잔디 — 바람에 눕고, 캐릭터가 지나가면 밀려난다 */
 const GRASS_SHAKE = /* glsl */ `
   {
@@ -224,13 +235,15 @@ export interface RampOptions {
   seed?: number
   /** 나무·덤불처럼 바람에 흔들리는 오브젝트 */
   shake?: boolean
+  /** 전선 — 흔들림 공식이 다르다 */
+  lightwires?: boolean
 }
 
 /** colorInfo(팔레트 행 번호)로 색을 정하는 소품·건물·캐릭터용 재질 */
 export function createRampMaterial(
   ramp: THREE.Texture,
   shared: SharedUniforms,
-  { isCharacter = false, seed = 0, shake = false }: RampOptions = {},
+  { isCharacter = false, seed = 0, shake = false, lightwires = false }: RampOptions = {},
 ): THREE.MeshLambertMaterial {
   const material = new THREE.MeshLambertMaterial()
 
@@ -253,7 +266,7 @@ export function createRampMaterial(
       .replace(
         '#include <project_vertex>',
         `vColorInfo = colorInfo;
-         ${projectVertex(shake ? SHAKE : '')}`,
+         ${projectVertex(lightwires ? LIGHTWIRES : shake ? SHAKE : '')}`,
       )
 
     shader.fragmentShader = captureShadowTerm(shader.fragmentShader)
@@ -278,7 +291,7 @@ export function createRampMaterial(
   }
 
   // onBeforeCompile을 쓰는 재질은 캐시 키를 직접 구분해줘야 한다
-  material.customProgramCacheKey = () => `ramp:${isCharacter}:${shake}`
+  material.customProgramCacheKey = () => `ramp:${isCharacter}:${shake}:${lightwires}`
   return material
 }
 
@@ -599,4 +612,81 @@ export async function loadKtx2Lut(url: string): Promise<THREE.Data3DTexture> {
   texture.wrapR = THREE.ClampToEdgeWrapping
   texture.needsUpdate = true
   return texture
+}
+
+/**
+ * 갈매기 — 본 없이 프레임 텍스처를 보간해 날갯짓한다(원본 vertexanimation).
+ * 원본은 GPGPU로 25마리 위치를 계산하지만, 25개는 CPU로 곡선을 따라
+ * instanceMatrix를 갱신하는 편이 훨씬 단순하고 결과는 같다.
+ */
+export function createBirdMaterial(
+  anim: {
+    uAnimInfo: { value: THREE.Vector4 }
+    tPosition: { value: THREE.DataTexture }
+    tNormal: { value: THREE.DataTexture }
+  },
+  shared: SharedUniforms,
+): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      ...anim,
+      time: shared.time,
+      uColor: { value: new THREE.Color('#dfdfdf') },
+    },
+    vertexShader: /* glsl */ `
+      attribute float vposition;
+      attribute vec4 rand;
+      uniform float time;
+      uniform vec4 uAnimInfo;
+      uniform sampler2D tPosition;
+      uniform sampler2D tNormal;
+      varying vec3 vNormal;
+      varying vec3 vLDir;
+      varying float vVar;
+      varying vec4 vPos;
+
+      // uAnimInfo = (fps, frames, 정점수, 텍스처 한 변)
+      vec3 getAnimData(sampler2D map, float timeOffset) {
+        float t = mod((time + timeOffset) * uAnimInfo.x, uAnimInfo.y);
+        float base = floor(t);
+        float next = mod(floor(t + 1.0), uAnimInfo.y);
+        float weight = t - base;
+        float p1 = (base * uAnimInfo.z + vposition) / uAnimInfo.w;
+        float p2 = (next * uAnimInfo.z + vposition) / uAnimInfo.w;
+        vec3 f1 = texture2D(map, vec2(fract(p1), floor(p1) / uAnimInfo.w)).rgb;
+        vec3 f2 = texture2D(map, vec2(fract(p2), floor(p2) / uAnimInfo.w)).rgb;
+        return mix(f1, f2, weight);
+      }
+
+      void main() {
+        float timeoffset = rand.x * 10.0;
+        vec3 pos = getAnimData(tPosition, timeoffset);
+        vec3 n = getAnimData(tNormal, timeoffset);
+
+        vec4 world = instanceMatrix * vec4(pos, 1.0);
+        vec3 worldNormal = mat3(instanceMatrix) * n;
+
+        vNormal = normalize(normalMatrix * worldNormal);
+        vLDir = (viewMatrix * vec4(normalize(vec3(1.0)), 0.0)).xyz;
+        vVar = rand.y;
+        vPos = modelViewMatrix * world;
+        gl_Position = projectionMatrix * vPos;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      varying vec3 vNormal;
+      varying vec3 vLDir;
+      varying float vVar;
+      varying vec4 vPos;
+      ${HELPERS}
+
+      void main() {
+        // 하드한 2단 음영 — 원본 갈매기는 단색 실루엣에 가깝다
+        float sh = step(0.5, max(0.0, dot(normalize(vNormal), normalize(vLDir))));
+        vec3 col = uColor * 0.95 + uColor * vVar * 0.05;
+        col = mix(col * 0.1, col, sh);
+        addFog(col, length(-vPos.xyz));
+        gl_FragColor = vec4(col, 1.0);
+      }`,
+  })
 }
