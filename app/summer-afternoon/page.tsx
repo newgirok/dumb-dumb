@@ -6,7 +6,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
@@ -30,6 +29,7 @@ import {
   createBirdMaterial,
   loadKtx2Lut,
 } from './rampShader'
+import { createThirdPerson, type ThirdPerson } from './thirdPerson'
 
 /**
  * 월드 좌표가 지오메트리에 구워져 있는 정적 메시.
@@ -169,9 +169,6 @@ export default function SummerAfternoonPage() {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     mount.appendChild(renderer.domElement)
 
-    const controls = new OrbitControls(camera, renderer.domElement)
-    controls.enableDamping = true
-
     // 원본의 컬러 그레이딩 LUT를 마지막에 적용한다
     const composer = new EffectComposer(renderer)
     composer.addPass(new RenderPass(scene, camera))
@@ -196,6 +193,10 @@ export default function SummerAfternoonPage() {
     let sky: THREE.Mesh | null = null
     const mixers: THREE.AnimationMixer[] = []
     let birds: Birds | null = null
+    let controller: ThirdPerson | null = null
+    let kidActions: { idle: THREE.AnimationAction; run: THREE.AnimationAction } | null = null
+    let kidMoving = false
+    let kidMesh: THREE.SkinnedMesh | null = null
     const materials: THREE.Material[] = []
 
     const loader = new THREE.TextureLoader().setPath('/ref-assets/images/')
@@ -359,19 +360,24 @@ export default function SummerAfternoonPage() {
       }
 
       // 캐릭터 — 게임용 마커 링 없이 메시만
-      const [kidGeo, kidBones, kidIdle] = await Promise.all([
+      const [kidGeo, kidBones, kidIdle, kidRun] = await Promise.all([
         loadBinGeometry('kid'),
         loadBinGeometry('kid-bones'),
         loadBinGeometry('kid-idle'),
+        loadBinGeometry('kid-run'),
       ])
       if (destroyed) return
       const kid = createSkin(kidGeo, kidBones, characterMaterial)
+      kidMesh = kid
       kid.name = 'kid'
       kid.castShadow = true
       kid.frustumCulled = false
       scene.add(kid)
       const kidMixer = new THREE.AnimationMixer(kid)
-      kidMixer.clipAction(createSkinAnimation('idle', kidIdle)).play()
+      const idle = kidMixer.clipAction(createSkinAnimation('idle', kidIdle))
+      const run = kidMixer.clipAction(createSkinAnimation('run', kidRun))
+      idle.play()
+      kidActions = { idle, run }
       mixers.push(kidMixer)
 
       // 생물 3종 — 캐릭터 분기가 아니라 일반 팔레트를 쓴다(원본과 동일)
@@ -429,10 +435,18 @@ export default function SummerAfternoonPage() {
         (kidBox.min.z + kidBox.max.z) / 2,
       )
       shared.charPos.value.copy(feet)
-      controls.target.set(feet.x, feet.y + 1.0, feet.z)
-      camera.position.set(feet.x, feet.y + 2.2, feet.z + 6)
-      camera.updateProjectionMatrix()
-      controls.update()
+
+      // 충돌 판정용 메시 — 씬에 넣지 않고 레이캐스트 대상으로만 쓴다
+      const colliderGeo = await loadBinGeometry('collider')
+      if (destroyed) return
+      const collider = new THREE.Mesh(colliderGeo)
+      controller = createThirdPerson({
+        camera,
+        character: kid,
+        collider,
+        domElement: renderer.domElement,
+        start: feet.clone(),
+      })
 
       terrainGeo.computeBoundingBox()
       const size = terrainGeo.boundingBox!.getSize(new THREE.Vector3())
@@ -453,9 +467,24 @@ export default function SummerAfternoonPage() {
       const dt = (now - last) / 1000
       last = now
       shared.time.value = (now - start) / 1000
+      controller?.update(dt)
+      if (controller && kidActions && controller.moving !== kidMoving) {
+        kidMoving = controller.moving
+        const next = kidMoving ? kidActions.run : kidActions.idle
+        const prev = kidMoving ? kidActions.idle : kidActions.run
+        next.enabled = true
+        next.setEffectiveTimeScale(1)
+        next.setEffectiveWeight(1)
+        next.time = 0
+        next.play()
+        prev.crossFadeTo(next, 0.2, true)
+      }
+      if (controller && kidMesh) {
+        shared.charPos.value.copy(kidMesh.position)
+        shared.charSpeed.value = controller.speed
+      }
       for (const m of mixers) m.update(dt)
       updateBirds(birds, shared.time.value)
-      controls.update()
       sky?.position.copy(camera.position)
       scene.traverse((o) => {
         if ((o as THREE.LOD).isLOD) (o as THREE.LOD).update(camera)
@@ -469,7 +498,7 @@ export default function SummerAfternoonPage() {
       destroyed = true
       cancelAnimationFrame(raf)
       ro.disconnect()
-      controls.dispose()
+      controller?.dispose()
       for (const m of mixers) m.stopAllAction()
       materials.forEach((m) => m.dispose())
       ktx2.dispose()
