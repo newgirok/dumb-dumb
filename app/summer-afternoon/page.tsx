@@ -7,6 +7,11 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { LUTPass } from 'three/examples/jsm/postprocessing/LUTPass.js'
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import {
   loadBinGeometry,
   createSkin,
@@ -14,12 +19,10 @@ import {
   createInstancedMesh,
   createInstancedLOD,
 } from '@/lib/three/binLoader'
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
-import { LUTPass } from 'three/examples/jsm/postprocessing/LUTPass.js'
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import {
+  createSharedUniforms,
   createRampMaterial,
+  createGrassMaterial,
   createTerrainMaterial,
   createSkyMaterial,
   loadKtx2Lut,
@@ -27,23 +30,23 @@ import {
 
 /**
  * 월드 좌표가 지오메트리에 구워져 있는 정적 메시.
- * blockers1/2와 collider는 원본에서도 보이지 않는 충돌 볼륨이라 제외한다.
+ * blockers1/2와 collider는 원본에서도 보이지 않는 충돌 볼륨이라 제외하고,
+ * ufo는 원본이 코드로 날리는 오브젝트라 월드 좌표가 없어 제외한다.
  */
 const STATIC_MESHES = [
   'house1', 'house2', 'house3',
   'warehouse1', 'warehouse2', 'warehouse3',
   'lightposts-wires', 'parasol', 'sign',
   'sandcastles1', 'sandcastles2',
-  // ufo는 월드 좌표가 구워져 있지 않고 원본이 코드로 날리는 오브젝트라 제외
 ]
 
-/** LOD가 있는 인스턴스 소품 */
+/** LOD가 있는 인스턴스 소품 — 초목만 바람에 흔들린다 */
 const LOD_PROPS = [
-  { name: 'tree', lods: ['tree', 'tree-lod2', 'tree-lod3'], distances: [0, 60, 140] },
-  { name: 'bush', lods: ['bush', 'bush-lod2', 'bush-lod3'], distances: [0, 40, 90] },
-  { name: 'palmtree', lods: ['palmtree', 'palmtree-lod2'], distances: [0, 80] },
-  { name: 'rock1', lods: ['rock1', 'rock1-lod2'], distances: [0, 80] },
-  { name: 'rock2', lods: ['rock2', 'rock2-lod2'], distances: [0, 80] },
+  { name: 'tree', lods: ['tree', 'tree-lod2', 'tree-lod3'], distances: [0, 60, 140], shake: true },
+  { name: 'bush', lods: ['bush', 'bush-lod2', 'bush-lod3'], distances: [0, 40, 90], shake: true },
+  { name: 'palmtree', lods: ['palmtree', 'palmtree-lod2'], distances: [0, 80], shake: true },
+  { name: 'rock1', lods: ['rock1', 'rock1-lod2'], distances: [0, 80], shake: false },
+  { name: 'rock2', lods: ['rock2', 'rock2-lod2'], distances: [0, 80], shake: false },
 ]
 
 /** LOD 없이 인스턴스만 있는 소품 — 메시명과 인스턴스 파일명이 다를 수 있다 */
@@ -77,23 +80,22 @@ export default function SummerAfternoonPage() {
     const mount = mountRef.current
     if (!mount) return
 
+    const shared = createSharedUniforms()
+
     const scene = new THREE.Scene()
-    // 원본의 태양 방향 — 램프의 rampX가 이 방향광 하나로 결정된다
+    // 램프의 rampX는 이 방향광 하나로 결정된다
     const sun = new THREE.DirectionalLight(0xffffff, 1)
     sun.position.set(-60, 80, 40)
     sun.castShadow = true
-    // 월드가 약 200×200m — 정사영 그림자 카메라로 전체를 덮는다
-    sun.shadow.mapSize.set(2048, 2048)
+    sun.shadow.mapSize.set(4096, 4096)
     sun.shadow.camera.left = -120
     sun.shadow.camera.right = 120
     sun.shadow.camera.top = 120
     sun.shadow.camera.bottom = -120
     sun.shadow.camera.near = 1
     sun.shadow.camera.far = 400
-    // 240m를 2048로 덮으니 텍셀이 약 12cm — 그만큼 표면을 따라 밀어내야
-    // 자기 그림자 얼룩(acne)이 사라진다. depth bias보다 normalBias가
-    // 경사면에서 훨씬 안정적이다
-    sun.shadow.normalBias = 0.35
+    // depth bias보다 normalBias가 경사면에서 안정적이다
+    sun.shadow.normalBias = 0.18
     scene.add(sun)
     scene.add(new THREE.AmbientLight(0xffffff, 0.4))
 
@@ -134,16 +136,22 @@ export default function SummerAfternoonPage() {
     const materials: THREE.Material[] = []
 
     const loader = new THREE.TextureLoader().setPath('/ref-assets/images/')
+    // grass-patches와 skyflow만 basis 압축이라 트랜스코더가 필요하다
+    const ktx2 = new KTX2Loader()
+      .setTranscoderPath('/ref-assets/libs/basis/')
+      .detectSupport(renderer)
 
     ;(async () => {
-      const [rampTex, roadTex, masksTex, noisesTex, detailsTex, skyTex] = await Promise.all([
-        loader.loadAsync('ramps.png'),
-        loader.loadAsync('terrain-road-highq.png'),
-        loader.loadAsync('masks.png'),
-        loader.loadAsync('terrain-noises-highq.png'),
-        loader.loadAsync('terrain-details-highq.png'),
-        loader.loadAsync('sky-srgb-highq.png'),
-      ])
+      const [rampTex, roadTex, masksTex, noisesTex, detailsTex, skyTex, cloudsTex] =
+        await Promise.all([
+          loader.loadAsync('ramps.png'),
+          loader.loadAsync('terrain-road-highq.png'),
+          loader.loadAsync('masks.png'),
+          loader.loadAsync('terrain-noises-highq.png'),
+          loader.loadAsync('terrain-details-highq.png'),
+          loader.loadAsync('sky-srgb-highq.png'),
+          loader.loadAsync('clouds_top-highq.png'),
+        ])
       if (destroyed) return
 
       // 램프는 룩업 테이블이라 행 사이가 섞이면 안 됨
@@ -151,22 +159,31 @@ export default function SummerAfternoonPage() {
       configure(noisesTex, { repeat: true })
       configure(detailsTex, { repeat: true })
       configure(skyTex, { srgb: true, repeat: true })
+      configure(cloudsTex, { repeat: true })
+      shared.tCloudsTop.value = cloudsTex
 
-      const rampMaterial = createRampMaterial(rampTex)
-      const characterMaterial = createRampMaterial(rampTex, { isCharacter: true })
-      const terrainMaterial = createTerrainMaterial({
-        ramp: rampTex,
-        road: roadTex,
-        masks: masksTex,
-        noises: noisesTex,
-        details: detailsTex,
-      })
-      const skyMaterial = createSkyMaterial(skyTex)
+      // 압축 텍스처는 실패해도 씬 전체가 죽지 않게 개별로 처리한다
+      const [patchesTex, flowTex] = await Promise.all([
+        ktx2.loadAsync('/ref-assets/images/grass-patches-highq.ktx2').catch(() => null),
+        ktx2.loadAsync('/ref-assets/images/skyflow-highq.ktx2').catch(() => null),
+      ])
+      if (destroyed) return
+      if (flowTex) configure(flowTex, { repeat: true })
+
+      const rampMaterial = createRampMaterial(rampTex, shared)
+      const shakeMaterial = createRampMaterial(rampTex, shared, { shake: true })
+      const characterMaterial = createRampMaterial(rampTex, shared, { isCharacter: true })
+      const terrainMaterial = createTerrainMaterial(
+        { ramp: rampTex, road: roadTex, masks: masksTex, noises: noisesTex, details: detailsTex },
+        shared,
+      )
+      const skyMaterial = createSkyMaterial(skyTex, flowTex, shared)
+      materials.push(rampMaterial, shakeMaterial, characterMaterial, terrainMaterial, skyMaterial)
+
       lutPass.lut = await loadKtx2Lut('/ref-assets/images/lut.CUBE_1.LUT.ktx2')
       if (destroyed) return
-      materials.push(rampMaterial, characterMaterial, terrainMaterial, skyMaterial)
 
-      const counts = { static: 0, instanced: 0, patches: 0 }
+      const counts = { static: 0, instanced: 0, patches: 0, grass: 0 }
 
       // 지형
       const terrainGeo = await loadBinGeometry('terrain')
@@ -208,7 +225,7 @@ export default function SummerAfternoonPage() {
         const group = createInstancedLOD(
           geoms.map((geometry, i) => ({ geometry, distance: prop.distances[i] })),
           instances,
-          rampMaterial,
+          prop.shake ? shakeMaterial : rampMaterial,
         )
         group.name = prop.name
         group.traverse((o) => {
@@ -235,6 +252,28 @@ export default function SummerAfternoonPage() {
         counts.instanced += instances.attributes.position.count
       }
 
+      // 잔디 — 인스턴스마다 random 속성이 필요해서 지오메트리를 복제해 붙인다
+      // (loadBinGeometry 캐시가 소유한 원본을 오염시키면 안 됨)
+      if (patchesTex) {
+        const [grassGeo, grassInstances] = await Promise.all([
+          loadBinGeometry('grass'),
+          loadBinGeometry('grass-instances'),
+        ])
+        if (destroyed) return
+        const grassMaterial = createGrassMaterial(rampTex, patchesTex, shared)
+        materials.push(grassMaterial)
+        const grass = createInstancedMesh(grassGeo.clone(), grassInstances, grassMaterial)
+        const random = grassInstances.attributes.random
+        grass.geometry.setAttribute(
+          'random',
+          new THREE.InstancedBufferAttribute(random.array as Float32Array, random.itemSize, false, 1),
+        )
+        grass.name = 'grass'
+        grass.receiveShadow = true
+        scene.add(grass)
+        counts.grass = grassInstances.attributes.position.count
+      }
+
       // 캐릭터 — 게임용 마커 링 없이 메시만
       const [kidGeo, kidBones, kidIdle] = await Promise.all([
         loadBinGeometry('kid'),
@@ -259,6 +298,7 @@ export default function SummerAfternoonPage() {
         kidBox.min.y,
         (kidBox.min.z + kidBox.max.z) / 2,
       )
+      shared.charPos.value.copy(feet)
       controls.target.set(feet.x, feet.y + 1.0, feet.z)
       camera.position.set(feet.x, feet.y + 2.2, feet.z + 6)
       camera.updateProjectionMatrix()
@@ -270,15 +310,19 @@ export default function SummerAfternoonPage() {
       setStatus(
         [
           `지형 ${size.x.toFixed(0)}×${size.z.toFixed(0)}m`,
-          `정적 메시 ${counts.static} · 인스턴스 ${counts.instanced} · LOD 패치 ${counts.patches}`,
+          `정적 ${counts.static} · 인스턴스 ${counts.instanced} · LOD 패치 ${counts.patches}`,
+          `잔디 ${counts.grass}${patchesTex ? '' : ' (텍스처 없음)'}` +
+            `${flowTex ? '' : ' · 하늘 flowmap 없음'}`,
         ].join('\n'),
       )
     })().catch((err) => setStatus(`로드 실패: ${String(err)}`))
 
-    let last = performance.now()
+    const start = performance.now()
+    let last = start
     const loop = (now: number) => {
       const dt = (now - last) / 1000
       last = now
+      shared.time.value = (now - start) / 1000
       mixer?.update(dt)
       controls.update()
       sky?.position.copy(camera.position)
@@ -297,6 +341,7 @@ export default function SummerAfternoonPage() {
       controls.dispose()
       mixer?.stopAllAction()
       materials.forEach((m) => m.dispose())
+      ktx2.dispose()
       composer.dispose()
       renderer.dispose()
       mount.removeChild(renderer.domElement)
