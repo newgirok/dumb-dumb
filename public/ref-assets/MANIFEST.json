@@ -1,0 +1,551 @@
+{
+  "source": "https://summer-afternoon.vlucendo.com/assets/",
+  "author": "Vicente Lucendo",
+  "license": "All Rights Reserved - 배포물에 포함 금지",
+  "purpose": "로컬 개발/테스트 플레이스홀더. public/assets/ 에 동일한 상대경로로 자체 제작 에셋을 두고 교체할 것.",
+  "container_format": {
+    "geometry_bin": "[0:10] ASCII 십진 길이 + NUL 패딩 | [10:10+n] JSON 메타 | [10+n:] 표준 DRACO 페이로드",
+    "meta_type": {
+      "0": "mesh geometry",
+      "1": "transform data (bones / instances)"
+    }
+  },
+  "fetched": "2026-09-10",
+  "count": 89,
+  "files": [
+    {
+      "path": "audio/beach.mp3",
+      "bytes": 470784,
+      "action": "REPLACE",
+      "note": "오디오 - 직접 제작 또는 라이선스 확보 필요"
+    },
+    {
+      "path": "audio/click1.mp3",
+      "bytes": 1728,
+      "action": "REPLACE",
+      "note": "오디오 - 직접 제작 또는 라이선스 확보 필요"
+    },
+    {
+      "path": "audio/footsteps.mp3",
+      "bytes": 53856,
+      "action": "REPLACE",
+      "note": "오디오 - 직접 제작 또는 라이선스 확보 필요"
+    },
+    {
+      "path": "audio/forest.mp3",
+      "bytes": 747311,
+      "action": "REPLACE",
+      "note": "오디오 - 직접 제작 또는 라이선스 확보 필요"
+    },
+    {
+      "path": "audio/song.mp3",
+      "bytes": 1815552,
+      "action": "REPLACE",
+      "note": "오디오 - 직접 제작 또는 라이선스 확보 필요"
+    },
+    {
+      "path": "fonts/Stylish-Regular.woff",
+      "bytes": 2668908,
+      "action": "CHECK",
+      "note": "Stylish (Google Fonts, SIL OFL 추정) - 공식 배포처에서 직접 재다운로드 권장"
+    },
+    {
+      "path": "fonts/Stylish-Regular.woff2",
+      "bytes": 957736,
+      "action": "CHECK",
+      "note": "Stylish (Google Fonts, SIL OFL 추정) - 공식 배포처에서 직접 재다운로드 권장"
+    },
+    {
+      "path": "geometries/alien-bones.bin",
+      "bytes": 607,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/alien-chill.bin",
+      "bytes": 47933,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/alien.bin",
+      "bytes": 17805,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/bird.bin",
+      "bytes": 8170,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/birds-curve.bin",
+      "bytes": 668,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/blockers1.bin",
+      "bytes": 3750,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/blockers2.bin",
+      "bytes": 1100,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/bush-instances.bin",
+      "bytes": 1442,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/bush-lod2.bin",
+      "bytes": 1893,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/bush-lod3.bin",
+      "bytes": 1245,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/bush.bin",
+      "bytes": 2491,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/cats-anim.bin",
+      "bytes": 2754,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/cats-bones.bin",
+      "bytes": 310,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/cats.bin",
+      "bytes": 16909,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/collider.bin",
+      "bytes": 202213,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/gossip.bin",
+      "bytes": 14059,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/grass-instances.bin",
+      "bytes": 40629,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/grass.bin",
+      "bytes": 242,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/house1.bin",
+      "bytes": 16763,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/house2.bin",
+      "bytes": 10307,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/house3.bin",
+      "bytes": 18784,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/kid-air.bin",
+      "bytes": 3627,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/kid-bones.bin",
+      "bytes": 555,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/kid-bored.bin",
+      "bytes": 9355,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/kid-idle.bin",
+      "bytes": 34088,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/kid-run.bin",
+      "bytes": 3855,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/kid.bin",
+      "bytes": 38594,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/lightpost.bin",
+      "bytes": 2676,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/lightposts-instances.bin",
+      "bytes": 428,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/lightposts-wires.bin",
+      "bytes": 2877,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/machine-instances.bin",
+      "bytes": 330,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/machine.bin",
+      "bytes": 4718,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/palmtree-instances.bin",
+      "bytes": 494,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/palmtree-lod2.bin",
+      "bytes": 3376,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/palmtree.bin",
+      "bytes": 5959,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/parasol.bin",
+      "bytes": 4699,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/rock1-instances.bin",
+      "bytes": 614,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/rock1-lod2.bin",
+      "bytes": 745,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/rock1.bin",
+      "bytes": 1023,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/rock2-instances.bin",
+      "bytes": 694,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/rock2-lod2.bin",
+      "bytes": 443,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/rock2.bin",
+      "bytes": 619,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/sandcastles1.bin",
+      "bytes": 6026,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/sandcastles2.bin",
+      "bytes": 11258,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/sign.bin",
+      "bytes": 5963,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/skydome.bin",
+      "bytes": 2329,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/sloth-anim.bin",
+      "bytes": 34764,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/sloth-bones.bin",
+      "bytes": 673,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/sloth.bin",
+      "bytes": 24340,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/terrain.bin",
+      "bytes": 29725,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/tree-instances.bin",
+      "bytes": 1379,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/tree-lod2.bin",
+      "bytes": 6511,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/tree-lod3.bin",
+      "bytes": 4468,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/tree.bin",
+      "bytes": 7651,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/ufo.bin",
+      "bytes": 12347,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/warehouse1.bin",
+      "bytes": 5381,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/warehouse2.bin",
+      "bytes": 5264,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "geometries/warehouse3.bin",
+      "bytes": 7911,
+      "action": "REPLACE",
+      "note": "3D 지오메트리 - 직접 제작 필요"
+    },
+    {
+      "path": "images/clouds_top-highq.ktx2",
+      "bytes": 1195231,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/clouds_top-highq.png",
+      "bytes": 3012759,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/clouds_top.ktx2",
+      "bytes": 217197,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/controls/circles.png",
+      "bytes": 309610,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/gossip.ktx2",
+      "bytes": 62865,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/grass-patches-highq.ktx2",
+      "bytes": 55603,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/lut.CUBE_1.LUT.ktx2",
+      "bytes": 575216,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/masks.ktx2",
+      "bytes": 164212,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/masks.png",
+      "bytes": 1931078,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/ramps.png",
+      "bytes": 12044,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/sea1-normal-highq.ktx2",
+      "bytes": 286061,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/sky-srgb-highq.png",
+      "bytes": 117536,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/skyflow-highq.ktx2",
+      "bytes": 83939,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/social.jpg",
+      "bytes": 107291,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/terrain-details-highq.png",
+      "bytes": 77703,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/terrain-noises-highq.png",
+      "bytes": 142659,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/terrain-road-highq.png",
+      "bytes": 29189,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/transition-intro.jpg",
+      "bytes": 341341,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/uv/uvchecker-srgb.ktx2",
+      "bytes": 298298,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/uv/uvchecker-srgb.png",
+      "bytes": 434117,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "libs/basis/basis_transcoder.js",
+      "bytes": 67059,
+      "action": "KEEP",
+      "note": "Binomial Basis Universal - Apache-2.0"
+    },
+    {
+      "path": "libs/basis/basis_transcoder.wasm",
+      "bytes": 472914,
+      "action": "KEEP",
+      "note": "Binomial Basis Universal - Apache-2.0"
+    },
+    {
+      "path": "libs/draco/draco_decoder.wasm",
+      "bytes": 283091,
+      "action": "KEEP",
+      "note": "Google Draco - Apache-2.0"
+    },
+    {
+      "path": "libs/draco/draco_wasm_wrapper.js",
+      "bytes": 58916,
+      "action": "KEEP",
+      "note": "Google Draco - Apache-2.0"
+    }
+  ]
+}
