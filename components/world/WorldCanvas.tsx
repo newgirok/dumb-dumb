@@ -8,7 +8,8 @@ import { setupCamera, followPlayer } from '@/lib/map/camera'
 import { getCurrentPosition } from '@/lib/geo/currentPosition'
 import { watchPosition } from '@/lib/geo/watchPosition'
 import { snapToRoad } from '@/lib/map/snap'
-import { createCharacterMesh } from '@/lib/three/character'
+import { createCharacterMesh, loadCharacter, type Character } from '@/lib/three/character'
+import { disposeBinLoader } from '@/lib/three/binLoader'
 import { PruneManager } from '@/lib/three/prune'
 import { createPositionChannel, broadcastPosition } from '@/lib/realtime/position'
 import { createChatChannel, sendChat } from '@/lib/realtime/chat'
@@ -27,6 +28,10 @@ const ORIGIN: [number, number] = [126.9784, 37.5666]
 // dt(경과 초)를 곱해 프레임레이트와 무관하게 항상 같은 실제 속도로 걷도록 함
 const WALK_SPEED_DEG_PER_SEC = 3 / 111320
 const BROADCAST_INTERVAL = 100
+// 마지막 이동 후 이 시간(ms) 안이면 걷는 중으로 보고 run 애니메이션을 재생.
+// 키보드 입력과 GPS 갱신을 같은 방식으로 다루려고 입력이 아닌 "실제로 위치가
+// 갱신됐는지"를 기준으로 삼음
+const MOVING_GRACE_MS = 250
 const VOICE_SECTOR_PREFIX = 'voice-'
 // ADR 007 — 쿼터뷰 카메라는 pitch/bearing을 고정해 멀미·타일 낭비를 막음.
 // 회전하는 체이스캠은 방향 혼동만 키워서 원래의 고정 대각선 시점으로 되돌림
@@ -60,7 +65,12 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
   const posRef = useRef<[number, number]>([...ORIGIN])
   const inputRef = useRef({ dx: 0, dy: 0 })
   const lastStampRef = useRef<StampedPos>({ lng: ORIGIN[0], lat: ORIGIN[1], ts: 0 })
+  const playerCharRef = useRef<Character | null>(null)
   const otherMeshes = useRef<Map<string, THREE.Object3D>>(new Map())
+  // otherMeshes와 같은 키를 쓰는 병행 맵 — prune은 Object3D만 알기 때문에
+  // 애니메이션 갱신·정리에 필요한 Character를 따로 들고 있는다
+  const otherChars = useRef<Map<string, Character>>(new Map())
+  const lastMoveAtRef = useRef(0)
   const posChannels = useRef<Map<string, RealtimeChannel>>(new Map())
   const chatChannelRef = useRef<RealtimeChannel | null>(null)
   const pruneRef = useRef<PruneManager | null>(null)
@@ -106,26 +116,54 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
         setupCamera(ctx.map)
         setMapReady(true)
 
-        const mesh = createCharacterMesh(0x4f8ef7)
-        playerMeshRef.current = mesh
-        ctx.addAt(mesh, posRef.current[0], posRef.current[1])
+        // ref-assets 로드는 비동기라 캐릭터가 붙기 전에도 지도·이동은 동작해야
+        // 함. 로드에 실패하면 최소한 위치는 보이도록 절차적 메시로 폴백
+        loadCharacter(0x4f8ef7)
+          .catch((err) => {
+            console.error('캐릭터 에셋 로드 실패 — 폴백 메시 사용', err)
+            return null
+          })
+          .then((char) => {
+            if (destroyed) {
+              char?.dispose()
+              return
+            }
+            playerCharRef.current = char
+            playerMeshRef.current = char ? char.group : createCharacterMesh(0x4f8ef7)
+            ctx.addAt(playerMeshRef.current, posRef.current[0], posRef.current[1])
+          })
 
         pruneRef.current = new PruneManager(posRef.current[0], posRef.current[1])
+
+        // 캐릭터 로드가 진행 중인 유저 id
+        const pendingPeers = new Set<string>()
 
         // 섹터 채널 동적 관리
         const subscribeSector = (id: string) => {
           if (posChannels.current.has(id)) return
           const ch = createPositionChannel(id, (pos) => {
             if (destroyed || pos.userId === userIdRef.current) return
-            let other = otherMeshes.current.get(pos.userId) as THREE.Group | undefined
-            if (!other) {
-              other = createCharacterMesh(0xf74f4f)
-              ctx.addAt(other, pos.lng, pos.lat)
-              otherMeshes.current.set(pos.userId, other)
-            } else {
+            const other = otherMeshes.current.get(pos.userId)
+            if (other) {
               ctx.moveTo(other, pos.lng, pos.lat)
+              other.userData = { lng: pos.lng, lat: pos.lat }
+              return
             }
-            other.userData = { lng: pos.lng, lat: pos.lat }
+            // 로드가 끝나기 전에 같은 유저의 위치 갱신이 또 들어오면 캐릭터가
+            // 중복 생성되므로, 진행 중인 유저는 건너뛴다
+            if (pendingPeers.has(pos.userId)) return
+            pendingPeers.add(pos.userId)
+            loadCharacter(0xf74f4f).then((char) => {
+              pendingPeers.delete(pos.userId)
+              if (destroyed) {
+                char.dispose()
+                return
+              }
+              ctx.addAt(char.group, pos.lng, pos.lat)
+              char.group.userData = { lng: pos.lng, lat: pos.lat }
+              otherMeshes.current.set(pos.userId, char.group)
+              otherChars.current.set(pos.userId, char)
+            })
           })
           posChannels.current.set(id, ch)
         }
@@ -204,7 +242,9 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
           const [sLng, sLat] = snapToRoad(ctx.map, targetLng, targetLat)
 
           posRef.current = [sLng, sLat]
-          ctx.moveTo(playerMeshRef.current!, sLng, sLat)
+          lastMoveAtRef.current = performance.now()
+          // 캐릭터 에셋 로드가 끝나기 전에도 GPS 갱신은 들어올 수 있음
+          if (playerMeshRef.current) ctx.moveTo(playerMeshRef.current, sLng, sLat)
 
           followPlayer(ctx.map, sLng, sLat)
           syncSectors(sLng, sLat)
@@ -218,22 +258,40 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
             (lng, lat) => movePlayerTo(lng, lat),
             () => setGpsError(true),
           )
-        } else {
-          const loop = (now: number) => {
-            if (destroyed) return
-            const dt = lastFrameRef.current == null ? 0 : (now - lastFrameRef.current) / 1000
-            lastFrameRef.current = now
+        }
 
+        // 애니메이션 믹서는 모바일(GPS 이동)에서도 매 프레임 돌아야 하므로
+        // 키보드 이동을 쓰지 않는 경우에도 루프 자체는 항상 돌린다
+        const loop = (now: number) => {
+          if (destroyed) return
+          const dt = lastFrameRef.current == null ? 0 : (now - lastFrameRef.current) / 1000
+          lastFrameRef.current = now
+
+          if (!mobile) {
             const { dx, dy } = inputRef.current
             if ((dx !== 0 || dy !== 0) && dt > 0) {
               const [lng, lat] = posRef.current
               const dist = WALK_SPEED_DEG_PER_SEC * dt
               movePlayerTo(lng + dx * dist, lat + (-dy) * dist)
             }
-            rafRef.current = requestAnimationFrame(loop)
           }
+
+          playerCharRef.current?.setMoving(now - lastMoveAtRef.current < MOVING_GRACE_MS)
+          playerCharRef.current?.update(dt)
+
+          for (const [id, char] of otherChars.current) {
+            // prune이 otherMeshes에서 지운 유저는 Character도 함께 정리
+            if (!otherMeshes.current.has(id)) {
+              char.dispose()
+              otherChars.current.delete(id)
+              continue
+            }
+            char.update(dt)
+          }
+
           rafRef.current = requestAnimationFrame(loop)
         }
+        rafRef.current = requestAnimationFrame(loop)
       }).catch(() => {
         if (!destroyed) {
           setUnsupported(true)
@@ -275,6 +333,10 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
       for (const ch of posChannels.current.values()) ch.unsubscribe()
       chatChannelRef.current?.unsubscribe()
       voiceRef.current?.disconnect()
+      playerCharRef.current?.dispose()
+      for (const char of otherChars.current.values()) char.dispose()
+      otherChars.current.clear()
+      disposeBinLoader()
       ctxRef.current?.map.remove()
       movePlayerToRef.current = null
     }

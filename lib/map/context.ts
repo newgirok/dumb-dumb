@@ -7,7 +7,7 @@ export interface WorldContext {
   scene: THREE.Scene
   renderer: THREE.WebGLRenderer
   camera: THREE.Camera
-  /** lng/lat → Mercator 위치에 Object3D를 scene에 추가 */
+  /** lng/lat → 씬 원점 기준 미터 좌표에 Object3D를 scene에 추가 */
   addAt: (obj: THREE.Object3D, lng: number, lat: number) => void
   /** lng/lat → 기존 Object3D 위치 갱신 */
   moveTo: (obj: THREE.Object3D, lng: number, lat: number) => void
@@ -18,9 +18,37 @@ function meterToMercator(lat: number): number {
   return 1 / (2 * Math.PI * 6371008 * Math.cos((lat * Math.PI) / 180))
 }
 
-function toMercator(lng: number, lat: number) {
-  const mc = mapboxgl.MercatorCoordinate.fromLngLat([lng, lat], 0)
-  return { x: mc.x, y: mc.y, z: mc.z ?? 0, scale: meterToMercator(lat) }
+/**
+ * 씬 좌표계 — 오브젝트는 Mercator가 아니라 "원점 기준 미터"에 놓는다.
+ *
+ * Mercator 좌표(0~1)에 직접 놓고 scale을 3e-8로 주면, 정점 오프셋이 그 크기
+ * 에서의 float32 엡실론보다 작아져 셰이더에서 MVP를 계산하는 순간 정점이
+ * 이산 격자로 뭉개진다(메시가 조각나 보임). 그래서 원점 이동·스케일·축 변환을
+ * 전부 카메라 projectionMatrix에 합성하고, 오브젝트는 원점 근처 미터 좌표에
+ * 둬서 float32 정밀도 안에서 다룬다. Mapbox 공식 3D 모델 예제와 같은 방식.
+ *
+ * 축: three(Y-up, +X 동쪽, +Z 북쪽) → Mercator(+X 동쪽, +Y 남쪽, +Z 위쪽)
+ * 변환은 X축 +90° 회전이 담당하므로 오브젝트는 평범한 Y-up으로 두면 된다.
+ */
+function createSceneOrigin(center: [number, number]) {
+  const origin = mapboxgl.MercatorCoordinate.fromLngLat(center, 0)
+  const scale = meterToMercator(center[1])
+
+  // T(origin) · S(scale) · Rx(90°)
+  const worldMatrix = new THREE.Matrix4()
+    .makeTranslation(origin.x, origin.y, origin.z ?? 0)
+    .multiply(new THREE.Matrix4().makeScale(scale, scale, scale))
+    .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2))
+
+  return {
+    worldMatrix,
+    /** lng/lat → 원점 기준 미터 좌표 (지면 높이 y=0) */
+    toLocal(lng: number, lat: number): [number, number, number] {
+      const mc = mapboxgl.MercatorCoordinate.fromLngLat([lng, lat], 0)
+      // local = Rx(90°)⁻¹ · (Δmercator / scale) — Rx(-90°)는 (X,Y,Z)→(X,Z,-Y)
+      return [(mc.x - origin.x) / scale, 0, -(mc.y - origin.y) / scale]
+    },
+  }
 }
 
 export function initWorldMap(
@@ -52,6 +80,7 @@ export function initWorldMap(
     const scene = new THREE.Scene()
     const camera = new THREE.Camera()
     camera.matrixAutoUpdate = false
+    const sceneOrigin = createSceneOrigin(center)
 
     let renderer: THREE.WebGLRenderer
     let resolved = false
@@ -83,30 +112,29 @@ export function initWorldMap(
             renderer,
             camera,
             addAt(obj, lng, lat) {
-              const { x, y, z, scale } = toMercator(lng, lat)
-              obj.position.set(x, y, z)
-              obj.scale.setScalar(scale)
+              obj.position.set(...sceneOrigin.toLocal(lng, lat))
               scene.add(obj)
             },
             moveTo(obj, lng, lat) {
-              const { x, y, z } = toMercator(lng, lat)
-              obj.position.set(x, y, z)
+              obj.position.set(...sceneOrigin.toLocal(lng, lat))
             },
           })
         }
       },
 
-      render(_gl, args: unknown) {
-        const matrix =
-          (args as { defaultProjectionData?: { mainMatrix: number[] } })
-            .defaultProjectionData?.mainMatrix ??
-          (args as { projectionData?: { mainMatrix: number[] } })
-            .projectionData?.mainMatrix
-
-        if (matrix) {
-          camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix)
-        }
+      // mapbox-gl v3의 CustomLayerRenderMethod는 두 번째 인자로 MVP 행렬
+      // 배열을 그대로 넘긴다(gl, matrix, projection, ...). 이걸 객체로 보고
+      // .defaultProjectionData.mainMatrix를 찾으면 항상 undefined라
+      // projectionMatrix가 항등행렬로 남고, 씬 전체가 Mercator 좌표(0~1)를
+      // NDC로 그대로 써서 서브픽셀 크기로 그려진다
+      render(_gl, matrix: number[]) {
+        // mapbox MVP · (원점 이동 · 미터 스케일 · 축 변환)
+        camera.projectionMatrix.fromArray(matrix).multiply(sceneOrigin.worldMatrix)
         renderer.resetState()
+        // 캐릭터는 1.5m라 주변 건물(20~30m)에 항상 가려진다. 이 레이어는
+        // slot 'top' — 건물보다 위에 그리는 게 의도이므로, 색은 남기고
+        // basemap이 남긴 깊이만 비워 캐릭터가 언제나 보이게 한다
+        renderer.clearDepth()
         renderer.render(scene, camera)
         map.triggerRepaint()
       },

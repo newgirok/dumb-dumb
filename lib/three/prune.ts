@@ -15,7 +15,9 @@ function distanceM(lng1: number, lat1: number, lng2: number, lat2: number): numb
 function disposeObject(obj: THREE.Object3D) {
   obj.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return
-    child.geometry.dispose()
+    // 로더 캐시가 소유한 공유 지오메트리는 다른 캐릭터도 참조 중이라
+    // 여기서 dispose하면 안 됨
+    if (child.geometry.userData.shared !== true) child.geometry.dispose()
     const mats = Array.isArray(child.material) ? child.material : [child.material]
     mats.forEach((m: THREE.Material) => m.dispose())
   })
