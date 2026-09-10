@@ -4,7 +4,7 @@
 // 독립 씬. Mapbox와 무관하고 게임 로직도 없다.
 // 원본: https://summer-afternoon.vlucendo.com/
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import * as THREE from 'three'
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
@@ -26,10 +26,12 @@ import {
   createGrassMaterial,
   createTerrainMaterial,
   createSkyMaterial,
+  createSeaMaterial,
   createBirdMaterial,
   loadKtx2Lut,
 } from './rampShader'
 import { createThirdPerson, type ThirdPerson } from './thirdPerson'
+import { createSceneAudio, type SceneAudio } from './audio'
 
 /**
  * 월드 좌표가 지오메트리에 구워져 있는 정적 메시.
@@ -81,9 +83,38 @@ const CREATURES = [
 
 /** ufo도 코드로 배치된다 */
 const UFO_POSITION = [-56.9402, 2.6553, 22.7015] as const
+/** UFO에 이만큼 다가가면 secret 모달이 뜬다 */
+const SECRET_RANGE = 10
+/** 원본 secret 텍스트 */
+const SECRET_TEXT =
+  "It's a big metallic object. You want to believe it's some kind of vehicle."
 
 /** 갈매기 마리 수 (원본과 동일) */
 const BIRD_COUNT = 25
+
+// 원본 color-square 버튼이 순환하는 옷 색. uSeed는 [0,1) 안에서 색상(hue)만
+// 바꾼다(정수부는 피부색 행이라 고정). 첫 색은 원본 기본값 rgb(136,117,173).
+const CHAR_HUES = [0.72, 0.02, 0.1, 0.55, 0.33, 0.87]
+/** hsv(h, 0.4, 0.62) → CSS rgb — color-square 표시색을 셰이더 옷 색과 맞춘다 */
+function hueToCss(h: number): string {
+  const s = 0.4
+  const v = 0.62
+  const i = Math.floor(h * 6)
+  const f = h * 6 - i
+  const p = v * (1 - s)
+  const q = v * (1 - f * s)
+  const t = v * (1 - (1 - f) * s)
+  const table = [
+    [v, t, p],
+    [q, v, p],
+    [p, v, t],
+    [p, q, v],
+    [t, p, v],
+    [v, p, q],
+  ]
+  const [r, g, b] = table[i % 6]
+  return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`
+}
 
 /** LOD 없이 인스턴스만 있는 소품 — 메시명과 인스턴스 파일명이 다를 수 있다 */
 const FLAT_PROPS = [
@@ -136,7 +167,19 @@ function updateBirds(birds: Birds | null, time: number) {
 
 export default function SummerAfternoonPage() {
   const mountRef = useRef<HTMLDivElement>(null)
-  const [status, setStatus] = useState('로딩 중…')
+  const revealRef = useRef<HTMLCanvasElement>(null)
+  // 'loading' → 에셋 로드 중, 'playing' → 자동 시작 후 조작 가능(원본과 동일)
+  const [phase, setPhase] = useState<'loading' | 'playing'>('loading')
+  const [error, setError] = useState<string | null>(null)
+  const [muted, setMuted] = useState(false)
+  const [secret, setSecret] = useState(false)
+  const [info, setInfo] = useState(false)
+  // 캐릭터 옷 색(원본 color-square 버튼) — CSS 표시색
+  const [charColor, setCharColor] = useState('rgb(136, 117, 173)')
+  const audioRef = useRef<SceneAudio | null>(null)
+  const mutedRef = useRef(false)
+  // useEffect 안에서 만든 색 변경 함수를 React 버튼과 잇는 다리
+  const cycleColorRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     const mount = mountRef.current
@@ -154,7 +197,11 @@ export default function SummerAfternoonPage() {
     // 여기서는 그림자 카메라를 캐릭터와 함께 옮겨 같은 효과를 낸다(±50m,
     // 4096 → 텍셀 2.4cm). 그만큼 normalBias도 확 낮출 수 있다.
     const SHADOW_HALF = 50
-    sun.shadow.mapSize.set(4096, 4096)
+    const SHADOW_MAP = 4096
+    // 그림자 프레임을 이 간격(≈2.4cm)으로 스냅하면 이동 중 그림자 가장자리가
+    // 텍셀 아래로 미끄러지며 떨리는(크롤링) 현상이 사라진다
+    const SHADOW_TEXEL = (SHADOW_HALF * 2) / SHADOW_MAP
+    sun.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP)
     sun.shadow.camera.left = -SHADOW_HALF
     sun.shadow.camera.right = SHADOW_HALF
     sun.shadow.camera.top = SHADOW_HALF
@@ -204,6 +251,10 @@ export default function SummerAfternoonPage() {
     let kidActions: Record<'idle' | 'run' | 'air', THREE.AnimationAction> | null = null
     let kidPose: 'idle' | 'run' | 'air' = 'idle'
     let kidMesh: THREE.SkinnedMesh | null = null
+    let ufo: THREE.Mesh | null = null
+    const ufoBase = new THREE.Vector3(UFO_POSITION[0], UFO_POSITION[1], UFO_POSITION[2])
+    let nearUfo = false
+    let cleanupAudioGesture = () => {}
     const materials: THREE.Material[] = []
 
     const loader = new THREE.TextureLoader().setPath('/ref-assets/images/')
@@ -234,17 +285,22 @@ export default function SummerAfternoonPage() {
       shared.tCloudsTop.value = cloudsTex
 
       // 압축 텍스처는 실패해도 씬 전체가 죽지 않게 개별로 처리한다
-      const [patchesTex, flowTex] = await Promise.all([
+      const [patchesTex, flowTex, seaNormalTex] = await Promise.all([
         ktx2.loadAsync('/ref-assets/images/grass-patches-highq.ktx2').catch(() => null),
         ktx2.loadAsync('/ref-assets/images/skyflow-highq.ktx2').catch(() => null),
+        ktx2.loadAsync('/ref-assets/images/sea1-normal-highq.ktx2').catch(() => null),
       ])
       if (destroyed) return
       if (flowTex) configure(flowTex, { repeat: true })
+      if (seaNormalTex) configure(seaNormalTex, { repeat: true })
 
       const rampMaterial = createRampMaterial(rampTex, shared)
       const shakeMaterial = createRampMaterial(rampTex, shared, { shake: true })
       const wiresMaterial = createRampMaterial(rampTex, shared, { lightwires: true })
-      const characterMaterial = createRampMaterial(rampTex, shared, { isCharacter: true })
+      const characterMaterial = createRampMaterial(rampTex, shared, {
+        isCharacter: true,
+        seed: CHAR_HUES[0],
+      })
       const terrainMaterial = createTerrainMaterial(
         { ramp: rampTex, road: roadTex, masks: masksTex, noises: noisesTex, details: detailsTex },
         shared,
@@ -264,6 +320,17 @@ export default function SummerAfternoonPage() {
       terrainMesh.name = 'terrain'
       terrainMesh.receiveShadow = true
       scene.add(terrainMesh)
+
+      // 바다 — 해수면(y≈-0.8)에 큰 평면을 깔면 지형이 그 위로 솟아 실제
+      // 바다 영역에서만 드러난다. 잔물결·반짝임은 sea1-normal로 만든다.
+      const seaMaterial = createSeaMaterial(seaNormalTex, sunOffset, shared)
+      materials.push(seaMaterial)
+      const sea = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), seaMaterial)
+      sea.rotation.x = -Math.PI / 2
+      sea.position.y = -0.8
+      sea.name = 'sea'
+      sea.renderOrder = -900
+      scene.add(sea)
 
       // 하늘 — 카메라를 따라다니고 항상 가장 먼저 그린다
       const skyGeo = await loadBinGeometry('skydome')
@@ -292,16 +359,18 @@ export default function SummerAfternoonPage() {
       if (destroyed) return
       const wires = new THREE.Mesh(wiresGeo, wiresMaterial)
       wires.name = 'lightposts-wires'
-      wires.castShadow = true
+      // 얇은 전선의 그림자는 텍셀보다 가늘어 떨리기만 하므로 캐스팅하지 않는다
+      wires.castShadow = false
       scene.add(wires)
       counts.static++
 
-      // ufo — 월드 좌표가 구워져 있지 않아 원본 코드값으로 배치한다
+      // ufo — 월드 좌표가 구워져 있지 않아 원본 코드값으로 배치한다.
+      // 고정이 아니라 코드로 위아래로 떠다닌다(원본과 동일).
       const ufoGeo = await loadBinGeometry('ufo')
       if (destroyed) return
-      const ufo = new THREE.Mesh(ufoGeo, rampMaterial)
+      ufo = new THREE.Mesh(ufoGeo, rampMaterial)
       ufo.name = 'ufo'
-      ufo.position.set(UFO_POSITION[0], UFO_POSITION[1], UFO_POSITION[2])
+      ufo.position.copy(ufoBase)
       ufo.castShadow = true
       ufo.receiveShadow = true
       scene.add(ufo)
@@ -379,6 +448,7 @@ export default function SummerAfternoonPage() {
       kidMesh = kid
       kid.name = 'kid'
       kid.castShadow = true
+      kid.receiveShadow = true
       kid.frustumCulled = false
       scene.add(kid)
       const kidMixer = new THREE.AnimationMixer(kid)
@@ -457,18 +527,42 @@ export default function SummerAfternoonPage() {
         start: feet.clone(),
       })
 
-      terrainGeo.computeBoundingBox()
-      const size = terrainGeo.boundingBox!.getSize(new THREE.Vector3())
+      // 카메라를 캐릭터 뒤에 미리 세워 인트로 리빌이 캐릭터를 화면 중앙에 잡게 한다
+      controller.update(0)
 
-      setStatus(
-        [
-          `지형 ${size.x.toFixed(0)}×${size.z.toFixed(0)}m`,
-          `정적 ${counts.static} · 인스턴스 ${counts.instanced} · LOD 패치 ${counts.patches}`,
-          `잔디 ${counts.grass}${patchesTex ? '' : ' (텍스처 없음)'}` +
-            ` · 생물 ${counts.creatures} · 갈매기 ${BIRD_COUNT}`,
-        ].join('\n'),
-      )
-    })().catch((err) => setStatus(`로드 실패: ${String(err)}`))
+      // 색상 버튼(원본 color-square) — uSeed의 소수부만 바꿔 옷 색을 순환한다
+      let colorIndex = 0
+      cycleColorRef.current = () => {
+        colorIndex = (colorIndex + 1) % CHAR_HUES.length
+        const hue = CHAR_HUES[colorIndex]
+        const shader = characterMaterial.userData.shader as
+          | { uniforms: { uSeed: { value: number } } }
+          | undefined
+        if (shader) shader.uniforms.uSeed.value = hue
+        setCharColor(hueToCss(hue))
+      }
+
+      // 브라우저 자동재생 정책상 오디오는 첫 사용자 제스처 이후에만 만들 수 있다.
+      // 원본처럼 시작 버튼 없이 자동 진입하고, 첫 입력 때 오디오를 켠다.
+      const startAudioOnce = () => {
+        window.removeEventListener('pointerdown', startAudioOnce)
+        window.removeEventListener('keydown', startAudioOnce)
+        createSceneAudio(camera, scene)
+          .then((a) => {
+            audioRef.current = a
+            a.setMuted(mutedRef.current)
+          })
+          .catch(() => {})
+      }
+      window.addEventListener('pointerdown', startAudioOnce)
+      window.addEventListener('keydown', startAudioOnce)
+      cleanupAudioGesture = () => {
+        window.removeEventListener('pointerdown', startAudioOnce)
+        window.removeEventListener('keydown', startAudioOnce)
+      }
+
+      setPhase('playing')
+    })().catch((err) => setError(String(err)))
 
     const start = performance.now()
     let last = start
@@ -494,10 +588,29 @@ export default function SummerAfternoonPage() {
       if (controller && kidMesh) {
         shared.charPos.value.copy(kidMesh.position)
         shared.charSpeed.value = controller.speed
-        // 그림자 절두체가 캐릭터를 따라다녀야 근처가 선명하다
-        sun.position.copy(kidMesh.position).add(sunOffset)
-        sun.target.position.copy(kidMesh.position)
+        // 그림자 절두체가 캐릭터를 따라다녀야 근처가 선명하다. 단, 프레임을
+        // 텍셀 단위로 스냅해 이동 중 그림자가 떨리지 않게 한다.
+        const sx = Math.round(kidMesh.position.x / SHADOW_TEXEL) * SHADOW_TEXEL
+        const sz = Math.round(kidMesh.position.z / SHADOW_TEXEL) * SHADOW_TEXEL
+        sun.target.position.set(sx, kidMesh.position.y, sz)
+        sun.position.set(sx + sunOffset.x, kidMesh.position.y + sunOffset.y, sz + sunOffset.z)
         sun.target.updateMatrixWorld()
+        // 발소리 — 지면 위에서 이동 중일 때만
+        audioRef.current?.footsteps(controller.moving && !controller.airborne)
+      }
+      // UFO — 원본처럼 코드로 위아래로 떠다니고 천천히 돈다
+      if (ufo) {
+        const t = shared.time.value
+        ufo.position.set(ufoBase.x, ufoBase.y + Math.sin(t * 0.6) * 0.4, ufoBase.z)
+        ufo.rotation.y = t * 0.3
+        // 캐릭터가 가까이 오면 secret 모달을 띄운다(가까워지는 순간 한 번)
+        if (kidMesh) {
+          const close = ufo.position.distanceTo(kidMesh.position) < SECRET_RANGE
+          if (close !== nearUfo) {
+            nearUfo = close
+            if (close) setSecret(true)
+          }
+        }
       }
       for (const m of mixers) m.update(dt)
       updateBirds(birds, shared.time.value)
@@ -514,7 +627,10 @@ export default function SummerAfternoonPage() {
       destroyed = true
       cancelAnimationFrame(raf)
       ro.disconnect()
+      cleanupAudioGesture()
       controller?.dispose()
+      audioRef.current?.dispose()
+      audioRef.current = null
       for (const m of mixers) m.stopAllAction()
       materials.forEach((m) => m.dispose())
       ktx2.dispose()
@@ -524,12 +640,199 @@ export default function SummerAfternoonPage() {
     }
   }, [])
 
+  // 음소거 토글은 오디오가 만들어진 뒤에도 반영돼야 한다
+  useEffect(() => {
+    mutedRef.current = muted
+    audioRef.current?.setMuted(muted)
+  }, [muted])
+
+  // 로드가 끝나 자동 진입하면 소용돌이 리빌을 재생한다(원본과 동일)
+  useEffect(() => {
+    if (phase === 'playing') playReveal(revealRef.current)
+  }, [phase])
+
   return (
-    <div className="relative w-screen h-screen bg-[#9fd4ef]">
-      <div ref={mountRef} className="w-full h-full" />
-      <pre className="absolute top-4 left-4 rounded-lg bg-black/60 px-3 py-2 text-xs leading-5 text-white">
-        {status}
-      </pre>
+    <div className="fixed inset-0 overflow-hidden bg-[#f7f4ea] select-none">
+      <style>{`
+        @font-face {
+          font-family: 'Stylish';
+          src: url('/ref-assets/fonts/Stylish-Regular.woff2') format('woff2');
+          font-display: swap;
+        }
+      `}</style>
+      <div ref={mountRef} className="w-full h-full touch-none" />
+
+      {/* 인트로 리빌 — 자동 시작 시 소용돌이 마스크로 씬을 드러낸다 */}
+      <canvas
+        ref={revealRef}
+        className="pointer-events-none absolute inset-0 h-full w-full"
+        style={{ display: 'none' }}
+      />
+
+      {/* 로딩 화면 — 원본과 동일: 타이틀 + 스피너 (버튼 없음, 자동 진입) */}
+      {phase === 'loading' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#f7f4ea] text-[#8a8577]">
+          <h1
+            className="text-4xl sm:text-5xl tracking-wide text-center leading-tight"
+            style={{ fontFamily: 'Stylish, Georgia, serif' }}
+          >
+            Summer
+            <br />
+            Afternoon
+          </h1>
+          {error ? (
+            <p className="mt-6 text-sm text-red-500/80">로드 실패: {error}</p>
+          ) : (
+            <div className="mt-8 h-8 w-8 animate-spin rounded-full border-2 border-[#c9c4b4] border-t-transparent" />
+          )}
+        </div>
+      )}
+
+      {/* 우상단 버튼 — 원본과 동일: 사운드 / 옷 색 / 정보 */}
+      {phase === 'playing' && (
+        <div className="absolute right-5 top-5 flex flex-col gap-[7px]">
+          <ToolButton
+            onClick={() => {
+              audioRef.current?.click()
+              setMuted((m) => !m)
+            }}
+          >
+            <svg
+              width="17"
+              height="13"
+              viewBox="0 0 17 13"
+              fill="none"
+              style={{ opacity: muted ? 0.3 : 1 }}
+            >
+              <path
+                d="M10.1891 0.227726L6.12965 3.33204H4.16819C3.65646 3.33204 3.23005 3.74143 3.23005 4.27018V8.65375C3.23005 8.81868 3.27258 8.97476 3.34792 9.11054L0.815582 10.9067C0.36511 11.2262 0.25895 11.8504 0.578469 12.3009C0.897988 12.7514 1.52219 12.8576 1.97266 12.538L6.12627 9.59189H6.1468L6.17341 9.61233L11.929 5.52989V5.47601L15.623 2.85588C16.0735 2.53637 16.1796 1.91216 15.8601 1.46169C15.5406 1.01122 14.9164 0.905058 14.4659 1.22458L11.929 3.02399V1.08062C11.9119 0.176617 10.8886 -0.318087 10.1892 0.227787L10.1891 0.227726ZM11.929 7.98191L7.83329 10.887L10.1892 12.6962C10.8886 13.2421 11.929 12.7304 11.929 11.8434V7.98191Z"
+                fill="#716C66"
+              />
+            </svg>
+          </ToolButton>
+
+          <ToolButton
+            onClick={() => {
+              audioRef.current?.click()
+              cycleColorRef.current()
+            }}
+          >
+            <div style={{ width: 20, height: 20, borderRadius: 3, backgroundColor: charColor }} />
+          </ToolButton>
+
+          <ToolButton
+            onClick={() => {
+              audioRef.current?.click()
+              setInfo((v) => !v)
+            }}
+          >
+            <svg width="4" height="17" viewBox="0 0 4 17" fill="none">
+              <path
+                d="M4 2C4 3.10457 3.10457 4 2 4C0.89543 4 0 3.10457 0 2C0 0.89543 0.89543 0 2 0C3.10457 0 4 0.89543 4 2Z"
+                fill="#716C66"
+              />
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M2 6C3.10457 6 4 6.89543 4 8L4 14.8182C4 15.9228 3.10457 16.8182 2 16.8182C0.895431 16.8182 0 15.9228 0 14.8182L0 8C0 6.89543 0.895431 6 2 6Z"
+                fill="#716C66"
+              />
+            </svg>
+          </ToolButton>
+        </div>
+      )}
+
+      {/* 정보 팝오버 — 조작법(정보 버튼을 눌러야 뜬다) */}
+      {info && phase === 'playing' && (
+        <div className="absolute right-5 top-[140px] w-60 rounded-md bg-[#f9efdc] p-4 text-sm leading-6 text-[#6f6a5c] shadow-[2px_2px_0_0_#716c66]">
+          <p className="mb-1 font-semibold" style={{ fontFamily: 'Stylish, Georgia, serif' }}>
+            조작법
+          </p>
+          <p>이동: WASD / 방향키 / 왼쪽 클릭(커서 방향)</p>
+          <p>점프: 스페이스 / 오른쪽 클릭</p>
+        </div>
+      )}
+
+      {/* secret 모달 — UFO 근접 이벤트 */}
+      {secret && phase === 'playing' && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30 p-6">
+          <div className="max-w-sm rounded-md bg-[#f9efdc] p-6 text-center text-[#6f6a5c] shadow-[2px_2px_0_0_#716c66]">
+            <p className="text-lg leading-relaxed" style={{ fontFamily: 'Stylish, Georgia, serif' }}>
+              {SECRET_TEXT}
+            </p>
+            <button
+              onClick={() => {
+                audioRef.current?.click()
+                setSecret(false)
+              }}
+              className="mt-6 rounded-md bg-[#f9efdc] px-6 py-1.5 text-sm tracking-widest shadow-[2px_2px_0_0_#716c66] transition-transform active:translate-x-[1px] active:translate-y-[1px]"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+/** 원본 우상단 버튼 스타일(크림 배경 + 하드 그림자)을 그대로 쓴 버튼 */
+function ToolButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex h-8 w-8 items-center justify-center bg-[#f9efdc] transition-transform active:translate-x-[1px] active:translate-y-[1px]"
+      style={{ borderRadius: 5, boxShadow: '2px 2px 0 0 #716c66' }}
+    >
+      {children}
+    </button>
+  )
+}
+
+/**
+ * 원본 transition-intro(소용돌이 그라디언트)를 밝은 곳부터 드러나는 임계값
+ * 마스크로 써서 씬을 화면 중앙에서부터 감싸며 공개한다. 작은 오프스크린
+ * 버퍼에서 픽셀 임계 처리를 하고 전체 화면으로 늘려 그린다.
+ */
+function playReveal(canvas: HTMLCanvasElement | null) {
+  if (!canvas) return
+  const N = 256
+  canvas.width = N
+  canvas.height = N
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  const img = new Image()
+  img.src = '/ref-assets/images/transition-intro.jpg'
+  img.onload = () => {
+    ctx.drawImage(img, 0, 0, N, N)
+    const src = ctx.getImageData(0, 0, N, N).data
+    const out = ctx.createImageData(N, N)
+    // 크림색(#f7f4ea) 오버레이 — 리빌될수록 알파가 0으로 빠진다
+    const [cr, cg, cb] = [247, 244, 234]
+    const duration = 1700
+    const startT = performance.now()
+
+    const step = (now: number) => {
+      const r = Math.min(1, (now - startT) / duration)
+      // ease-in-out
+      const eased = r < 0.5 ? 2 * r * r : 1 - Math.pow(-2 * r + 2, 2) / 2
+      const threshold = 1 - eased // 1 → 0
+      const edge = 0.12
+      for (let i = 0; i < N * N; i++) {
+        const lum = src[i * 4] / 255 // 그레이스케일이라 R로 충분
+        // lum이 threshold보다 밝으면 공개(알파 0), 어두우면 크림 유지
+        let a = (threshold - lum) / edge + 0.5
+        a = a < 0 ? 0 : a > 1 ? 1 : a
+        out.data[i * 4] = cr
+        out.data[i * 4 + 1] = cg
+        out.data[i * 4 + 2] = cb
+        out.data[i * 4 + 3] = Math.round(a * 255)
+      }
+      ctx.putImageData(out, 0, 0)
+      if (r < 1) requestAnimationFrame(step)
+      else canvas.style.display = 'none'
+    }
+    requestAnimationFrame(step)
+  }
 }
