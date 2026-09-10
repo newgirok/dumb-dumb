@@ -149,16 +149,23 @@ export default function SummerAfternoonPage() {
     const sun = new THREE.DirectionalLight(0xffffff, 1)
     sun.position.set(-60, 80, 40)
     sun.castShadow = true
+    // 월드 전체(240m)를 한 장으로 덮으면 텍셀이 6cm를 넘어 빨래·전선 같은
+    // 얇은 물체의 그림자가 뭉개진다. 원본은 CSM으로 근거리를 따로 그리는데,
+    // 여기서는 그림자 카메라를 캐릭터와 함께 옮겨 같은 효과를 낸다(±50m,
+    // 4096 → 텍셀 2.4cm). 그만큼 normalBias도 확 낮출 수 있다.
+    const SHADOW_HALF = 50
     sun.shadow.mapSize.set(4096, 4096)
-    sun.shadow.camera.left = -120
-    sun.shadow.camera.right = 120
-    sun.shadow.camera.top = 120
-    sun.shadow.camera.bottom = -120
+    sun.shadow.camera.left = -SHADOW_HALF
+    sun.shadow.camera.right = SHADOW_HALF
+    sun.shadow.camera.top = SHADOW_HALF
+    sun.shadow.camera.bottom = -SHADOW_HALF
     sun.shadow.camera.near = 1
-    sun.shadow.camera.far = 400
-    // depth bias보다 normalBias가 경사면에서 안정적이다
-    sun.shadow.normalBias = 0.18
+    sun.shadow.camera.far = 300
+    sun.shadow.normalBias = 0.03
+    sun.shadow.bias = -0.0002
     scene.add(sun)
+    scene.add(sun.target)
+    const sunOffset = sun.position.clone()
     scene.add(new THREE.AmbientLight(0xffffff, 0.4))
 
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 3000)
@@ -194,8 +201,8 @@ export default function SummerAfternoonPage() {
     const mixers: THREE.AnimationMixer[] = []
     let birds: Birds | null = null
     let controller: ThirdPerson | null = null
-    let kidActions: { idle: THREE.AnimationAction; run: THREE.AnimationAction } | null = null
-    let kidMoving = false
+    let kidActions: Record<'idle' | 'run' | 'air', THREE.AnimationAction> | null = null
+    let kidPose: 'idle' | 'run' | 'air' = 'idle'
     let kidMesh: THREE.SkinnedMesh | null = null
     const materials: THREE.Material[] = []
 
@@ -360,11 +367,12 @@ export default function SummerAfternoonPage() {
       }
 
       // 캐릭터 — 게임용 마커 링 없이 메시만
-      const [kidGeo, kidBones, kidIdle, kidRun] = await Promise.all([
+      const [kidGeo, kidBones, kidIdle, kidRun, kidAir] = await Promise.all([
         loadBinGeometry('kid'),
         loadBinGeometry('kid-bones'),
         loadBinGeometry('kid-idle'),
         loadBinGeometry('kid-run'),
+        loadBinGeometry('kid-air'),
       ])
       if (destroyed) return
       const kid = createSkin(kidGeo, kidBones, characterMaterial)
@@ -376,8 +384,9 @@ export default function SummerAfternoonPage() {
       const kidMixer = new THREE.AnimationMixer(kid)
       const idle = kidMixer.clipAction(createSkinAnimation('idle', kidIdle))
       const run = kidMixer.clipAction(createSkinAnimation('run', kidRun))
+      const air = kidMixer.clipAction(createSkinAnimation('air', kidAir))
       idle.play()
-      kidActions = { idle, run }
+      kidActions = { idle, run, air }
       mixers.push(kidMixer)
 
       // 생물 3종 — 캐릭터 분기가 아니라 일반 팔레트를 쓴다(원본과 동일)
@@ -468,20 +477,27 @@ export default function SummerAfternoonPage() {
       last = now
       shared.time.value = (now - start) / 1000
       controller?.update(dt)
-      if (controller && kidActions && controller.moving !== kidMoving) {
-        kidMoving = controller.moving
-        const next = kidMoving ? kidActions.run : kidActions.idle
-        const prev = kidMoving ? kidActions.idle : kidActions.run
-        next.enabled = true
-        next.setEffectiveTimeScale(1)
-        next.setEffectiveWeight(1)
-        next.time = 0
-        next.play()
-        prev.crossFadeTo(next, 0.2, true)
+      if (controller && kidActions) {
+        const pose = controller.airborne ? 'air' : controller.moving ? 'run' : 'idle'
+        if (pose !== kidPose) {
+          const next = kidActions[pose]
+          const prev = kidActions[kidPose]
+          kidPose = pose
+          next.enabled = true
+          next.setEffectiveTimeScale(1)
+          next.setEffectiveWeight(1)
+          next.time = 0
+          next.play()
+          prev.crossFadeTo(next, 0.15, true)
+        }
       }
       if (controller && kidMesh) {
         shared.charPos.value.copy(kidMesh.position)
         shared.charSpeed.value = controller.speed
+        // 그림자 절두체가 캐릭터를 따라다녀야 근처가 선명하다
+        sun.position.copy(kidMesh.position).add(sunOffset)
+        sun.target.position.copy(kidMesh.position)
+        sun.target.updateMatrixWorld()
       }
       for (const m of mixers) m.update(dt)
       updateBirds(birds, shared.time.value)
