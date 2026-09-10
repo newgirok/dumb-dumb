@@ -16,8 +16,10 @@ import * as THREE from 'three'
 const WALK_SPEED = 3.2
 /** 캐릭터가 진행 방향으로 도는 속도 */
 const TURN_LERP = 10
-/** 카메라가 캐릭터 뒤로 돌아오는 속도 — 원본은 아주 느긋하다 */
-const CAMERA_YAW_LERP = 1.6
+/** 카메라가 캐릭터 뒤로 돌아오는 속도 — 원본 cameraRotationLerp 0.03 상당 */
+const CAMERA_YAW_LERP = 1.8
+/** 멈춰 있을 때의 회전 배수 — 원본 cameraInactiveMultiplier */
+const CAMERA_IDLE_MUL = 0.025
 /** 카메라가 목표 위치를 따라잡는 속도 */
 const CAMERA_LERP = 5
 const CAMERA_BACK = 6
@@ -199,9 +201,20 @@ export function createThirdPerson({
       character.position.copy(position)
       state.speed = state.moving ? WALK_SPEED * magnitude : 0
 
-      // 카메라는 유저가 못 돌린다 — 캐릭터 뒤로 느리게 알아서 돌아온다
+      // 카메라는 유저가 못 돌린다 — 캐릭터 뒤로 느리게 알아서 돌아온다.
+      //
+      // 중요한 건 회전 배수다. 원본은 fit(dot(현재 카메라 방위, 목표 방위),
+      // -1, 0, 0, 1)을 곱한다. 캐릭터가 카메라 쪽으로 곧장 걸어오면 두 방위가
+      // 정반대(dot=-1)라 배수가 0이 되어 카메라가 아예 안 돈다. 이게 없으면
+      // 뒤로 걸을 때 "캐릭터가 카메라를 보고 돌면 카메라가 그 뒤로 돌고
+      // 이동 방향이 또 바뀌는" 피드백 루프가 생겨 화면이 계속 회전한다.
+      const desiredYaw = character.rotation.y + Math.PI
+      const alignment = Math.cos(desiredYaw - camYaw)
+      const rotateMul = state.moving
+        ? THREE.MathUtils.clamp(alignment, -1, 0) + 1
+        : CAMERA_IDLE_MUL
       camYaw +=
-        shortestAngle(character.rotation.y + Math.PI - camYaw) * Math.min(1, CAMERA_YAW_LERP * dt)
+        shortestAngle(desiredYaw - camYaw) * Math.min(1, CAMERA_YAW_LERP * rotateMul * dt)
 
       toCam.set(Math.sin(camYaw), 0, Math.cos(camYaw))
       const radius = cameraRadius(position, toCam, CAMERA_BACK)
