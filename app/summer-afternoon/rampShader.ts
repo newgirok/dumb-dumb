@@ -493,6 +493,79 @@ export function createTerrainMaterial(
 }
 
 /**
+ * 바다 — sea1-normal 텍스처를 두 겹으로 흘려 잔물결을 만들고, 햇빛
+ * 스페큘러와 수평선 프레넬로 오후 바다의 반짝임을 낸다. 지형이 해수면
+ * (y≈-0.8) 위로 솟아 있어 이 평면은 실제 바다 영역에서만 드러난다.
+ */
+export function createSeaMaterial(
+  normalTexture: THREE.Texture | null,
+  sunDir: THREE.Vector3,
+  shared: SharedUniforms,
+): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      tNormal: { value: normalTexture },
+      uUseNormal: { value: normalTexture ? 1 : 0 },
+      tCloudsTop: shared.tCloudsTop,
+      time: shared.time,
+      uSunDir: { value: sunDir.clone().normalize() },
+      uShallow: { value: new THREE.Color('#8fd0dc') },
+      uDeep: { value: new THREE.Color('#2f6f92') },
+    },
+    vertexShader: /* glsl */ `
+      varying vec3 vWorldPos;
+      void main() {
+        vec4 world = modelMatrix * vec4(position, 1.0);
+        vWorldPos = world.xyz;
+        gl_Position = projectionMatrix * viewMatrix * world;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D tNormal;
+      uniform float uUseNormal;
+      uniform sampler2D tCloudsTop;
+      uniform float time;
+      uniform vec3 uSunDir;
+      uniform vec3 uShallow;
+      uniform vec3 uDeep;
+      varying vec3 vWorldPos;
+      ${HELPERS}
+      float rand(vec2 n) { return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453); }
+
+      void main() {
+        vec3 wPos = vWorldPos;
+        vec3 N = vec3(0.0, 1.0, 0.0);
+        if (uUseNormal > 0.5) {
+          vec2 uv1 = wPos.xz * 0.02 + time * vec2(0.010, 0.013);
+          vec2 uv2 = wPos.xz * 0.035 - time * vec2(0.017, 0.009);
+          vec2 n1 = texture2D(tNormal, uv1).rg * 2.0 - 1.0;
+          vec2 n2 = texture2D(tNormal, uv2).rg * 2.0 - 1.0;
+          N = normalize(vec3((n1 + n2) * 0.6, 4.0)).xzy;
+        }
+        vec3 viewDir = normalize(cameraPosition - wPos);
+        float ndl = max(dot(N, normalize(uSunDir)), 0.0);
+        vec3 col = mix(uDeep, uShallow, smoothstep(0.0, 1.0, ndl));
+
+        // 잔물결 위 햇빛 반짝임
+        vec3 h = normalize(normalize(uSunDir) + viewDir);
+        float spec = pow(max(dot(N, h), 0.0), 80.0);
+        col += vec3(1.0, 0.98, 0.9) * spec * 0.8;
+
+        // 수평선으로 갈수록 하늘빛으로 밝아진다(프레넬)
+        float fres = pow(1.0 - max(dot(vec3(0.0, 1.0, 0.0), viewDir), 0.0), 3.0);
+        col = mix(col, uShallow * 1.15, fres * 0.6);
+
+        // 지면과 같은 구름 그림자
+        vec2 cloudsUV = wPos.xz * 0.003 + vec2(time * 0.0139, time * 0.02789) * 0.25;
+        float cloudsMult = texture2D(tCloudsTop, cloudsUV).r;
+        col *= fit(smoothstep(0.2, 0.9, cloudsMult), 0.0, 1.0, 0.85, 1.0);
+
+        addFog(col, length(wPos - cameraPosition));
+        gl_FragColor = vec4(col, 1.0);
+      }`,
+  })
+}
+
+/**
  * 하늘 돔 — flowmap으로 구름을 흘린다. 색상값은 원본 uniform 그대로.
  * 돔 면이 이미 안쪽을 향하도록 제작돼 있어 기본 FrontSide가 맞다.
  * BackSide로 뒤집으면 통째로 컬링돼 하늘이 사라진다.
