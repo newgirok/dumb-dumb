@@ -52,12 +52,14 @@ const HELPERS = /* glsl */ `
     vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
     return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
   }
-  // 원본 안개 — 거리에 따라 채도를 낮추고 명도를 올린다
+  // 원본 안개 — 거리에 따라 채도를 낮추고 명도를 올린다.
+  // 채도는 "낮추기만" 한다: 이미 채도가 0.3 미만인 중립색(전선 등)을 0.3으로
+  // 끌어올리면 색상값이 0(=빨강)인 회색이 원거리에서 붉게 변해 깨져 보인다.
   void addFog(inout vec3 outcolor, float lenCam) {
     vec3 hsv = rgb2hsv(outcolor);
     float fogDist = fit(lenCam, 40.0, 300.0, 0.0, 1.0);
     hsv.z = mix(hsv.z, 0.6, fogDist);
-    hsv.y = mix(hsv.y, 0.3, fogDist);
+    hsv.y = mix(hsv.y, min(hsv.y, 0.3), fogDist);
     outcolor = hsv2rgb(hsv);
   }
 `
@@ -230,6 +232,12 @@ const GENERIC_BRANCH = /* glsl */ `
   vec3 outColor = texture2D(tRamp, vec2(rampX, getRamp(vColorInfo.x))).rgb;
 `
 
+// 전선은 텍셀보다 가는 선이라 팔레트 램프를 쓰면 초목 위에서 붉게 번져
+// 깨져 보인다. 원본처럼 중립적인 어두운 색으로 고정하고 음영만 반영한다.
+const WIRES_BRANCH = /* glsl */ `
+  vec3 outColor = vec3(0.22, 0.21, 0.2) * fit(_shadow0, 0.0, 1.0, 0.55, 1.0);
+`
+
 export interface RampOptions {
   isCharacter?: boolean
   seed?: number
@@ -285,9 +293,12 @@ export function createRampMaterial(
         '#include <opaque_fragment>',
         `${RAMP_X}
          vec3 wPos = vWorldPos;
-         ${isCharacter ? CHARACTER_BRANCH : GENERIC_BRANCH}
+         ${lightwires ? WIRES_BRANCH : isCharacter ? CHARACTER_BRANCH : GENERIC_BRANCH}
          ${FINISH}`,
       )
+
+    // 캐릭터 옷 색을 런타임에 바꾸려면 uSeed uniform 참조가 필요하다
+    material.userData.shader = shader
   }
 
   // onBeforeCompile을 쓰는 재질은 캐시 키를 직접 구분해줘야 한다
