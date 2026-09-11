@@ -6,6 +6,8 @@ import { UsersModule } from './users/users.module'
 import { AuthModule } from './auth/auth.module'
 import { WorldModule } from './world/world.module'
 import { VoiceModule } from './voice/voice.module'
+import { BillingModule } from './billing/billing.module'
+import { AvatarsModule } from './avatars/avatars.module'
 import { AccessTokenGuard } from './auth/guard/access-token.guard'
 import { HealthController } from './health.controller'
 
@@ -17,6 +19,8 @@ import { HealthController } from './health.controller'
     AuthModule,
     WorldModule,
     VoiceModule,
+    BillingModule,
+    AvatarsModule,
   ],
   controllers: [HealthController],
   // 기본을 "인증 필요"로 두고 @Public() 으로만 연다.
