@@ -42,6 +42,10 @@ CREATE POLICY users_self_select ON users
 CREATE POLICY users_self_update ON users
   FOR UPDATE USING (id = app_user_id() OR app_is_admin());
 
+-- 가입은 서버가 수행한다 (아직 로그인 전이라 user_id 컨텍스트가 없다)
+CREATE POLICY users_admin_insert ON users
+  FOR INSERT WITH CHECK (app_is_admin());
+
 -- ---------------------------------------------------------------------------
 -- characters / orders / user_licenses — 본인 것만
 -- ---------------------------------------------------------------------------
@@ -125,3 +129,11 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_api;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO app_api;
+
+-- 권한 상승 차단.
+-- users_self_update 는 행 단위 정책이라 "본인 행"까지만 막는다. 즉 유저가
+-- 자기 행의 role 을 'admin' 으로 바꾸는 건 RLS로 못 막는다. 컬럼 단위
+-- 권한으로 role 수정 자체를 차단한다. 역할 변경은 운영 경로(소유자 접속)로만.
+REVOKE UPDATE ON users FROM app_api;
+GRANT UPDATE (email, password_hash, nickname, token_version, updated_at)
+  ON users TO app_api;
