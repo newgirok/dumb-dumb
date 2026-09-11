@@ -27,7 +27,16 @@ const ORIGIN: [number, number] = [126.9784, 37.5666]
 // 그대로 더해져서 실제로는 초속 200m(시속 720km)로 움직이던 버그였음.
 // dt(경과 초)를 곱해 프레임레이트와 무관하게 항상 같은 실제 속도로 걷도록 함
 const WALK_SPEED_DEG_PER_SEC = 3 / 111320
-const BROADCAST_INTERVAL = 100
+// 위치 전송 주기. 도보 3m/s 기준 5Hz면 60cm마다 갱신이라, 수신 측 보간과
+// 합치면 10Hz와 체감 차이가 없으면서 메시지 수는 절반이다
+const BROADCAST_INTERVAL = 200
+// 마지막으로 보낸 위치에서 이만큼 안 움직였으면 전송을 생략한다.
+// 가만히 서 있는 동안 초당 5건씩 나가던 걸 0건으로 만든다
+const MIN_BROADCAST_MOVE_M = 0.3
+// 피어 위치를 목표로 따라잡는 속도(1/초). 전송 주기보다 빨라야 끊기지 않는다
+const PEER_LERP = 9
+// 목표와 이만큼 떨어져 있으면 걷는 중으로 보고 run 애니메이션을 재생
+const PEER_MOVING_M = 0.15
 // 마지막 이동 후 이 시간(ms) 안이면 걷는 중으로 보고 run 애니메이션을 재생.
 // 키보드 입력과 GPS 갱신을 같은 방식으로 다루려고 입력이 아닌 "실제로 위치가
 // 갱신됐는지"를 기준으로 삼음
@@ -70,7 +79,11 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
   // otherMeshes와 같은 키를 쓰는 병행 맵 — prune은 Object3D만 알기 때문에
   // 애니메이션 갱신·정리에 필요한 Character를 따로 들고 있는다
   const otherChars = useRef<Map<string, Character>>(new Map())
+  // 수신한 위치는 목표로만 두고, 렌더 루프에서 부드럽게 따라간다.
+  // 바로 moveTo하면 전송 주기마다 뚝뚝 끊겨 보인다
+  const peerTargets = useRef<Map<string, { lng: number; lat: number }>>(new Map())
   const lastMoveAtRef = useRef(0)
+  const lastSentRef = useRef<[number, number] | null>(null)
   const posChannels = useRef<Map<string, RealtimeChannel>>(new Map())
   const chatChannelRef = useRef<RealtimeChannel | null>(null)
   const pruneRef = useRef<PruneManager | null>(null)
@@ -145,8 +158,7 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
             if (destroyed || pos.userId === userIdRef.current) return
             const other = otherMeshes.current.get(pos.userId)
             if (other) {
-              ctx.moveTo(other, pos.lng, pos.lat)
-              other.userData = { lng: pos.lng, lat: pos.lat }
+              peerTargets.current.set(pos.userId, { lng: pos.lng, lat: pos.lat })
               return
             }
             // 로드가 끝나기 전에 같은 유저의 위치 갱신이 또 들어오면 캐릭터가
@@ -163,6 +175,7 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
               char.group.userData = { lng: pos.lng, lat: pos.lat }
               otherMeshes.current.set(pos.userId, char.group)
               otherChars.current.set(pos.userId, char)
+              peerTargets.current.set(pos.userId, { lng: pos.lng, lat: pos.lat })
             })
           })
           posChannels.current.set(id, ch)
@@ -208,6 +221,12 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
           const stamp: StampedPos = { lng, lat, ts: now }
           if (!isValidMove(lastStampRef.current, stamp)) return
           lastStampRef.current = stamp
+
+          // 가만히 서 있으면 보낼 게 없다. 수신 측은 마지막 위치를 계속
+          // 유지하므로 생략해도 화면이 달라지지 않는다
+          const sent = lastSentRef.current
+          if (sent && distanceM(sent[0], sent[1], lng, lat) < MIN_BROADCAST_MOVE_M) return
+          lastSentRef.current = [lng, lat]
 
           for (const ch of posChannels.current.values()) {
             await broadcastPosition(ch, { userId, lng, lat, bearing: FIXED_BEARING })
@@ -279,11 +298,29 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
           playerCharRef.current?.setMoving(now - lastMoveAtRef.current < MOVING_GRACE_MS)
           playerCharRef.current?.update(dt)
 
+          // 피어를 수신 위치로 부드럽게 이동시킨다. 전송 주기(200ms)보다 빠르게
+          // 따라잡아야 다음 패킷이 올 때쯤 목표에 닿아 끊김이 안 보인다
+          const lerp = Math.min(1, PEER_LERP * dt)
+          for (const [id, obj] of otherMeshes.current) {
+            const target = peerTargets.current.get(id)
+            if (!target) continue
+            const cur = obj.userData as { lng?: number; lat?: number }
+            if (cur.lng == null || cur.lat == null) continue
+            const lng = cur.lng + (target.lng - cur.lng) * lerp
+            const lat = cur.lat + (target.lat - cur.lat) * lerp
+            obj.userData = { lng, lat }
+            ctx.moveTo(obj, lng, lat)
+            otherChars.current.get(id)?.setMoving(
+              distanceM(lng, lat, target.lng, target.lat) > PEER_MOVING_M,
+            )
+          }
+
           for (const [id, char] of otherChars.current) {
             // prune이 otherMeshes에서 지운 유저는 Character도 함께 정리
             if (!otherMeshes.current.has(id)) {
               char.dispose()
               otherChars.current.delete(id)
+              peerTargets.current.delete(id)
               continue
             }
             char.update(dt)
