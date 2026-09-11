@@ -4,6 +4,8 @@ import { APP_GUARD } from '@nestjs/core'
 import { DatabaseModule } from './database/database.module'
 import { UsersModule } from './users/users.module'
 import { AuthModule } from './auth/auth.module'
+import { WorldModule } from './world/world.module'
+import { VoiceModule } from './voice/voice.module'
 import { AccessTokenGuard } from './auth/guard/access-token.guard'
 import { HealthController } from './health.controller'
 
@@ -13,6 +15,8 @@ import { HealthController } from './health.controller'
     DatabaseModule,
     UsersModule,
     AuthModule,
+    WorldModule,
+    VoiceModule,
   ],
   controllers: [HealthController],
   // 기본을 "인증 필요"로 두고 @Public() 으로만 연다.

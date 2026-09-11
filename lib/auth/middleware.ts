@@ -1,62 +1,31 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { REFRESH_COOKIE } from '@/lib/api/config'
 
 const PROTECTED = ['/dashboard', '/store', '/admin']
-const ADMIN_ONLY = ['/admin']
 
-// 로그인/로그아웃 인증 요구를 사이트 전체에서 임시로 비활성화. 아래 로직은 그대로 두고
-// 이 플래그만 true로 되돌리면 재활성화됨.
-const AUTH_ENABLED = false
-
-export async function applyAuthMiddleware(request: NextRequest) {
-  let response = NextResponse.next({ request })
-
-  if (!AUTH_ENABLED) {
-    return response
-  }
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          response = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          )
-        },
-      },
-    },
-  )
-
-  const { data: { user } } = await supabase.auth.getUser()
+/**
+ * 라우팅 UX용 최소 검사.
+ *
+ * 미들웨어는 Edge 런타임이라 DB를 못 보고, 여기서 토큰을 검증해봐야
+ * 실제 권한은 API가 다시 확인한다. 그래서 "세션 쿠키가 있는가"만 보고
+ * 리다이렉트를 정한다. 진짜 인가는 NestJS 가드와 RLS가 담당한다.
+ */
+export function applyAuthMiddleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const hasSession = Boolean(request.cookies.get(REFRESH_COOKIE)?.value)
 
-  if (!user && PROTECTED.some((p) => pathname.startsWith(p))) {
+  if (!hasSession && PROTECTED.some((p) => pathname.startsWith(p))) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    url.searchParams.set('next', pathname)
     return NextResponse.redirect(url)
   }
 
-  if (user && (pathname === '/login' || pathname === '/')) {
+  if (hasSession && (pathname === '/login' || pathname === '/')) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
   }
 
-  if (user && ADMIN_ONLY.some((p) => pathname.startsWith(p))) {
-    const role = user.user_metadata?.role
-    if (role !== 'advertiser') {
-      const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
-      return NextResponse.redirect(url)
-    }
-  }
-
-  return response
+  return NextResponse.next({ request })
 }

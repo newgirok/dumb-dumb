@@ -11,14 +11,12 @@ import { snapToRoad } from '@/lib/map/snap'
 import { createCharacterMesh, loadCharacter, type Character } from '@/lib/three/character'
 import { disposeBinLoader } from '@/lib/three/binLoader'
 import { PruneManager } from '@/lib/three/prune'
-import { createPositionChannel, broadcastPosition } from '@/lib/realtime/position'
-import { createChatChannel, sendChat } from '@/lib/realtime/chat'
+import { connectWorld, type WorldConnection, type PeerPosition } from '@/lib/realtime/world'
 import { isValidMove, type StampedPos } from '@/lib/geo/validator'
-import { requiredSectors, currentSectorId } from '@/lib/geo/sector'
+import { currentSectorId } from '@/lib/geo/sector'
 import { VoiceManager, type PeerAudioInfo } from '@/lib/voice/livekit'
-import { createClient } from '@/lib/supabase/client'
+import { currentUser, ensureSession } from '@/lib/auth/session'
 import { useTransitionReady } from '@/components/transition/PageTransition'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import * as THREE from 'three'
 
 const ORIGIN: [number, number] = [126.9784, 37.5666]
@@ -42,9 +40,6 @@ const PEER_MOVING_M = 0.15
 // 갱신됐는지"를 기준으로 삼음
 const MOVING_GRACE_MS = 250
 const VOICE_SECTOR_PREFIX = 'voice-'
-// ADR 007 — 쿼터뷰 카메라는 pitch/bearing을 고정해 멀미·타일 낭비를 막음.
-// 회전하는 체이스캠은 방향 혼동만 키워서 원래의 고정 대각선 시점으로 되돌림
-const FIXED_BEARING = 45
 
 interface Props {
   onRegisterMoveHandler: (fn: (dx: number, dy: number) => void) => void
@@ -84,8 +79,7 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
   const peerTargets = useRef<Map<string, { lng: number; lat: number }>>(new Map())
   const lastMoveAtRef = useRef(0)
   const lastSentRef = useRef<[number, number] | null>(null)
-  const posChannels = useRef<Map<string, RealtimeChannel>>(new Map())
-  const chatChannelRef = useRef<RealtimeChannel | null>(null)
+  const worldRef = useRef<WorldConnection | null>(null)
   const pruneRef = useRef<PruneManager | null>(null)
   const voiceRef = useRef<VoiceManager | null>(null)
   const voiceSectorRef = useRef<string | null>(null)
@@ -110,9 +104,10 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
     let stopWatchingGps: (() => void) | null = null
     const mobile = isMobileDevice()
 
-    const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) userIdRef.current = user.id
+    // 새로고침 직후엔 액세스 토큰이 메모리에 없다. 리프레시로 복구한 뒤
+    // 그 토큰으로 월드 소켓에 붙는다
+    void ensureSession().then(() => {
+      userIdRef.current = currentUser()?.id ?? null
     })
 
     voiceRef.current = new VoiceManager()
@@ -151,22 +146,27 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
         // 캐릭터 로드가 진행 중인 유저 id
         const pendingPeers = new Set<string>()
 
-        // 섹터 채널 동적 관리
-        const subscribeSector = (id: string) => {
-          if (posChannels.current.has(id)) return
-          const ch = createPositionChannel(id, (pos) => {
-            if (destroyed || pos.userId === userIdRef.current) return
-            const other = otherMeshes.current.get(pos.userId)
-            if (other) {
+        // 캐릭터 로드가 진행 중인 유저 id
+        const pendingPeersLoading = new Set<string>()
+
+        /** 서버가 섹터 단위로 묶어 내려주는 위치 묶음을 반영한다 */
+        const applyPositions = (positions: PeerPosition[]) => {
+          if (destroyed) return
+          for (const pos of positions) {
+            if (pos.userId === userIdRef.current) continue
+
+            const known = otherMeshes.current.get(pos.userId)
+            if (known) {
               peerTargets.current.set(pos.userId, { lng: pos.lng, lat: pos.lat })
-              return
+              continue
             }
-            // 로드가 끝나기 전에 같은 유저의 위치 갱신이 또 들어오면 캐릭터가
-            // 중복 생성되므로, 진행 중인 유저는 건너뛴다
-            if (pendingPeers.has(pos.userId)) return
-            pendingPeers.add(pos.userId)
-            loadCharacter(0xf74f4f).then((char) => {
-              pendingPeers.delete(pos.userId)
+            // 경계 섹터에서는 같은 유저가 한 틱에 두 번 올 수 있다.
+            // 로딩 중인 유저는 건너뛰어야 캐릭터가 중복 생성되지 않는다
+            if (pendingPeersLoading.has(pos.userId)) continue
+            pendingPeersLoading.add(pos.userId)
+
+            void loadCharacter(0xf74f4f).then((char) => {
+              pendingPeersLoading.delete(pos.userId)
               if (destroyed) {
                 char.dispose()
                 return
@@ -177,22 +177,15 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
               otherChars.current.set(pos.userId, char)
               peerTargets.current.set(pos.userId, { lng: pos.lng, lat: pos.lat })
             })
-          })
-          posChannels.current.set(id, ch)
-        }
-
-        const unsubscribeSector = (id: string) => {
-          posChannels.current.get(id)?.unsubscribe()
-          posChannels.current.delete(id)
-        }
-
-        const syncSectors = (lng: number, lat: number) => {
-          const needed = new Set(requiredSectors(lng, lat))
-          for (const id of needed) subscribeSector(id)
-          for (const id of posChannels.current.keys()) {
-            if (!needed.has(id)) unsubscribeSector(id)
           }
         }
+
+        worldRef.current = connectWorld({
+          onPositions: applyPositions,
+          onChat: () => {
+            // Phase 5에서 말풍선 연결 예정
+          },
+        })
 
         // 음성 룸 섹터 동기화
         const syncVoice = async (lng: number, lat: number) => {
@@ -202,15 +195,10 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
           voiceSectorRef.current = roomName
           const userId = userIdRef.current
           if (!userId || !voiceRef.current) return
-          await voiceRef.current.connect(roomName, userId)
+          await voiceRef.current.connect(roomName)
         }
 
-        syncSectors(posRef.current[0], posRef.current[1])
         syncVoice(posRef.current[0], posRef.current[1])
-
-        chatChannelRef.current = createChatChannel('chat-global', () => {
-          // Phase 5에서 말풍선 연결 예정
-        })
 
         broadcastTimer.current = setInterval(async () => {
           const [lng, lat] = posRef.current
@@ -228,9 +216,8 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
           if (sent && distanceM(sent[0], sent[1], lng, lat) < MIN_BROADCAST_MOVE_M) return
           lastSentRef.current = [lng, lat]
 
-          for (const ch of posChannels.current.values()) {
-            await broadcastPosition(ch, { userId, lng, lat, bearing: FIXED_BEARING })
-          }
+          // 섹터 판정과 속도 검증은 서버가 한다. 여기서는 좌표만 올린다
+          worldRef.current?.move(lng, lat)
 
           // 공간 음성: 피어 거리/방위 계산 → Top-8 업데이트
           if (voiceRef.current?.connected) {
@@ -248,10 +235,8 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
         }, BROADCAST_INTERVAL)
 
         onRegisterMoveHandler((dx, dy) => { inputRef.current = { dx, dy } })
-        onRegisterChatHandler(async (msg) => {
-          const userId = userIdRef.current
-          if (!chatChannelRef.current || !userId) return
-          await sendChat(chatChannelRef.current, { userId, text: msg })
+        onRegisterChatHandler((msg) => {
+          worldRef.current?.chat(msg)
         })
 
         // 키보드(웹, 가짜 이동)와 GPS(모바일, 실제 이동) 양쪽이 공유하는
@@ -266,7 +251,6 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
           if (playerMeshRef.current) ctx.moveTo(playerMeshRef.current, sLng, sLat)
 
           followPlayer(ctx.map, sLng, sLat)
-          syncSectors(sLng, sLat)
           syncVoice(sLng, sLat)
           pruneRef.current?.tick(ctx.scene, sLng, sLat, otherMeshes.current)
         }
@@ -367,8 +351,8 @@ export function WorldCanvas({ onRegisterMoveHandler, onRegisterChatHandler }: Pr
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       if (broadcastTimer.current) clearInterval(broadcastTimer.current)
       stopWatchingGps?.()
-      for (const ch of posChannels.current.values()) ch.unsubscribe()
-      chatChannelRef.current?.unsubscribe()
+      worldRef.current?.disconnect()
+      worldRef.current = null
       voiceRef.current?.disconnect()
       playerCharRef.current?.dispose()
       for (const char of otherChars.current.values()) char.dispose()

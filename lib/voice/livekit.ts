@@ -1,5 +1,6 @@
 import { Room, RoomEvent, Track } from 'livekit-client'
 import { SpatialAudioManager } from './spatial-audio'
+import { getAccessToken } from '@/lib/auth/session'
 
 const LEAVE_M = 40
 const MAX_SUBS = 8
@@ -9,18 +10,23 @@ export interface PeerAudioInfo {
   bearing: number  // 라디안
 }
 
-async function fetchToken(roomName: string, identity: string): Promise<string> {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/livekit-token`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify({ room_name: roomName, identity }),
+/**
+ * 참가 토큰을 API에서 받아온다.
+ * identity 는 보내지 않는다 — 서버가 액세스 토큰에서 꺼내야 사칭을 막는다.
+ */
+async function fetchToken(roomName: string): Promise<string> {
+  const accessToken = getAccessToken()
+  if (!accessToken) throw new Error('로그인이 필요합니다.')
+
+  const res = await fetch('/api/voice/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
     },
-  )
+    body: JSON.stringify({ roomName }),
+  })
+  if (!res.ok) throw new Error('음성 토큰 발급에 실패했습니다.')
   const { token } = (await res.json()) as { token: string }
   return token
 }
@@ -29,10 +35,10 @@ export class VoiceManager {
   private room: Room | null = null
   private spatial: SpatialAudioManager | null = null
 
-  async connect(roomName: string, identity: string): Promise<void> {
+  async connect(roomName: string): Promise<void> {
     if (this.room) await this.disconnect()
 
-    const token = await fetchToken(roomName, identity)
+    const token = await fetchToken(roomName)
 
     this.spatial = new SpatialAudioManager()
     this.room = new Room()
