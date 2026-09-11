@@ -25,3 +25,7 @@ yarn-error.log*
 .vercel
 *.tsbuildinfo
 next-env.d.ts
+
+# 테스트 산출물 (Playwright MCP 스냅샷·콘솔로그, 루트 검증 스크린샷)
+/.playwright-mcp/
+/*.png
