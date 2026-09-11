@@ -15,3 +15,14 @@ export const refreshCookieOptions = {
   path: '/',
   maxAge: 60 * 60 * 24 * 30,
 }
+
+export const OAUTH_STATE_COOKIE = 'oauth_state'
+
+/** CSRF state 는 인가 왕복 동안만 살아 있으면 된다 */
+export const oauthStateCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  path: '/',
+  maxAge: 60 * 10,
+}

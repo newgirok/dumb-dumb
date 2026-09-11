@@ -133,7 +133,9 @@ export class AuthService {
     const user = await this.users.findByEmailWithSecret(email)
     // 존재하지 않는 이메일과 틀린 비밀번호를 같은 메시지로 응답한다.
     // 구분해서 알려주면 가입 여부를 캐낼 수 있다
-    const ok = user ? await bcrypt.compare(password, user.passwordHash) : false
+    // 소셜로만 가입한 계정은 passwordHash 가 null 이다. bcrypt 에 넘기면
+    // 던지므로 여기서 걸러내되, 응답 메시지는 똑같이 유지한다
+    const ok = user?.passwordHash ? await bcrypt.compare(password, user.passwordHash) : false
     if (!user || !ok) {
       throw new UnauthorizedException('이메일 또는 비밀번호가 올바르지 않습니다.')
     }

@@ -23,6 +23,16 @@ const FIELD =
   'w-full h-11 px-3.5 rounded-lg border border-[#e5e7eb] bg-white text-[#111] text-[0.9rem] font-display outline-none'
 const PRIMARY_BTN =
   'w-full h-11 rounded-lg border-none bg-[#22c55e] text-white text-[0.9rem] font-bold cursor-pointer flex items-center justify-center gap-2 font-display'
+const SOCIAL_BTN =
+  'w-full h-11 rounded-lg text-[0.9rem] font-bold cursor-pointer flex items-center justify-center gap-2 font-display no-underline'
+
+/** 콜백 라우트가 실패 시 ?error= 로 알려준다 */
+const OAUTH_ERRORS: Record<string, string> = {
+  oauth_cancelled: '소셜 로그인을 취소했습니다.',
+  oauth_state: '인증 요청이 만료됐습니다. 다시 시도해 주세요.',
+  oauth_failed: '소셜 로그인에 실패했습니다.',
+  oauth_unavailable: '소셜 로그인을 사용할 수 없습니다.',
+}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -32,7 +42,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [nickname, setNickname] = useState('')
   const [loading, setLoading] = useState<string | null>(null)
-  const [error, setError]     = useState('')
+  // useSearchParams 는 Suspense 경계를 요구하므로 주소창에서 직접 읽는다
+  const [error, setError]     = useState(() =>
+    typeof window === 'undefined'
+      ? ''
+      : OAUTH_ERRORS[new URLSearchParams(window.location.search).get('error') ?? ''] ?? '',
+  )
 
   const submit = async () => {
     setError('')
@@ -144,6 +159,25 @@ export default function LoginPage() {
                 >
                   {loading ? <Spinner /> : mode === 'login' ? '로그인' : '가입하고 시작하기'}
                 </button>
+              </div>
+
+              <div className="flex items-center gap-3 my-4">
+                <span className="flex-1 h-px bg-[#e5e7eb]" />
+                <span className="text-[0.75rem] text-[#9ca3af]">또는</span>
+                <span className="flex-1 h-px bg-[#e5e7eb]" />
+              </div>
+
+              {/* 소셜 로그인은 공급자로 리다이렉트되므로 fetch가 아니라 링크다 */}
+              <div className="flex flex-col gap-2">
+                <a href="/api/auth/oauth/kakao" className={`${SOCIAL_BTN} bg-[#fee500] text-[#191600]`}>
+                  카카오로 계속하기
+                </a>
+                <a
+                  href="/api/auth/oauth/google"
+                  className={`${SOCIAL_BTN} bg-white text-[#111] border border-[#e5e7eb]`}
+                >
+                  Google로 계속하기
+                </a>
               </div>
 
               <div className="flex flex-col items-center gap-1.5 mt-4">
