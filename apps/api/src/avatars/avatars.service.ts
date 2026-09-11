@@ -61,12 +61,16 @@ export class AvatarsService {
   }
 
   /**
-   * 결제된 주문 하나를 캐릭터로 바꾼다.
+   * 결제된 주문의 n 번째 캐릭터를 발급한다.
    *
-   * characters.order_id 에도 UNIQUE 가 있어서 워커가 중복 실행돼도
-   * 두 번째는 DB가 거절한다.
+   * (order_id, order_seq) 에 UNIQUE 가 있어서 워커가 중복 실행돼도
+   * 두 번째는 DB가 거절한다. 묶음 상품은 seq 를 1..N 으로 올려 부른다.
    */
-  async issueForOrder(orderId: string, ownerId: string): Promise<IssuedCharacter | null> {
+  async issueForOrder(
+    orderId: string,
+    ownerId: string,
+    seq = 1,
+  ): Promise<IssuedCharacter | null> {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       const { data, hash } = this.rollAppearance()
 
@@ -74,15 +78,11 @@ export class AvatarsService {
         return await this.db.withAdmin(async (client) => {
           const { rows } = await client.query(
             `INSERT INTO characters
-               (serial_number, owner_id, appearance_hash, appearance_data, order_id)
+               (serial_number, owner_id, appearance_hash, appearance_data, order_id, order_seq)
              VALUES ('OW-' || lpad(nextval('character_serial_seq')::text, 8, '0'),
-                     $1, $2, $3, $4)
+                     $1, $2, $3, $4, $5)
              RETURNING id, serial_number, appearance_hash`,
-            [ownerId, hash, JSON.stringify(data), orderId],
-          )
-          await client.query(
-            `UPDATE orders SET fulfilled_at = now() WHERE id = $1`,
-            [orderId],
+            [ownerId, hash, JSON.stringify(data), orderId, seq],
           )
           return {
             id: rows[0].id,
@@ -96,9 +96,9 @@ export class AvatarsService {
 
         if (code !== '23505') throw error
 
-        // 이 주문은 이미 발급됐다 — 워커 중복 실행. 재시도할 일이 아니다
-        if (constraint === 'characters_order_uniq') {
-          this.logger.warn(`이미 발급된 주문 order=${orderId}`)
+        // 이 항목은 이미 발급됐다 — 워커 중복 실행. 재시도할 일이 아니다
+        if (constraint === 'characters_order_item_uniq') {
+          this.logger.warn(`이미 발급된 항목 order=${orderId} seq=${seq}`)
           return null
         }
 
@@ -116,30 +116,5 @@ export class AvatarsService {
     // 여기까지 왔으면 조합 공간이 포화됐다는 뜻이다. 사람이 봐야 한다
     this.logger.error(`외형 생성 ${MAX_ATTEMPTS}회 실패 order=${orderId}`)
     throw new Error('유니크한 외형을 생성하지 못했습니다.')
-  }
-
-  /**
-   * 발급 대기 주문을 집어온다.
-   *
-   * FOR UPDATE SKIP LOCKED 라서 워커를 여러 개 띄워도 같은 주문을 두 번
-   * 집지 않는다. 브로커를 따로 두지 않고 DB를 큐로 쓰는 이유다 —
-   * 결제와 발급이 같은 DB에 있으니 트랜잭션으로 묶을 수 있다.
-   */
-  async claimPendingOrders(limit = 5): Promise<{ orderId: string; userId: string }[]> {
-    return this.db.withAdmin(async (client) => {
-      const { rows } = await client.query(
-        `SELECT o.id, o.user_id
-           FROM orders o
-          WHERE o.status = 'PAID'
-            AND o.product_type = 'character'
-            AND o.fulfilled_at IS NULL
-            AND o.fulfill_attempts < $2
-          ORDER BY o.created_at
-          FOR UPDATE SKIP LOCKED
-          LIMIT $1`,
-        [limit, MAX_ATTEMPTS],
-      )
-      return rows.map((r) => ({ orderId: r.id, userId: r.user_id }))
-    })
   }
 }

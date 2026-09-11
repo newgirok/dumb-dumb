@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, LocateFixed, LogOut } from 'lucide-react'
+import { LayoutDashboard, LocateFixed, LogOut, Store } from 'lucide-react'
 import { useStartPageLoading } from '@/components/transition/PageTransition'
+import { logout } from '@/lib/auth/session'
 
 // youtube-shorts-automation의 Sidebar.tsx를 그대로 포팅 — 다크 글래스 배경, rounded-md
 // 아이콘 버튼 스타일까지 동일. 원본은 Home/채널설정/유튜브연결/로그아웃 4개였는데
@@ -13,11 +14,13 @@ export function Sidebar() {
   const router = useRouter()
   const startPageLoading = useStartPageLoading()
 
-  // 인증이 임시 비활성화된 상태라 실제 세션 종료 없이 단순히 홈으로 이동.
   // <a> 클릭이 아니라 router.push라 전환 로더 자동 감지가 안 되므로 직접 시작 —
   // 안 그러면 지도/랜딩 정리·로드 중 아무 피드백 없이 멈춘 것처럼 보임
-  const signOut = () => {
+  const signOut = async () => {
     startPageLoading()
+    await logout()
+    // 미들웨어가 리프레시 쿠키를 보고 판단하므로 서버 쪽 상태를 새로 읽어야 한다
+    router.refresh()
     router.push('/')
   }
 
@@ -40,6 +43,17 @@ export function Sidebar() {
           }`}
         >
           <LayoutDashboard className="h-5 w-5" />
+        </Link>
+        <Link
+          href="/store"
+          title="상점"
+          className={`flex items-center justify-center rounded-md p-2.5 transition-colors ${
+            pathname.startsWith('/store')
+              ? 'bg-white/20 text-white'
+              : 'text-white/50 hover:bg-white/10 hover:text-white'
+          }`}
+        >
+          <Store className="h-5 w-5" />
         </Link>
       </nav>
 

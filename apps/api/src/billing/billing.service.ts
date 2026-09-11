@@ -55,6 +55,24 @@ export class BillingService {
     })
   }
 
+  /** 내 주문 내역. RLS 가 남의 주문을 걸러준다 */
+  async listOrders(user: AuthUser): Promise<(Order & { fulfilledAt: Date | null })[]> {
+    return this.db.withUser({ userId: user.id, role: user.role }, async (client) => {
+      const { rows } = await client.query(
+        `SELECT id, product_type, amount_krw, status, fulfilled_at
+           FROM orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`,
+        [user.id],
+      )
+      return rows.map((r) => ({
+        id: r.id,
+        productType: r.product_type,
+        amountKrw: r.amount_krw,
+        status: r.status,
+        fulfilledAt: r.fulfilled_at,
+      }))
+    })
+  }
+
   /**
    * PG 웹훅 서명 검증.
    * 검증 없이 처리하면 누구나 결제 완료를 위조할 수 있다.
@@ -110,8 +128,15 @@ export class BillingService {
           [input.orderId, input.approvalNumber],
         )
       } catch (error) {
-        // 23505 = unique_violation. 같은 승인번호가 이미 반영된 재시도다
-        if ((error as { code?: string }).code === '23505') return { applied: false }
+        // 23505 = unique_violation. 같은 승인번호가 이미 반영됐다는 뜻인데,
+        // 다른 주문에 붙은 승인번호라면 PG 버그이거나 승인 재사용 시도다.
+        // 어느 쪽이든 반영하지 않되, 조용히 넘기지 않고 남긴다
+        if ((error as { code?: string }).code === '23505') {
+          this.logger.warn(
+            `이미 사용된 승인번호 order=${input.orderId} approval=${input.approvalNumber}`,
+          )
+          return { applied: false }
+        }
         throw error
       }
 

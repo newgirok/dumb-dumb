@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Headers,
   Post,
   RawBodyRequest,
@@ -10,17 +11,25 @@ import {
 } from '@nestjs/common'
 import type { Request } from 'express'
 import { BillingService, PRODUCTS, type ProductType } from './billing.service'
-import { AvatarsService } from '../avatars/avatars.service'
 import { CurrentUser } from '../auth/decorator/current-user.decorator'
 import { Public } from '../auth/decorator/public.decorator'
 import type { AuthUser } from '../auth/auth.types'
 
 @Controller('billing')
 export class BillingController {
-  constructor(
-    private readonly billing: BillingService,
-    private readonly avatars: AvatarsService,
-  ) {}
+  constructor(private readonly billing: BillingService) {}
+
+  /** 상품 목록. 가격은 서버가 쥐고 있고 클라이언트는 표시만 한다 */
+  @Public()
+  @Get('products')
+  products() {
+    return Object.entries(PRODUCTS).map(([type, p]) => ({ type, ...p }))
+  }
+
+  @Get('orders')
+  myOrders(@CurrentUser() user: AuthUser) {
+    return this.billing.listOrders(user)
+  }
 
   @Post('orders')
   createOrder(@CurrentUser() user: AuthUser, @Body() body: { productType?: string }) {
