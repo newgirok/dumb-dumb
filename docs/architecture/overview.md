@@ -9,45 +9,56 @@
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                     유저 (브라우저 / 모바일 앱)                    │
-│   PC: WASD 이동 (가짜 이동 전용)                                    │
-│   모바일: GPS 실제 이동 ↔ 가상 조이스틱 토글                         │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │ HTTPS
-┌──────────────────────────▼──────────────────────────────────────┐
-│           Next.js (App Router, CSR)                              │
-│   Mapbox GL JS v3 + Three.js (단일 WebGL 컨텍스트 공유)            │
-│   CSS Fog of War (반경 가변 Vignette)                             │
-│   배포: Vercel Edge Network                                       │
-└───────┬──────────────────────────────────────────┬──────────────┘
-        │ Supabase SDK                              │ LiveKit SDK
-        │                                          │
-┌───────▼──────────────────────────────┐  ┌────────▼─────────────┐
-│          Supabase Pro ($25/월)        │  │   LiveKit Cloud      │
-│                                      │  │   (매니지드 SFU)      │
-│  ┌──────────────────────────────┐    │  │                      │
-│  │ PostgreSQL + PostGIS         │    │  │  - 공간 음성 중계     │
-│  │  - characters                │    │  │  - 거리 기반 볼륨     │
-│  │  - sponsor_buildings(랜드마크)│    │  │  - 3D 오디오 패닝    │
-│  │      (GiST)                  │    │  └──────────────────────┘
-│  │  - ad_impressions            │    │
-│  │  - orders                    │    │
-│  └──────────────────────────────┘    │
-│  ┌────────────┐  ┌────────────────┐  │
-│  │  Auth      │  │  Realtime      │  │
-│  │  (OAuth)   │  │  (위치·채팅)   │  │
-│  └────────────┘  └────────────────┘  │
-│  ┌────────────┐  ┌────────────────┐  │
-│  │  Storage   │  │  Edge Functions│  │
-│  │  (.glb)    │  │  (결제·쿼리)   │  │
-│  └────────────┘  └────────────────┘  │
-└──────────────────────────────────────┘
-                    │
-        ┌───────────┴────────────┐
-        ▼                        ▼
- 외부 PG사                   Mapbox API
- (토스페이먼츠/카카오페이)     (벡터 타일 → 숲길·랜드마크로 재해석)
- 웹훅 → Edge Function
+│   PC: WASD 이동   /   모바일: 가상 조이스틱                         │
+│   3인칭 추적 카메라로 3D 숲 씬 안을 이동                             │
+└───────┬───────────────────────┬───────────────────────┬──────────┘
+        │ HTTPS                 │ socket.io             │ LiveKit SDK
+        │ (BFF 프록시)          │ (월드 게이트웨이 직접) │
+┌───────▼───────────────────────┼───────────────────────┼──────────┐
+│           Next.js 15 (App Router, CSR, Turbopack)      │          │
+│   [메인 월드] Three.js 단일 WebGL 캔버스 (베이크드 3D 씬)│          │
+│   [5시 미니맵] 독립 경량 Mapbox GL 캔버스 (실제 GPS)    │          │
+│   씬 뷰 디스턴스(거리 안개) — 가시거리 등급             │          │
+│   app/api/* = 얇은 BFF 프록시 (Authorization 헤더 전달) │          │
+│   배포: Vercel Edge Network                            │          │
+└───────┬───────────────────────┼───────────────────────┼──────────┘
+        │ (프록시 → NestJS)      │                       │
+┌───────▼───────────────────────▼──────────┐  ┌──────────▼─────────┐
+│        NestJS 11 API 서버 (apps/api)      │  │   LiveKit Cloud    │
+│        자체 호스팅                         │  │   (매니지드 SFU)    │
+│  ┌────────────┐  ┌────────────┐          │  │                    │
+│  │ auth       │  │ world      │          │  │  - 공간 음성 중계   │
+│  │ (JWT/OAuth)│  │ (socket.io │          │  │  - 거리 기반 볼륨   │
+│  │            │  │  게이트웨이)│          │  │  - 3D 오디오 패닝  │
+│  └────────────┘  └────────────┘          │  └────────────────────┘
+│  ┌────────────┐  ┌────────────┐          │
+│  │ billing    │  │ voice      │          │  ▲ 브라우저가 룸에 직접 조인
+│  │ (웹훅/발급) │  │ (토큰 발급) │          │  │ (voice 모듈이 토큰 발급)
+│  └────────────┘  └────────────┘          │
+│  ┌────────────┐  ┌────────────┐          │
+│  │ avatars    │  │ users      │          │
+│  └────────────┘  └────────────┘          │
+└──────────┬───────────────────┬───────────┘
+           │ app_api 롤(RLS)    │ 서버→외부
+┌──────────▼──────────┐  ┌──────▼──────────────────────────────────┐
+│  PostgreSQL          │  │  외부 서비스                             │
+│  + PostGIS           │  │  - 토스페이먼츠 / 카카오페이 (결제 웹훅)  │
+│  (단일 공유 DB,      │  │  - 카카오 / 구글 OAuth (코드 교환)       │
+│   자체 호스팅)       │  │  - Mapbox API (GIS 미니맵 실지형 타일)    │
+│  pg_cron / pgcrypto  │  └─────────────────────────────────────────┘
+│  citext              │
+└──────────────────────┘
 ```
+
+메인 월드는 Three.js 단일 WebGL 캔버스에 베이크드 로우폴리 숲 씬으로 렌더링하고, 화면 5시(우하단)의
+나침반형 GIS 미니맵은 독립 경량 Mapbox GL 캔버스로 유저의 실제 GPS 위치를 실지형 지도 위에 표시한다.
+두 렌더링 컨텍스트는 씬 성능을 우선해 분리 운용한다.
+
+브라우저는 NestJS API를 직접 호출하지 않는다. 모든 REST 호출은 Next.js Route Handler(`app/api/*`)를
+얇은 BFF 프록시로 거쳐 NestJS로 전달되며, 프록시가 `Authorization` 헤더를 그대로 넘긴다. 월드 위치·채팅은
+브라우저가 `NEXT_PUBLIC_WS_URL`로 socket.io 게이트웨이에 직접 접속하고, 공간 음성은 LiveKit Cloud에 직접
+조인한다(룸 토큰만 NestJS `voice` 모듈이 발급). 위치 브로드캐스트·근접 음성·속도 검증은 모두 씬 로컬
+좌표를 기준으로 동작한다.
 
 ---
 
@@ -55,19 +66,19 @@
 
 | 분류 | 기술 | 비고 |
 |---|---|---|
-| **코어 프레임워크** | Next.js (App Router, CSR) | 초기 구동 속도 최적화 |
-| **지도 엔진** | Mapbox GL JS v3 | 벡터 타일·지형지물 폴리곤(숲길·랜드마크로 재해석), 무료 티어 20만 건/월 |
-| **3D 엔진** | Three.js | 로우폴리 GLB 캐릭터 메시·애니메이션 |
-| **렌더링 파이프라인** | WebGL Context Sharing | 단일 canvas, 모바일 60fps ([ADR 001](../adr/001-webgl-context-sharing.md)) |
-| **UI 스타일** | Tailwind CSS v4 + 커스텀 디자인 시스템 | 숲·동물 세계관 — Nunito 폰트, oklch 자연 색상 팔레트 |
-| **배포** | Vercel Edge Network | 정적 빌드 + GLB 에셋 CDN |
-| **데이터베이스** | Supabase Pro (PostgreSQL + PostGIS) | 공간 연산 내장 ([ADR 002](../adr/002-supabase-all-in-one.md)) |
-| **실시간 소켓** | Supabase Realtime | 위치·채팅 브로드캐스트 |
-| **백엔드 함수** | Supabase Edge Functions | 결제 웹훅, 공간 쿼리 |
-| **인증** | Supabase Auth | 이메일 OTP + 카카오 OAuth + Google OAuth |
-| **스토리지** | Supabase Storage | GLB 에셋, RLS 보안 |
-| **공간 음성** | LiveKit Cloud | 매니지드 SFU ([ADR 003](../adr/003-livekit-cloud-sfu.md)) |
+| **코어 프레임워크** | Next.js 15 (App Router, CSR, Turbopack) | 초기 구동 속도 최적화 |
+| **3D 엔진** | Three.js (0.169) | 베이크드 로우폴리 숲 씬·GLB 캐릭터 메시·애니메이션, recast-navigation 내비메시 |
+| **메인 월드 렌더링** | Three.js 단일 WebGL 캔버스 | 씬 성능 우선, 모바일 60fps ([ADR 001](../adr/001-webgl-context-sharing.md)) |
+| **GIS 미니맵 엔진** | Mapbox GL JS v3 | 5시 미니맵 전용 독립 경량 캔버스, 실지형 타일, 무료 티어 20만 건/월 |
+| **UI 스타일** | Tailwind CSS v4 + oklch 디자인 시스템 | 숲·동물 세계관 — Nunito 폰트, oklch 자연 색상 팔레트 |
+| **프론트 배포** | Vercel Edge Network | 정적 빌드 + GLB 에셋 CDN |
+| **API 서버** | NestJS 11 (`apps/api`) | 자체 호스팅 |
+| **데이터베이스** | PostgreSQL + PostGIS (자체 호스팅, 단일 공유 DB) | 공간 연산 내장 ([ADR 002](../adr/002-self-hosted-backend.md)) |
+| **실시간 소켓** | socket.io (NestJS WebSocket 게이트웨이) | 섹터 단위 묶음 브로드캐스트 |
+| **인증** | 자체 JWT + bcrypt, 카카오/구글 OAuth | 액세스 15분 / 리프레시 30일 |
+| **공간 음성** | LiveKit Cloud SFU (`livekit-server-sdk`) | 매니지드 SFU ([ADR 003](../adr/003-livekit-cloud-sfu.md)) |
 | **PG 결제** | 토스페이먼츠 / 카카오페이 | 원화 직행 ([ADR 004](../adr/004-direct-krw-payment.md)) |
+| **생성형 AI** | 아바타 외형 조합 | `appearance_hash` 기반 |
 
 ---
 
@@ -75,12 +86,14 @@
 
 | 서비스 | 용도 | 제한 / 비용 |
 |---|---|---|
-| **Mapbox** | 지도 타일, 지형지물 폴리곤(숲길·랜드마크) | 무료 20만 건/월, 초과 종량 |
-| **Supabase Pro** | DB·Auth·Realtime·Storage·Edge Functions | $25/월 고정 |
+| **Mapbox** | 5시 GIS 미니맵 실지형 타일 (유저 GPS 위치 표시) | 무료 20만 건/월, 초과 종량 |
 | **LiveKit Cloud** | 공간 음성 SFU | 무료 티어 내 소진, 초과분 종량 |
 | **토스페이먼츠 / 카카오페이** | 원화 결제 PG | 건당 수수료 |
-| **Vercel** | 프론트엔드 배포·CDN | 소규모 무료~소액 고정 |
+| **카카오 / 구글 OAuth** | 소셜 로그인 (Authorization Code 흐름) | 무료 |
+| **Vercel** | 프론트엔드 배포·CDN | 소규모 무료~소액 |
 | **생성형 AI API** | 아바타 외형 조합 (appearance_hash 기반) | 사용량 기반 |
+
+DB(PostgreSQL + PostGIS)와 NestJS API 서버는 자체 호스팅으로 운영한다.
 
 ---
 
@@ -88,35 +101,37 @@
 
 | 상수 | 값 | 용도 |
 |---|---|---|
-| 가시거리 1단계 | 반경 20~30m | 무료 유저 기본 안개 |
-| 가시거리 2단계 | 반경 100m | 라이선스 구매 후 |
-| 가시거리 3단계 | 반경 300m | 라이선스 구매 후 |
-| Three.js Prune 임계값 | 반경 450m 외곽 | 오브젝트 메모리 해제 기준 |
+| 가시거리 1단계 | 씬 뷰 디스턴스 20~30m | 무료 유저 기본 거리 안개 |
+| 가시거리 2단계 | 씬 뷰 디스턴스 100m | 라이선스 구매 후 |
+| 가시거리 3단계 | 씬 뷰 디스턴스 300m | 라이선스 구매 후 |
+| Three.js Prune 임계값 | 반경 450m 외곽 | 씬 오브젝트 메모리 해제 기준 |
 | Prune 트리거 | 50m 이동마다 | 비동기 GC 배치 실행 |
 | 에셋 프리로드 바운더리 | 전방 350~400m | 스폰서 텍스처 사전 다운로드 |
-| 가짜 이동 반경 락 | 기준점에서 1km | 무료 유저 Mapbox 타일 소모 방어 |
-| 오솔길 스냅 임계값 | 15m 이내 | 가장 가까운 오솔길로 자석 정렬 |
 | 캐릭터 최대 이동 속도 | 시속 30km | 텔레포트/핵 패킷 드롭 기준 |
+| 위치 브로드캐스트 주기 | 5Hz | 섹터 단위 묶음 방송 (씬 로컬 좌표) |
 | 음성 활성 반경 | 30m | LiveKit 룸 조인 기준 |
 | 음성 파기 반경 | 40m | LiveKit disconnect 기준 |
 | 동시 구독 Capping | Top-8 | 클라이언트 CPU 방어 |
-| 카메라 Pitch | 45~50° | 고정 |
-| 카메라 Bearing | 45° | 고정 |
-| 줌 레벨 | 16~17 | 고정 (숲길 수준) |
+| 메인 씬 카메라 | 3인칭 추적 | 캐릭터 뒤를 따라가는 추적 카메라 |
+| GIS 미니맵 카메라 | 유저 추적 고정 | 드래그/줌 잠금, 실제 위치 중심 고정 |
+| 액세스 토큰 만료 | 15분 | 브라우저 메모리 보관 |
+| 리프레시 토큰 만료 | 30일 | httpOnly 쿠키 보관 |
 
 ---
 
 ## 비용 목표
 
-**월 고정비 약 3.5만 원 이하**
+자체 호스팅 기준으로 소규모 운영 시 월 고정비를 최소화한다.
 
 | 항목 | 예상 비용 |
 |---|---|
-| Supabase Pro | $25 (~35,000원) |
-| LiveKit Cloud (MVP 무료 티어) | $0 |
+| DB / API 서버 호스팅 (자체 호스팅) | 서버 사양에 따른 소액 |
+| LiveKit Cloud (무료 티어 내) | $0 |
 | Vercel (소규모 트래픽) | $0~소액 |
 | Mapbox (20만 건/월 무료 티어 내) | $0 |
-| **합계** | **~35,000원/월** |
+
+MVP 규모에서는 대부분 무료 티어~소액 수준에서 운영 가능하며, 동접·트래픽 증가에 따라 자체 호스팅 서버
+사양과 각 외부 서비스 종량 요금이 늘어난다.
 
 ---
 
@@ -124,10 +139,10 @@
 
 | ADR | 주제 |
 |---|---|
-| [ADR 001](../adr/001-webgl-context-sharing.md) | Mapbox + Three.js 단일 WebGL 컨텍스트 |
-| [ADR 002](../adr/002-supabase-all-in-one.md) | Supabase 통합 백엔드 허브 |
+| [ADR 001](../adr/001-webgl-context-sharing.md) | 메인 월드 Three.js 단일 WebGL 캔버스 + 독립 Mapbox 미니맵 |
+| [ADR 002](../adr/002-self-hosted-backend.md) | 자체 백엔드(NestJS + 공유 Postgres) |
 | [ADR 003](../adr/003-livekit-cloud-sfu.md) | LiveKit Cloud 매니지드 SFU |
 | [ADR 004](../adr/004-direct-krw-payment.md) | 원화 직행 결제 구조 |
 | [ADR 005](../adr/005-postgis-gist-index.md) | PostGIS + GiST 공간 인덱스 |
-| [ADR 006](../adr/006-fog-of-war-business-model.md) | Fog of War BM 연동 |
-| [ADR 007](../adr/007-quarter-view-camera-lock.md) | 쿼터뷰 카메라 잠금 |
+| [ADR 006](../adr/006-fog-of-war-business-model.md) | 씬 뷰 디스턴스 BM 연동 |
+| [ADR 007](../adr/007-quarter-view-camera-lock.md) | 메인 씬 3인칭 추적 카메라 + 미니맵 고정 |
