@@ -27,9 +27,9 @@ LiveKit Cloud는 매월 일정량의 무료 분(分)을 제공하며, MVP 단계
 
 ## 적용 규칙
 
-- 30m 이내 진입 감지 (PostGIS `ST_DWithin`) → LiveKit 룸 토큰 발급 Edge Function 호출 → 클라이언트 룸 조인
+- 씬 좌표 기준 30m 이내 진입 감지 → NestJS `voice` 모듈이 `livekit-server-sdk`로 룸 토큰 발급 → 클라이언트 룸 조인
 - 40m 이탈 시 `Room.disconnect()` 즉시 호출 + 오디오 컨텍스트 `null` 처리
-- 동시 구독 Top-8 Capping: `ORDER BY ST_Distance` 정렬 후 상위 8명만 `setSubscribed(true)`
+- 동시 구독 Top-8 Capping: 씬 좌표 거리순 정렬 후 상위 8명만 `setSubscribed(true)`
 - 구독 교체 하이스테리시스: 8~10순위 사이 플래핑 방지 버퍼 적용
 - 세션 최대 길이: 60분 후 자동 재연결 유도 (유휴 연결 분 소모 방지)
 

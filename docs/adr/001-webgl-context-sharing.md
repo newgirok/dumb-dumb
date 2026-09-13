@@ -1,54 +1,60 @@
-# ADR 001: Mapbox + Three.js 단일 WebGL 컨텍스트 공유
+# ADR 001: 메인 3D 씬과 GIS 미니맵의 WebGL 컨텍스트 분리
 
 **상태:** Accepted
 
 ## 결정
 
-Mapbox GL JS가 초기화 시 브라우저에서 할당받은 `WebGLRenderingContext`를 Three.js 레이어가 그대로 넘겨받아, **단 하나의 `<canvas>` 안에서 두 엔진이 공존**하도록 렌더링 파이프라인을 구성한다.
+메인 월드는 **단 하나의 Three.js `<canvas>`(단일 WebGL 컨텍스트)** 위에서 베이크드 로우폴리 숲 씬을 렌더링한다. 화면 5시(우하단)의 나침반형 GIS 미니맵은 이와 **완전히 분리된 독립 경량 Mapbox GL `<canvas>`**로 운용한다. 두 컨텍스트는 서로 GPU 자원을 공유하지 않고 각자 독립적으로 그린다.
 
 ## 배경
 
-지도(Mapbox)와 3D 캐릭터(Three.js)를 각자 별도의 `<canvas>`에서 렌더링하면 두 가지 치명적 문제가 발생한다.
+메인 월드(3D 씬)와 보조 미니맵(실지형 지도)은 렌더링 요구가 근본적으로 다르다.
 
-1. **VRAM 버퍼 이중 복사**: 두 WebGL 컨텍스트가 각자 GPU 버퍼를 점유하고, 매 프레임마다 서로의 픽셀 데이터를 복사·합성해야 한다. 이 복사 연산이 모바일 GPU에서 병목이 되어 30fps 이하로 떨어진다.
-2. **합성 레이어 충돌**: 두 `<canvas>`를 CSS `z-index`로 겹치면 브라우저의 Compositing Layer가 분리되어 GPU 사용률이 2배로 치솟는다.
+- **메인 씬**: 매 프레임 캐릭터·애니메이션·거리 안개를 60fps로 그려야 하는 성능 최우선 영역이다. 화면 대부분을 차지하며 사용자의 조작 초점이 여기 있다.
+- **GIS 미니맵**: 유저의 실제 GPS 위치를 실지형 지도 위에 점으로 찍어 주는 보조 위젯이다. 갱신 빈도가 낮고 화면 점유율이 작다.
+
+이 둘을 하나의 WebGL 컨텍스트에 억지로 합치면, 미니맵의 벡터 타일 파이프라인이 메인 씬의 렌더 루프에 끼어들어 프레임 예산을 잠식한다. 미니맵의 타일 로딩 스톨이 곧 씬의 프레임 드랍으로 이어진다.
 
 ## 근거
 
-| 항목 | 별도 캔버스 | 컨텍스트 공유 |
+| 항목 | 단일 컨텍스트 혼합 | 컨텍스트 분리 |
 |---|---|---|
-| VRAM 버퍼 복사 | 매 프레임 | 없음 (제로) |
-| 모바일 60fps 달성 | 어렵 (30fps 하락) | 달성 가능 |
-| GPU 레이어 수 | 2개 | 1개 |
-| 구현 복잡도 | 낮음 | 중간 |
+| 메인 씬 프레임 예산 | 미니맵 파이프라인이 잠식 | 씬 전용, 독립 확보 |
+| 미니맵 타일 스톨 영향 | 씬 프레임 드랍으로 전파 | 씬에 영향 없음 |
+| 모바일 60fps 달성 | 어려움 | 씬에서 달성 가능 |
+| 렌더 루프 결합도 | 강결합 | 완전 독립 |
+| 구현·디버깅 난이도 | 높음 (상호 상태 오염) | 낮음 (경계 명확) |
 
-Mapbox GL JS v3는 `map.on('render', ...)` 이후 Three.js의 `renderer.render()`를 같은 GL 컨텍스트로 호출하는 패턴을 공식 지원한다.
+메인 씬은 씬 로컬 좌표계에서 동작하고, 미니맵은 위경도(EPSG:4326) 좌표계에서 동작한다. 좌표계와 렌더 루프를 분리하면 각 엔진을 각자의 최적 상태로 독립 튜닝할 수 있다.
 
 ## 구현 요점
 
 ```typescript
-const map = new mapboxgl.Map({ ... });
+// 메인 월드 — 단일 Three.js WebGL 컨텍스트 (베이크드 씬)
+const renderer = new THREE.WebGLRenderer({ canvas: worldCanvas, antialias: true });
+const scene = new THREE.Scene();
 
-map.on('style.load', () => {
-  const gl = map.painter.context.gl;
-  const renderer = new THREE.WebGLRenderer({ context: gl, canvas: map.getCanvas() });
-  renderer.autoClear = false;
+function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);
+}
+animate();
 
-  map.on('render', () => {
-    renderer.state.reset();
-    renderer.render(scene, camera);
-    map.triggerRepaint();
-  });
+// 5시 GIS 미니맵 — 독립 경량 Mapbox GL 컨텍스트
+const minimap = new mapboxgl.Map({
+  container: 'minimap',
+  center: [lon, lat],
+  interactive: false, // 보조 위젯, 조작 대상 아님
 });
 ```
 
 ## 결과
 
-- 단일 WebGL 컨텍스트 내에서 지도 타일 + 캐릭터 메시를 동시에 렌더링
-- 모바일 환경에서 수직 동기화 기반 안정적 60fps 확보
-- VRAM 버퍼 복사 연산 제로화
+- 메인 씬은 미니맵과 무관하게 안정적 60fps를 확보
+- 미니맵의 타일 로딩 지연이 씬 프레임에 전파되지 않음
+- 두 엔진을 각자의 좌표계·렌더 루프에서 독립 튜닝
 
 ## 관련
 
 - [아키텍처 개요 — 렌더링 파이프라인](../architecture/overview.md)
-- [ADR 007 — 쿼터뷰 카메라 잠금](./007-quarter-view-camera-lock.md)
+- [ADR 007 — 카메라 잠금](./007-quarter-view-camera-lock.md)
