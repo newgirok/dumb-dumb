@@ -6,15 +6,14 @@
 
 각 Phase는 아래 검증 기준을 통과해야 완료로 처리한다.
 
-| Phase | 완료 기준 | 검증 방법 |
-|---|---|---|
-| Phase 1 | 로그인→인게임 화면 전환 완성, HUD 렌더링 정상 | 모바일·PC 수동 확인 + `npm run type-check` 오류 없음 |
-| Phase 2 | Realtime 위치 동기화 지연 500ms 이하 | 브라우저 2탭 Realtime 채널 e2e 측정 |
-| Phase 3 | `ST_DWithin` 반경 쿼리 10ms 이하 | pgbench 단일 쿼리 벤치마크 |
-| Phase 4 | LiveKit 룸 조인 2초 이내 | 2탭 수동 테스트 + 콘솔 타임스탬프 |
-| Phase 5 | 가시거리 라이선스 발급 5초 이내 | 토스페이먼츠 테스트 환경 E2E |
-| Phase 6 | pg_cron 광고 스케줄러 익일 실행 | Supabase 대시보드 pg_cron 로그 |
-| Phase 7 | 동접 200명 p99 1초 이하, 에러율 0.1% 이하 | k6 부하 테스트 |
+| Phase | 완료 기준 | 검증 방법 | 상태 |
+|---|---|---|---|
+| Phase 1 | 로그인→대시보드 화면 전환 완성, HUD 렌더링 정상 | 모바일·PC 수동 확인 + `npm run type-check` 오류 없음 | 완료 |
+| Phase 2 | socket.io 섹터 위치 동기화 지연 500ms 이하, 속도 초과 패킷 서버 드롭 | 브라우저 2탭 소켓 e2e 측정 | 완료 |
+| Phase 3 | LiveKit 룸 조인 2초 이내, 40m 이탈 시 즉시 disconnect | 2탭 수동 테스트 + 콘솔 타임스탬프 | 완료 |
+| Phase 4 | 결제 완료 후 아바타 발급 5초 이내, 실패 시 3초 이내 취소 | 토스페이먼츠 테스트 환경 E2E | 완료 |
+| Phase 5 | `ST_DWithin` 반경 쿼리 10ms 이하, pg_cron 광고 스케줄러 익일 실행, 광고주 테넌시 격리 | pgbench 벤치마크 + pg_cron 로그 + RLS 접근 테스트 | 예정 |
+| Phase 6 | 동접 200명 p99 1초 이하, 에러율 0.1% 이하 | k6 부하 테스트 | 예정 |
 
 ---
 
@@ -24,22 +23,23 @@
 
 | 파일 | 테스트 케이스 |
 |---|---|
-| `lib/geo/validator.ts` | 시속 30km 초과 좌표 드롭 / 정상 좌표 통과 |
+| `lib/geo/validator.ts` | 씬 좌표 이동 속도 초과 드롭 / 정상 좌표 통과 |
 | `lib/geo/sector.ts` | 섹터 경계 판별 / Pre-Join 임계값 50m 진입 감지 |
-| `lib/payment/idempotency.ts` | 동일 UUID 재제출 시 중복 방어 |
-| `lib/map/snap.ts` | 15m 이내 오솔길 스냅 / 15m 초과 미정렬 |
+| `lib/map/snap.ts` | 미니맵 GPS 위치 마커 중앙 고정 / 줌 범위(16~17) 클램프 |
 | `lib/three/prune.ts` | 반경 450m 외곽 오브젝트 `dispose()` 호출 여부 |
-| `lib/auth/session.ts` | 만료 토큰 파싱 거부 / 갱신 성공 |
+| `lib/auth/session.ts` | 만료 토큰 파싱 거부 / 리프레시 성공 |
+| `lib/voice/spatial-audio.ts` | 거리 기반 볼륨 감쇠 / 3D 패닝 파라미터 산출 |
 
-### `supabase/functions/` — Edge Functions
+### `apps/api/src/` — NestJS API 서버
 
-| 함수 | 테스트 케이스 |
+| 대상 | 테스트 케이스 |
 |---|---|
-| `payment-webhook` | 동일 `orderId` 재수신 → 200 `idempotent: true` 반환 |
-| `payment-webhook` | `INSERT` 실패 → PG사 자동 취소 호출 + `cs_logs` 기록 |
-| `spatial-query` | 반경 내 랜드마크만 반환 / 반경 외 랜드마크 제외 |
-| `livekit-token` | 만료 토큰으로 재발급 요청 거부 |
-| `impression-log` | 노출 시간 1초 미만 기록 차단 |
+| `auth.service` | 이메일+비밀번호 검증 / bcrypt 해싱 / `token_version` 폐기 / OAuth 코드 교환 |
+| `billing`(controller/service) | 웹훅 서명 검증 / 주문 생성 |
+| `billing/fulfillment` | 동일 승인번호 재수신 → DB 제약(`orders_pg_approval_uniq`)으로 1회만 발급 / INSERT 실패 → PG사 자동 취소 |
+| `world.gateway` | 섹터 판정 / 시속 30km 초과 패킷 서버 드롭 / 섹터 단위 묶음 브로드캐스트 |
+| `voice`(controller) | 룸 토큰 발급 / 만료 토큰 재발급 요청 거부 |
+| `avatars`(공간 쿼리) | 미니맵 반경 내 랜드마크만 반환 / 반경 외 제외 / 1초 미만 노출 기록 차단 |
 
 ---
 
@@ -48,41 +48,48 @@
 ### 시나리오 1 — 로그인 플로우 (Phase 1)
 
 1. 로그인 화면 접속 (`/login`)
-2. 소셜 OAuth 버튼 클릭 → Supabase Auth 리다이렉트
-3. 인증 완료 후 `/world` 자동 이동 확인
-4. **합격 기준**: 인증 세션 수립 후 인게임 화면 정상 렌더링
+2. 이메일+비밀번호 로그인 또는 카카오/구글 OAuth 버튼 클릭
+3. 인증 완료 후 `/dashboard` 자동 이동 확인
+4. **합격 기준**: 인증 세션 수립 후 인게임 대시보드 정상 렌더링
 
-### 시나리오 2 — 이동 + Realtime 동기화 (Phase 2)
+### 시나리오 2 — 이동 + 실시간 동기화 (Phase 2)
 
 1. 브라우저 탭 2개 열기 (유저 A, 유저 B)
 2. 유저 A WASD 10m 이동
 3. 유저 B 화면에서 유저 A 위치 갱신 확인
-4. **합격 기준**: 갱신 지연 500ms 이하
+4. **합격 기준**: 갱신 지연 500ms 이하, 속도 초과 패킷 서버 드롭
 
-### 시나리오 3 — 결제 파이프라인 E2E (Phase 5)
-
-1. 테스트 환경에서 아바타 2,200원 구매
-2. 토스페이먼츠 테스트 카드 결제 승인
-3. `orders.status = 'PAID'` 전환 확인
-4. `characters` 신규 레코드 생성 확인
-5. 동일 `orderId` 웹훅 재전송 → 200 `idempotent: true` 응답 확인
-
-### 시나리오 4 — 음성 자동 연결·파기 (Phase 4)
+### 시나리오 3 — 음성 자동 연결·파기 (Phase 3)
 
 1. 유저 A, B가 35m 거리에서 시작
 2. 유저 A가 접근 → 30m 진입 시 LiveKit 룸 조인 확인
 3. 유저 A가 후퇴 → 40m 이탈 시 자동 `disconnect` 확인
 
-### 시나리오 5 — Fog of War + 라이선스 확장 (Phase 5)
+### 시나리오 4 — 결제 파이프라인 E2E (Phase 4)
 
-1. 무료 유저 기본 가시거리 20~30m 확인
+1. 테스트 환경에서 아바타 2,200원 구매
+2. 토스페이먼츠 테스트 카드 결제 승인
+3. `orders.status = 'PAID'` 전환 확인
+4. `characters` 신규 레코드 생성 확인
+5. 동일 승인번호 웹훅 재전송 → DB 제약으로 중복 발급 없음 확인
+
+### 시나리오 5 — 씬 뷰 디스턴스 안개 + 라이선스 확장 (Phase 4)
+
+1. 무료 유저 기본 씬 뷰 디스턴스 20~30m 확인
 2. 35m 지점 스폰서 랜드마크 실루엣 노출 확인
-3. 라이선스 구매 후 가시거리 100m 즉시 확장 (0.1초 이내) 확인
+3. 라이선스 구매 후 씬 뷰 디스턴스 100m 즉시 확장 (0.1초 이내) 확인
 4. JWT Payload `visibility_radius_m` 업데이트 확인
+
+### 시나리오 6 — B2B 광고 + 테넌시 격리 (Phase 5)
+
+1. 광고주 A가 포탈에서 랜드마크 좌표 등록 + 결제
+2. 익일 pg_cron 스케줄러 실행 후 텍스처 자동 교체 확인
+3. 광고주 B 계정으로 광고주 A의 구좌 접근 시도 → RLS 차단 확인
+4. 1초 이상 완전 진입 노출만 `ad_impressions` 기록 확인
 
 ---
 
-## Phase 7 부하 테스트
+## Phase 6 부하 테스트
 
 ### 도구: k6
 
@@ -108,17 +115,17 @@ export default function () {
 |---|---|
 | p99 응답 시간 | 1초 이하 |
 | 에러율 | 0.1% 이하 |
-| Supabase Realtime 동시 연결 | 500 이하 (Pro 한도) |
+| socket.io 동시 연결 | 서버 용량 내 (섹터 묶음 브로드캐스트 부하 기준) |
 | Mapbox 타일 요청 | 20만 건/월 이하 |
 | LiveKit 동시 음성 세션 | 무료 티어 한도 이내 |
 
 ### 사전 체크리스트
 
 - [ ] `sponsor_buildings` GiST 인덱스 존재 확인 (`\d sponsor_buildings`)
-- [ ] `channel.unsubscribe()` 로직 전체 경로 점검
+- [ ] 섹터 이탈 시 구 섹터 룸 leave 로직 전체 경로 점검
 - [ ] Three.js Prune (반경 450m, 50m 트리거) 동작 확인
 - [ ] LiveKit Top-8 Capping 동작 확인
-- [ ] 결제 웹훅 멱등성 중복 방어 확인
+- [ ] 결제 웹훅 DB 제약 멱등성 중복 방어 확인
 
 ---
 
