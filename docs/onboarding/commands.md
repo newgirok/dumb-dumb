@@ -2,10 +2,10 @@
 
 ---
 
-## Next.js
+## 프론트엔드 (Next.js, 루트)
 
 ```bash
-# 개발 서버 (핫 리로드)
+# 개발 서버 (핫 리로드, Turbopack, 3000 포트)
 npm run dev
 
 # 프로덕션 빌드
@@ -23,77 +23,63 @@ npm run lint
 
 ---
 
-## Supabase CLI
+## API 서버 (NestJS, `apps/api`)
+
+`apps/api` 디렉토리에서 실행한다.
 
 ```bash
-# 로컬 스택 전체 기동 (PostgreSQL + PostGIS + Auth + Realtime + Storage + Edge Functions)
-supabase start
+# 개발 서버 (watch 모드, 9001 포트)
+npm run start:dev
 
-# 로컬 스택 종료
-supabase stop
+# 서버 실행 (watch 없음)
+npm run start
 
-# DB 마이그레이션 생성
-supabase migration new <migration-name>
+# 빌드
+npm run build
 
-# 로컬 DB에 마이그레이션 적용
-supabase db push
+# 프로덕션 실행 (dist/main)
+npm run start:prod
 
-# 프로덕션 DB에 마이그레이션 적용 (주의: 프로덕션 영향)
-supabase db push --linked
-
-# 현재 로컬 DB 스키마를 마이그레이션 파일로 덤프
-supabase db diff --use-migra
-
-# Edge Functions 로컬 실행 (핫 리로드)
-supabase functions serve
-
-# 특정 Edge Function만 실행
-supabase functions serve payment-webhook
-
-# Edge Function 프로덕션 배포
-supabase functions deploy payment-webhook
-
-# 전체 Edge Functions 배포
-supabase functions deploy
-
-# Supabase Studio (DB GUI)
-# http://localhost:54323 (supabase start 실행 중)
-
-# 로컬 DB SQL 직접 실행
-supabase db run --file ./supabase/migrations/0001_init.sql
+# TypeScript 타입 체크
+npm run type-check
 ```
 
 ---
 
-## Docker Compose
+## DB 마이그레이션
+
+`supabase/migrations/`의 SQL을 **번호 순서대로**(`0001`~`0010`) PostgreSQL에 적용한다. 전용 CLI 러너는 없으며 psql로 직접 적용한다.
 
 ```bash
-# 개발 서버 기동 (패키지 변경 후 볼륨 초기화 포함)
-docker compose down -v && docker compose up --build -d
+# 전체 순서 적용
+for f in supabase/migrations/*.sql; do
+  psql -U postgres -d postgres -f "$f"
+done
 
-# 개발 서버 기동 (코드만 변경한 경우)
+# 개별 적용
+psql -U postgres -d postgres -f supabase/migrations/0001_init.sql
+```
+
+확장(PostGIS / pg_cron / pgcrypto / citext)이 먼저 활성화되어 있어야 한다. 자세한 준비 절차는 [로컬 환경 세팅](./local-setup.md) 참고.
+
+---
+
+## Docker Compose (프론트)
+
+`docker-compose.yml`에는 프론트엔드(`app` 서비스)만 정의되어 있다.
+
+```bash
+# 프론트 컨테이너 기동
 docker compose up -d
 
 # 로그 실시간 확인
 docker compose logs -f
 
-# 개발 서버 종료
+# 종료
 docker compose down
 
 # Docker Desktop 실행 여부 확인
 docker info
-```
-
----
-
-## 디버깅
-
-```bash
-# Supabase 로컬 로그 (Realtime, Auth, Edge Functions 로그)
-supabase logs
-
-# Edge Function 로그만
-supabase logs --project-ref local functions
 ```
 
 ---
