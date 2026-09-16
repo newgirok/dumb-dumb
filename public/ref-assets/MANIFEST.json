@@ -10,8 +10,8 @@
       "1": "transform data (bones / instances)"
     }
   },
-  "fetched": "2026-09-10",
-  "count": 89,
+  "fetched": "2026-09-16",
+  "count": 97,
   "files": [
     {
       "path": "audio/beach.mp3",
@@ -42,6 +42,18 @@
       "bytes": 1815552,
       "action": "REPLACE",
       "note": "오디오 - 직접 제작 또는 라이선스 확보 필요"
+    },
+    {
+      "path": "favicon16-6f28cc4a.png",
+      "bytes": 395,
+      "action": "REPLACE",
+      "note": "파비콘 - 자체 app/icon.svg 사용 중이라 미사용"
+    },
+    {
+      "path": "favicon32-e817b074.png",
+      "bytes": 639,
+      "action": "REPLACE",
+      "note": "파비콘 - 자체 app/icon.svg 사용 중이라 미사용"
     },
     {
       "path": "fonts/Stylish-Regular.woff",
@@ -434,10 +446,22 @@
       "note": "텍스처/이미지 - 직접 제작 필요"
     },
     {
+      "path": "images/gossip.png",
+      "bytes": 142454,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요 (gossip.ktx2 원본 소스, 런타임 미사용)"
+    },
+    {
       "path": "images/grass-patches-highq.ktx2",
       "bytes": 55603,
       "action": "REPLACE",
       "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/grass-patches-highq.png",
+      "bytes": 31107,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요 (ktx2 원본 소스, 런타임 미사용)"
     },
     {
       "path": "images/lut.CUBE_1.LUT.ktx2",
@@ -470,6 +494,12 @@
       "note": "텍스처/이미지 - 직접 제작 필요"
     },
     {
+      "path": "images/sea1-normal-highq.png",
+      "bytes": 1461697,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요 (ktx2 원본 소스, 런타임 미사용)"
+    },
+    {
       "path": "images/sky-srgb-highq.png",
       "bytes": 117536,
       "action": "REPLACE",
@@ -480,6 +510,12 @@
       "bytes": 83939,
       "action": "REPLACE",
       "note": "텍스처/이미지 - 직접 제작 필요"
+    },
+    {
+      "path": "images/skyflow-highq.png",
+      "bytes": 403336,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요 (ktx2 원본 소스, 런타임 미사용)"
     },
     {
       "path": "images/social.jpg",
@@ -512,6 +548,12 @@
       "note": "텍스처/이미지 - 직접 제작 필요"
     },
     {
+      "path": "images/transition-intro.png",
+      "bytes": 4405760,
+      "action": "REPLACE",
+      "note": "텍스처/이미지 - 직접 제작 필요 (transition-intro.jpg 원본 소스, 런타임 미사용)"
+    },
+    {
       "path": "images/uv/uvchecker-srgb.ktx2",
       "bytes": 298298,
       "action": "REPLACE",
@@ -534,6 +576,12 @@
       "bytes": 472914,
       "action": "KEEP",
       "note": "Binomial Basis Universal - Apache-2.0"
+    },
+    {
+      "path": "libs/draco/draco_decoder.js",
+      "bytes": 709590,
+      "action": "KEEP",
+      "note": "Google Draco - Apache-2.0 (WASM 미지원 환경용 JS 폴백 디코더)"
     },
     {
       "path": "libs/draco/draco_decoder.wasm",
