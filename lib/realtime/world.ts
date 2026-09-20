@@ -2,18 +2,16 @@
 
 import { io, type Socket } from 'socket.io-client'
 import { getAccessToken } from '@/lib/auth/session'
+import type {
+  ChatMessage,
+  ClientToServerEvents,
+  PeerPosition,
+  ServerToClientEvents,
+} from '@/shared/world/contract'
 
-export interface PeerPosition {
-  userId: string
-  lng: number
-  lat: number
-}
-
-export interface ChatMessage {
-  userId: string
-  nickname: string
-  text: string
-}
+// 이벤트 타입은 shared/world/contract 로 단일화했다. 소비 측(WorldCanvas)이
+// 이 모듈에서 타입을 가져다 쓰던 경로를 유지하기 위해 그대로 재노출한다.
+export type { PeerPosition, ChatMessage }
 
 export interface WorldConnection {
   /** 내 위치를 서버에 알린다. 섹터 판정·검증은 서버가 한다 */
@@ -38,7 +36,7 @@ export function connectWorld(handlers: {
   onPositions: (positions: PeerPosition[]) => void
   onChat?: (msg: ChatMessage) => void
 }): WorldConnection {
-  const socket: Socket = io(`${WS_URL}/world`, {
+  const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(`${WS_URL}/world`, {
     auth: { token: getAccessToken() },
     transports: ['websocket'],
   })
