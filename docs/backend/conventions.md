@@ -87,7 +87,8 @@ WHERE ST_Distance(geom, ST_MakePoint($lon, $lat)) < $r;
 ## socket.io 게이트웨이 규칙
 
 - 위치 좌표와 채팅 메시지는 NestJS WebSocket 게이트웨이(`apps/api/src/world/world.gateway.ts`)를 통해서만 브로드캐스트
-- 서버가 섹터 단위로 위치를 묶어 5Hz로 방송한다. 섹터 판정·속도 검증도 서버에서 수행(`world/sector.ts`)
+- 소켓 이벤트 이름·페이로드는 `shared/world/contract.ts`에 정의하고, 게이트웨이의 `Server`/`Socket`을 이 계약 제네릭으로 타입한다(프론트·백엔드 중 한쪽만 바뀌면 컴파일 단계에서 잡힘)
+- 서버가 섹터 단위로 위치를 묶어 5Hz로 방송한다. 섹터 판정·속도 검증도 서버에서 수행하며, 섹터 계산은 `shared/world/sector.ts`(프론트·백엔드 단일 소스)를 따른다
 - 위치·채팅 메시지는 DB에 영구 저장 금지 (무상태 휘발성 브로드캐스트)
 - 섹터 이탈 시 구 섹터 룸 즉시 leave (연결 수 관리)
 - 유저가 로그아웃하거나 창을 닫을 때 클라이언트가 소켓 disconnect 처리

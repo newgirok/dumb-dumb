@@ -56,7 +56,7 @@ project/
 │   │   ├── currentPosition.ts    ← 단발 GPS 좌표 조회 (미니맵 위치 표시용)
 │   │   ├── watchPosition.ts      ← GPS 실시간 추적 (미니맵 위치 표시용)
 │   │   ├── validator.ts          ← 클라이언트 속도 검증 (씬 좌표 기준 30km/h 드롭)
-│   │   └── sector.ts             ← 섹터 경계 Pre-Join 로직
+│   │   └── sector.ts             ← 섹터 계산 재노출 배럴 (shared/world/sector)
 │   ├── map/
 │   │   ├── context.ts            ← 5시 GIS 미니맵 Mapbox GL 초기화 (단일 진입점)
 │   │   ├── camera.ts             ← 미니맵 유저 추적 고정 + 드래그/줌 잠금
@@ -85,6 +85,10 @@ project/
 │   ├── billing/                  ← controller, service, fulfillment.service, fulfillment.worker, module
 │   └── avatars/                  ← service, module (외형 조합 · GLB 생성)
 │
+├── shared/world/                 ← 프론트·백엔드 공유 단일 소스(SSOT)
+│   ├── contract.ts               ← 월드 소켓 이벤트 계약 (socket.io 제네릭 타입)
+│   └── sector.ts                 ← 섹터 격자(500m)·거리·이동 검증 계산
+│
 ├── supabase/migrations/          ← PostgreSQL 마이그레이션 SQL 0001~0010
 │                                    (PostGIS, pg_cron, pgcrypto, citext)
 │
@@ -109,7 +113,9 @@ project/
 제품 진입은 3D 씬(루트)이다. `app/(game)`의 실제 라우트는 `/dashboard`와 `/store`이며, 메인 월드
 3D 씬 진입점은 `components/world/WorldCanvas.tsx`로 대시보드 라우트에서 마운트된다. 랜딩/마케팅 웹은
 추후 별도 앱으로 분리한다(로드맵 참고). 현재 구조는 루트 Next.js 앱과 `apps/api` NestJS를 한 저장소에
-코로케이션한 형태다.
+코로케이션한 형태다. 섹터 계산과 소켓 이벤트 계약은 `shared/world/`에 단일 소스로 두고, 프론트
+(`lib/geo/sector.ts`, `lib/realtime/world.ts`)와 백엔드(`apps/api/src/world/sector.ts`)가 이를 재노출해
+같은 구현을 참조한다.
 
 ---
 
@@ -131,7 +137,9 @@ project/
 | `lib/geo/validator.ts` | 직전 씬 좌표 대비 이동 속도 계산 → 30km/h 초과 시 좌표 드롭 |
 | `lib/auth/session.ts` | JWT Payload 파싱 (`visibility_radius_m` 추출) + 액세스 토큰 갱신 |
 | `lib/auth/middleware.ts` | `(game)`, `store`, `admin` 라우트 인증 검사 + 광고주 Role 검증 |
-| `apps/api/src/world/world.gateway.ts` | socket.io 게이트웨이 — 섹터 판정·속도 검증·5Hz 묶음 브로드캐스트 |
+| `apps/api/src/world/world.gateway.ts` | socket.io 게이트웨이 — 섹터 판정·속도 검증·5Hz 묶음 브로드캐스트 (`shared/world/contract` 제네릭 타입) |
+| `shared/world/contract.ts` | 월드 소켓 이벤트 이름·페이로드 계약 — 프론트·백엔드 socket.io 제네릭 단일 소스 |
+| `shared/world/sector.ts` | 섹터 격자(500m)·거리·이동 속도 검증 계산 — 프론트·백엔드 단일 소스 |
 | `apps/api/src/billing/fulfillment.worker.ts` | 결제 완료 주문을 폴링해 아바타·라이선스 발급 |
 | `apps/api/src/voice/voice.controller.ts` | LiveKit Cloud 룸 접속 JWT 토큰 발급 |
 | `apps/api/src/database/database.service.ts` | pg Pool + 트랜잭션별 `app.user_id`/`app.user_role` RLS 컨텍스트 주입 |
