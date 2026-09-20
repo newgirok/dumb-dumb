@@ -11,6 +11,12 @@ import {
 import type { Server, Socket } from 'socket.io'
 import { AuthService } from '../auth/auth.service'
 import { distanceM, isPlausibleMove, requiredSectors } from './sector'
+import type {
+  ChatPayload,
+  ClientToServerEvents,
+  MovePayload,
+  ServerToClientEvents,
+} from '../../../../shared/world/contract'
 
 /**
  * 위치 브로드캐스트 서버.
@@ -23,6 +29,24 @@ import { distanceM, isPlausibleMove, requiredSectors } from './sector'
  * 검증도 서버로 옮겼다. 예전엔 클라이언트가 스스로 속도를 검사했는데,
  * 그건 고쳐 쓰면 그만이다.
  */
+
+interface SocketData {
+  userId?: string
+  email?: string
+}
+
+type WorldServer = Server<
+  ClientToServerEvents,
+  ServerToClientEvents,
+  Record<string, never>,
+  SocketData
+>
+type WorldSocket = Socket<
+  ClientToServerEvents,
+  ServerToClientEvents,
+  Record<string, never>,
+  SocketData
+>
 
 interface PlayerState {
   userId: string
@@ -42,7 +66,7 @@ const STALE_MS = 30_000
   cors: { origin: process.env.WEB_ORIGIN ?? 'http://localhost:3000', credentials: true },
 })
 export class WorldGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
-  @WebSocketServer() private server: Server
+  @WebSocketServer() private server: WorldServer
   private readonly logger = new Logger(WorldGateway.name)
 
   /** socket.id → 상태 */
@@ -59,7 +83,7 @@ export class WorldGateway implements OnGatewayConnection, OnGatewayDisconnect, O
     if (this.timer) clearInterval(this.timer)
   }
 
-  handleConnection(client: Socket) {
+  handleConnection(client: WorldSocket) {
     // 토큰은 handshake.auth 로 받는다. 쿼리스트링에 담으면 접속 로그에 남는다
     const token = client.handshake.auth?.token as string | undefined
     if (!token) {
@@ -75,18 +99,16 @@ export class WorldGateway implements OnGatewayConnection, OnGatewayDisconnect, O
     }
   }
 
-  handleDisconnect(client: Socket) {
+  handleDisconnect(client: WorldSocket) {
     this.players.delete(client.id)
   }
 
   @SubscribeMessage('move')
-  onMove(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: { lng?: number; lat?: number; nickname?: string },
-  ) {
-    const userId = client.data.userId as string | undefined
+  onMove(@ConnectedSocket() client: WorldSocket, @MessageBody() body: MovePayload) {
+    const userId = client.data.userId
     if (!userId) return
-    const { lng, lat } = body ?? {}
+    const lng = body?.lng
+    const lat = body?.lat
     if (typeof lng !== 'number' || typeof lat !== 'number') return
     if (!Number.isFinite(lng) || !Number.isFinite(lat)) return
 
@@ -117,8 +139,8 @@ export class WorldGateway implements OnGatewayConnection, OnGatewayDisconnect, O
   }
 
   @SubscribeMessage('chat')
-  onChat(@ConnectedSocket() client: Socket, @MessageBody() body: { text?: string }) {
-    const userId = client.data.userId as string | undefined
+  onChat(@ConnectedSocket() client: WorldSocket, @MessageBody() body: ChatPayload) {
+    const userId = client.data.userId
     const state = this.players.get(client.id)
     if (!userId || !state) return
     const text = (body?.text ?? '').trim().slice(0, 200)
