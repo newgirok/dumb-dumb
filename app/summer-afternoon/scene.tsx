@@ -91,16 +91,24 @@ const SECRET_RANGE = 10
 const SECRET_TEXT =
   "It's a big metallic object. You want to believe it's some kind of vehicle."
 
+/** 정보 모달 열림 애니메이션이 끝나 닫기를 받기 시작하는 시점(ms) */
+const INFO_READY_MS = 2000
+/** 정보 모달 닫힘 — 배경 흐림이 걷히는 데 걸리는 시간(ms, 지연 0.15s + 0.7s) */
+const INFO_CLOSE_MS = 850
+
 /** 갈매기 마리 수 (원본과 동일) */
 const BIRD_COUNT = 25
 
-// 원본 color-square 버튼이 순환하는 옷 색. uSeed는 [0,1) 안에서 색상(hue)만
-// 바꾼다(정수부는 피부색 행이라 고정). 첫 색은 원본 기본값 rgb(136,117,173).
-const CHAR_HUES = [0.72, 0.02, 0.1, 0.55, 0.33, 0.87]
-/** hsv(h, 0.4, 0.62) → CSS rgb — color-square 표시색을 셰이더 옷 색과 맞춘다 */
+// 원본 color-square 버튼의 옷 색 — 처음 색도, 누를 때마다 바뀌는 색도 무작위
+// 색조다(원본 실측). uSeed는 [0,1) 안에서 색상(hue)만 바꾼다(정수부는 피부색
+// 행이라 고정).
+/**
+ * hsv(h, 0.324, 0.678) → CSS rgb — color-square 표시색. 원본 실측 사각형 색이
+ * 색조와 무관하게 항상 RGB 최소 117·최대 173이라 채도·명도가 이 값으로 고정이다.
+ */
 function hueToCss(h: number): string {
-  const s = 0.4
-  const v = 0.62
+  const s = 0.324
+  const v = 0.678
   const i = Math.floor(h * 6)
   const f = h * 6 - i
   const p = v * (1 - s)
@@ -174,15 +182,21 @@ export default function SummerAfternoonPage() {
   // 인트로 소용돌이 리빌이 끝났는가 — 미니맵을 리빌 후에 노출한다
   const [revealed, setRevealed] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [muted, setMuted] = useState(false)
+  // 원본처럼 소리 꺼짐으로 시작하고, 사운드 버튼을 눌러야 켜진다
+  const [muted, setMuted] = useState(true)
   const [secret, setSecret] = useState(false)
-  const [info, setInfo] = useState(false)
+  // 정보 모달 — 'closing'은 닫힘 페이드가 끝날 때까지 DOM을 유지하는 단계
+  const [info, setInfo] = useState<'closed' | 'open' | 'closing'>('closed')
+  // 열림 애니메이션이 끝나야 닫기를 받는다(원본 button-close.inactive)
+  const [infoReady, setInfoReady] = useState(false)
+  // 정보 모달을 한 번이라도 열었으면 nav 재진입은 인트로가 아닌 복귀 애니메이션을 쓴다
+  const [navReturn, setNavReturn] = useState(false)
   // 발견한 비밀 수 — 원본처럼 버튼 아래 "n/5"로 표시한다
   const [secretsFound, setSecretsFound] = useState(0)
-  // 캐릭터 옷 색(원본 color-square 버튼) — CSS 표시색
-  const [charColor, setCharColor] = useState('rgb(136, 117, 173)')
+  // 캐릭터 옷 색(원본 color-square 버튼) — CSS 표시색. 첫 색은 로드 때 무작위로 정한다
+  const [charColor, setCharColor] = useState('transparent')
   const audioRef = useRef<SceneAudio | null>(null)
-  const mutedRef = useRef(false)
+  const mutedRef = useRef(true)
   // useEffect 안에서 만든 색 변경 함수를 React 버튼과 잇는 다리
   const cycleColorRef = useRef<() => void>(() => {})
 
@@ -368,9 +382,11 @@ export default function SummerAfternoonPage() {
       const rampMaterial = createRampMaterial(rampTex, shared)
       const shakeMaterial = createRampMaterial(rampTex, shared, { shake: true })
       const wiresMaterial = createRampMaterial(rampTex, shared, { lightwires: true })
+      const initialHue = Math.random()
+      setCharColor(hueToCss(initialHue))
       const characterMaterial = createRampMaterial(rampTex, shared, {
         isCharacter: true,
-        seed: CHAR_HUES[0],
+        seed: initialHue,
       })
       const terrainMaterial = createTerrainMaterial(
         { ramp: rampTex, road: roadTex, masks: masksTex, noises: noisesTex, details: detailsTex },
@@ -608,11 +624,9 @@ export default function SummerAfternoonPage() {
       // 카메라를 캐릭터 뒤에 미리 세워 인트로 리빌이 캐릭터를 화면 중앙에 잡게 한다
       controller.update(0)
 
-      // 색상 버튼(원본 color-square) — uSeed의 소수부만 바꿔 옷 색을 순환한다
-      let colorIndex = 0
+      // 색상 버튼(원본 color-square) — uSeed의 소수부만 무작위로 바꿔 옷 색을 바꾼다
       cycleColorRef.current = () => {
-        colorIndex = (colorIndex + 1) % CHAR_HUES.length
-        const hue = CHAR_HUES[colorIndex]
+        const hue = Math.random()
         const shader = characterMaterial.userData.shader as
           | { uniforms: { uSeed: { value: number } } }
           | undefined
@@ -740,6 +754,38 @@ export default function SummerAfternoonPage() {
     audioRef.current?.setMuted(muted)
   }, [muted])
 
+  const openInfo = () => {
+    if (info !== 'closed') return
+    setInfoReady(false)
+    setNavReturn(true)
+    setInfo('open')
+  }
+  const closeInfo = () => {
+    if (info !== 'open' || !infoReady) return
+    audioRef.current?.click()
+    setInfo('closing')
+  }
+  // 열림 애니메이션(≈2s)이 끝나면 닫기를 허용하고, 닫힘 페이드(≈0.85s) 뒤 DOM을 뺀다
+  useEffect(() => {
+    if (info === 'closed') return
+    const t =
+      info === 'open'
+        ? setTimeout(() => setInfoReady(true), INFO_READY_MS)
+        : setTimeout(() => setInfo('closed'), INFO_CLOSE_MS)
+    return () => clearTimeout(t)
+  }, [info])
+  // ESC로도 닫힌다(원본과 동일)
+  useEffect(() => {
+    if (info !== 'open' || !infoReady) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      audioRef.current?.click()
+      setInfo('closing')
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [info, infoReady])
+
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#FFFDF8] select-none">
       <style>{`
@@ -758,6 +804,85 @@ export default function SummerAfternoonPage() {
         .sa-spinner { width: 54px; height: 54px; }
         .sa-spinner svg { display: block; width: 100%; height: 100%; animation: sa-rotator 2.5s linear infinite; }
         .sa-spinner .path { stroke: #BDBCB8; stroke-dasharray: 187; stroke-dashoffset: 0; transform-origin: center; animation: sa-dash 2.5s ease-in-out infinite; }
+        /* 우상단 nav — 원본 nav/.button/.cnt CSS 실측값. 인트로 시작 2.5s 뒤 오른쪽
+           80px에서 1.5s easeOutCubic으로 들어오고, 정보 모달이 열리면 빠졌다가
+           닫히면 0.5s 뒤 1.4s에 걸쳐 돌아온다. */
+        @keyframes sa-nav-in { from { transform: translateX(80px); } to { transform: translateX(0); } }
+        @keyframes sa-nav-out { from { transform: translateX(0); } to { transform: translateX(80px); } }
+        .sa-nav { position: absolute; top: 35px; right: 35px; display: flex; flex-direction: column; align-items: center; touch-action: none; -webkit-tap-highlight-color: transparent; animation: sa-nav-in 1.5s cubic-bezier(0.33, 1, 0.68, 1) 2.5s both; }
+        .sa-nav.hidden { pointer-events: none; animation: sa-nav-out 0.6s cubic-bezier(0.4, 0, 0.2, 1) both; }
+        .sa-nav.return { animation: sa-nav-in 1.4s cubic-bezier(0.33, 1, 0.68, 1) 0.5s both; }
+        .sa-btn, .sa-info-close { position: relative; display: block; width: 32px; height: 32px; border-radius: 5px; transform: rotate(10deg); cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; transition: transform 0.12s ease-out, box-shadow 0.12s ease-out; }
+        .sa-btn { margin-bottom: 16px; background-color: #f9efdc; box-shadow: 2px 2px 0 0 #716c66; }
+        .sa-btn:focus-visible, .sa-info-close:focus-visible { outline: 3px solid #5d5a57; outline-offset: 4px; }
+        .sa-btn:hover, .sa-info-close:hover { transform: rotate(10deg) scale(1.1); }
+        .sa-btn:active, .sa-info-close:active { transform: translate(2px, 2px) rotate(10deg) scale(1.1); box-shadow: 0 0 0 0 transparent; }
+        .sa-btn > *, .sa-info-close > * { pointer-events: none; }
+        .sa-sound { display: block; position: absolute; top: 4px; left: 4px; width: 25px; height: 25px; transform: rotate(-10deg); }
+        .sa-sound2 { left: 8px; }
+        .sa-color { position: relative; width: 18px; height: 18px; margin: 7px; border-radius: 2px; transform: rotate(-16deg); }
+        .sa-info { display: block; position: absolute; top: 6px; left: 5px; width: 22px; height: 22px; transform: rotate(-10deg); }
+        .sa-cnt { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); white-space: nowrap; pointer-events: none; font-family: Stylish, sans-serif; font-weight: 400; font-size: 33px; letter-spacing: -0.05em; line-height: 1em; text-align: center; color: #f9efdc; text-shadow: 2px 2px 0 #716c66; }
+
+        /* 정보 모달 — 원본 #info. 배경은 0.08s 뒤 0.75s에 걸쳐 크림색(95%)으로 흐려지고,
+           카드는 0.35s부터 커지며(그림자 카드는 -45°에서 1°로 돌며 앞서 커짐), 본문은 1.5s부터
+           나타난다. 닫힐 때는 카드가 0.25s에 사라지고 배경은 0.15s 뒤 0.7s에 걷힌다. */
+        @keyframes sa-fade-in { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes sa-fade-out { from { opacity: 1; } to { opacity: 0; } }
+        @keyframes sa-dim-in { from { opacity: 0; } to { opacity: 0.95; } }
+        @keyframes sa-dim-out { from { opacity: 0.95; } to { opacity: 0; } }
+        @keyframes sa-light-in {
+          0% { transform: scale(0.001); } 17% { transform: scale(0.001); } 21% { transform: scale(0.01); }
+          25% { transform: scale(0.02); } 29% { transform: scale(0.04); } 33% { transform: scale(0.09); }
+          38% { transform: scale(0.17); } 42% { transform: scale(0.32); } 46% { transform: scale(0.54); }
+          50% { transform: scale(0.7); } 55% { transform: scale(0.79); } 59% { transform: scale(0.84); }
+          63% { transform: scale(0.88); } 67% { transform: scale(0.92); } 71% { transform: scale(0.94); }
+          100% { transform: scale(1); }
+        }
+        @keyframes sa-dark-in {
+          0% { transform: translate(10px, 10px) rotate(-45deg) scale(0.001); }
+          17% { transform: translate(10px, 10px) rotate(-45deg) scale(0.014); }
+          25% { transform: translate(10px, 10px) rotate(-34deg) scale(0.072); }
+          33% { transform: translate(10px, 10px) rotate(-30deg) scale(0.24); }
+          38% { transform: translate(10px, 10px) rotate(-20deg) scale(0.5); }
+          42% { transform: translate(10px, 10px) rotate(-13deg) scale(0.66); }
+          46% { transform: translate(10px, 10px) rotate(-9deg) scale(0.75); }
+          55% { transform: translate(10px, 10px) rotate(-4.6deg) scale(0.87); }
+          63% { transform: translate(10px, 10px) rotate(-1.8deg) scale(0.93); }
+          71% { transform: translate(10px, 10px) rotate(-0.6deg) scale(0.96); }
+          100% { transform: translate(10px, 10px) rotate(1deg) scale(1); }
+        }
+        .sa-info-root { position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: Stylish, sans-serif; font-weight: 400; text-align: left; -webkit-tap-highlight-color: transparent; }
+        .sa-info-backdrop { position: absolute; inset: 0; background-color: rgb(252, 246, 236); animation: sa-dim-in 0.75s cubic-bezier(0.65, 0, 0.35, 1) 0.08s both; }
+        .sa-info-root.closing .sa-info-backdrop { animation: sa-dim-out 0.7s cubic-bezier(0.65, 0, 0.35, 1) 0.15s both; }
+        .sa-info-hit { position: absolute; inset: 0; }
+        .sa-info-cnt { position: relative; padding: 50px 60px; margin: 30px; }
+        .sa-info-root.closing .sa-info-cnt { animation: sa-fade-out 0.25s cubic-bezier(0.65, 0, 0.35, 1) both; }
+        .sa-info-dark, .sa-info-light { position: absolute; inset: 0; border-radius: 5px; }
+        .sa-info-dark { background-color: rgb(186, 179, 165); animation: sa-dark-in 2.2s linear both; }
+        .sa-info-light { background-color: rgb(249, 242, 228); animation: sa-light-in 2.2s linear both; }
+        .sa-info-cnt article { position: relative; max-width: 600px; animation: sa-fade-in 0.6s ease-out 1.5s both; }
+        .sa-info-cnt h1 { font-size: 45px; line-height: 1em; font-weight: 400; letter-spacing: -0.03em; color: rgb(141, 137, 129); margin: 0 0 1.3em; }
+        .sa-info-cnt p { font-size: 30px; line-height: 1em; letter-spacing: -0.03em; color: rgb(152, 147, 137); margin: 0 0 1.3em; }
+        .sa-info-cnt p:last-of-type { margin: 0; }
+        .sa-link2 { display: inline-block; position: relative; padding-left: 18px; color: rgb(152, 147, 137); text-decoration: none; }
+        .sa-link2::before { content: ""; display: block; position: absolute; top: 50%; left: 0; width: 13px; height: 3px; border-radius: 3px; background-color: rgb(161, 156, 146); transform-origin: 0 50%; transition: transform 0.4s cubic-bezier(0.5, 0, 0.1, 1); }
+        .sa-link2:hover::before { transform: scaleX(0.65); }
+        .sa-info-close { position: absolute; top: 30px; right: 30px; background-color: rgb(245, 238, 222); box-shadow: 2px 2px 0 0 rgb(152, 147, 137); animation: sa-fade-in 0.4s ease-out 0.9s both; }
+        .sa-info-close.inactive { pointer-events: none; }
+        .sa-info-close svg { display: block; position: absolute; top: 9px; left: 8px; width: 18px; height: 18px; transform: rotate(-10deg); }
+
+        /* 원본 max-width: 1200px 분기 */
+        @media (max-width: 1200px) {
+          .sa-nav { top: 20px; right: 20px; }
+          .sa-btn { margin-bottom: 12px; }
+          .sa-cnt { font-size: 27px; }
+          .sa-info-cnt { padding: 64px 26px 40px; margin: 20px; }
+          .sa-info-cnt h1 { font-size: 32px; }
+          .sa-info-cnt p { font-size: 25px; }
+          .sa-link2::before { height: 2px; }
+          .sa-info-close { top: 24px; right: 24px; }
+        }
       `}</style>
       <div ref={mountRef} className="w-full h-full touch-none" />
 
@@ -805,44 +930,36 @@ export default function SummerAfternoonPage() {
         </div>
       )}
 
-      {/* 우상단 버튼 — 원본과 동일: 사운드 / 옷 색 / 정보.
-          버튼은 32px 정사각형을 10° 기울이고, 아이콘은 절대배치 후 역회전한다. */}
+      {/* 우상단 버튼 — 원본과 동일: 사운드 / 옷 색 / 정보 + 비밀 카운터.
+          수치·아이콘·인터랙션은 원본 CSS 실측값(아래 sa-* 스타일). */}
       {phase === 'playing' && (
-        <nav className="absolute right-6 top-6 flex flex-col items-end gap-3">
+        <nav className={`sa-nav${info === 'open' ? ' hidden' : navReturn ? ' return' : ''}`}>
           <ToolButton
             onClick={() => {
               audioRef.current?.click()
               setMuted((m) => !m)
             }}
           >
-            {/* 소리 상태를 아이콘 형태로 명확히 구분한다: 켜짐=파동, 음소거=X */}
+            {/* 원본 아이콘: 꺼짐=사선 그은 스피커, 켜짐=스피커+막대(sound2) */}
             {muted ? (
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                style={{ position: 'absolute', top: 4, left: 4, transform: 'rotate(-10deg)' }}
-              >
-                <path d="M4 9H7L11 6V18L7 15H4Z" fill="#716C66" />
+              <svg className="sa-sound" width="17" height="13" viewBox="0 0 17 13" fill="none">
                 <path
-                  d="M14.5 9.5L19.5 14.5M19.5 9.5L14.5 14.5"
-                  stroke="#716C66"
-                  strokeWidth="1.7"
-                  strokeLinecap="round"
+                  d="M10.1891 0.227726L6.12965 3.33204H4.16819C3.65646 3.33204 3.23005 3.74143 3.23005 4.27018V8.65375C3.23005 8.81868 3.27258 8.97476 3.34792 9.11054L0.815582 10.9067C0.36511 11.2262 0.25895 11.8504 0.578469 12.3009C0.897988 12.7514 1.52219 12.8576 1.97266 12.538L6.12627 9.59189H6.1468L6.17341 9.61233L11.929 5.52989V5.47601L15.623 2.85588C16.0735 2.53637 16.1796 1.91216 15.8601 1.46169C15.5406 1.01122 14.9164 0.905058 14.4659 1.22458L11.929 3.02399V1.08062C11.9119 0.176617 10.8886 -0.318087 10.1892 0.227787L10.1891 0.227726ZM11.929 7.98191L7.83329 10.887L10.1892 12.6962C10.8886 13.2421 11.929 12.7304 11.929 11.8434V7.98191Z"
+                  fill="#716C66"
                 />
               </svg>
             ) : (
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                style={{ position: 'absolute', top: 4, left: 4, transform: 'rotate(-10deg)' }}
-              >
-                <path d="M4 9H7L11 6V18L7 15H4Z" fill="#716C66" />
-                <path d="M14 9.5A4 4 0 0 1 14 14.5" stroke="#716C66" strokeWidth="1.6" strokeLinecap="round" />
-                <path d="M16.5 7A7.5 7.5 0 0 1 16.5 17" stroke="#716C66" strokeWidth="1.6" strokeLinecap="round" />
+              <svg className="sa-sound sa-sound2" width="17" height="13" viewBox="0 0 17 13" fill="none">
+                <path
+                  d="M6.95909 0.227726L2.8996 3.33204H0.938147C0.426417 3.33204 0 3.74143 0 4.27018V8.65375C0 9.16548 0.40939 9.59189 0.938147 9.59189H2.91675L6.95918 12.6962C7.65853 13.2421 8.69899 12.7304 8.69899 11.8434V1.08062C8.68186 0.176617 7.65853 -0.318087 6.95918 0.227787L6.95909 0.227726Z"
+                  fill="#716C66"
+                />
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M11 2.40002C11.5523 2.40002 12 2.84774 12 3.40002V9.40002C12 9.95231 11.5523 10.4 11 10.4C10.4477 10.4 10 9.95231 10 9.40002V3.40002C10 2.84774 10.4477 2.40002 11 2.40002Z"
+                  fill="#716C66"
+                />
               </svg>
             )}
           </ToolButton>
@@ -853,33 +970,16 @@ export default function SummerAfternoonPage() {
               cycleColorRef.current()
             }}
           >
-            <div
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                width: 18,
-                height: 18,
-                borderRadius: 2,
-                transform: 'translate(-50%, -50%) rotate(-16deg)',
-                backgroundColor: charColor,
-              }}
-            />
+            <div className="sa-color" style={{ backgroundColor: charColor }} />
           </ToolButton>
 
           <ToolButton
             onClick={() => {
               audioRef.current?.click()
-              setInfo((v) => !v)
+              openInfo()
             }}
           >
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 4 17"
-              fill="none"
-              style={{ position: 'absolute', top: 6, left: 5, transform: 'rotate(-10deg)' }}
-            >
+            <svg className="sa-info" width="4" height="17" viewBox="0 0 4 17" fill="none">
               <path
                 d="M4 2C4 3.10457 3.10457 4 2 4C0.89543 4 0 3.10457 0 2C0 0.89543 0.89543 0 2 0C3.10457 0 4 0.89543 4 2Z"
                 fill="#716C66"
@@ -893,33 +993,51 @@ export default function SummerAfternoonPage() {
             </svg>
           </ToolButton>
 
-          {/* 비밀 카운터 — 원본 .cnt 스타일(버튼 바로 아래, 크림색+하드 그림자) */}
-          <div
-            className="pointer-events-none absolute left-1/2 top-full -translate-x-1/2 whitespace-nowrap text-center"
-            style={{
-              fontFamily: 'Stylish, sans-serif',
-              fontWeight: 400,
-              color: '#f9efdc',
-              textShadow: '2px 2px 0 #716C66',
-              fontSize: 27,
-              letterSpacing: '-0.05em',
-              lineHeight: '1em',
-              marginTop: 10,
-            }}
-          >
-            {secretsFound}/5
-          </div>
+          {/* 비밀 카운터 — 원본 .cnt(버튼 아래, 크림색+하드 그림자) */}
+          <div className="sa-cnt">{secretsFound}/5</div>
         </nav>
       )}
 
-      {/* 정보 팝오버 — 조작법(정보 버튼을 눌러야 뜬다) */}
-      {info && phase === 'playing' && (
-        <div className="absolute right-5 top-[140px] w-60 rounded-md bg-[#f9efdc] p-4 text-sm leading-6 text-[#6f6a5c] shadow-[2px_2px_0_0_#716c66]">
-          <p className="mb-1 font-semibold" style={{ fontFamily: 'Stylish, sans-serif' }}>
-            조작법
-          </p>
-          <p>이동: WASD / 방향키 / 왼쪽 클릭(커서 방향)</p>
-          <p>점프: 스페이스 / 오른쪽 클릭</p>
+      {/* 정보 모달 — 원본 #info 레이아웃·문구·애니메이션. 열림 애니메이션이 끝나기
+          전에는 닫기(X·바깥 클릭·ESC)를 받지 않는다(원본과 동일). */}
+      {info !== 'closed' && phase === 'playing' && (
+        <div className={`sa-info-root ${info}`}>
+          <div className="sa-info-backdrop" />
+          <div className="sa-info-hit" onClick={closeInfo} />
+          <div className="sa-info-cnt">
+            <div className="sa-info-dark" />
+            <div className="sa-info-light" />
+            <article>
+              <h1>Summer Afternoon</h1>
+              <p>
+                This is a web experiment I made to practice some procedural 3D art. There are 5
+                secrets hidden across it. I hope you can find them!
+              </p>
+              <p>Thanks to Ana and Michael for their tips.</p>
+              <p>
+                <a href="https://vlucendo.com" rel="noreferrer" target="_blank" className="sa-link2">
+                  Vicente
+                </a>
+              </p>
+            </article>
+            <button
+              type="button"
+              aria-label="닫기"
+              className={`sa-info-close${infoReady ? '' : ' inactive'}`}
+              onClick={closeInfo}
+            >
+              <svg width="14" height="13" viewBox="0 0 14 13" fill="none">
+                <path
+                  d="M0.953544 1.39654C1.48018 0.757055 2.42551 0.665571 3.065 1.19221L12.2188 8.7306C12.8583 9.25724 12.9497 10.2026 12.4231 10.8421C11.8965 11.4815 10.9511 11.573 10.3116 11.0464L1.15788 3.508C0.51839 2.98136 0.426906 2.03603 0.953544 1.39654Z"
+                  fill="#938D82"
+                />
+                <path
+                  d="M12.0486 1.06065C12.6344 1.64643 12.6344 2.59618 12.0486 3.18197L3.66352 11.567C3.07774 12.1528 2.12799 12.1528 1.5422 11.567C0.956417 10.9812 0.956417 10.0315 1.5422 9.44572L9.92727 1.06065C10.5131 0.474861 11.4628 0.474861 12.0486 1.06065Z"
+                  fill="#938D82"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
@@ -948,24 +1066,12 @@ export default function SummerAfternoonPage() {
 
 /**
  * 원본 우상단 버튼 — 32×32 크림 사각형을 10° 기울이고(하드 그림자), 아이콘은
- * 안에서 절대배치·역회전한다. 원본 .button.svelte 스타일 그대로.
+ * 안에서 절대배치·역회전한다. 호버 1.1배, 누르면 2px 눌리며 그림자가 사라진다.
  */
 function ToolButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      className="relative block transition-transform active:translate-x-[1px] active:translate-y-[1px]"
-      style={{
-        width: 32,
-        height: 32,
-        borderRadius: 5,
-        backgroundColor: '#f9efdc',
-        boxShadow: '2px 2px 0 0 #716c66',
-        transform: 'rotate(10deg)',
-      }}
-    >
+    <button type="button" onClick={onClick} className="sa-btn">
       {children}
     </button>
   )
 }
-
