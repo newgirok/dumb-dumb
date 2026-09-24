@@ -234,6 +234,7 @@ components/
 - HUD 컴포넌트는 3D 씬 캔버스 위 `pointer-events: none` 영역에 렌더
 - HUD 내부 클릭 가능 요소는 `pointer-events: auto` + `stopPropagation()` 처리
 - 3D 캔버스에 `click`/`touchstart` 리스너 직접 바인딩 금지 (백엔드 컨벤션 프론트엔드 하네스)
+- 캔버스의 `pointer*`·`contextmenu` 리스너는 3인칭 컨트롤러(`app/summer-afternoon/thirdPerson.ts`)만 등록하며, 이동·점프 조작 전용이다. 오브젝트 선택·팝업 호출에는 쓰지 않는다
 
 ---
 
