@@ -23,7 +23,7 @@ project/
 │   ├── globals.css
 │   ├── icon.svg
 │   ├── layout.tsx
-│   └── page.tsx                  ← 랜딩 페이지 (GSAP 스크롤 크로스페이드)
+│   └── page.tsx                  ← 제품 진입점 (루트에서 summer-afternoon 씬 렌더)
 │
 ├── components/                   ← 공유 React 컴포넌트
 │   ├── hud/                      ← 인게임 HUD (방향키, 조이스틱, 채팅 입력)
@@ -123,7 +123,7 @@ project/
 
 | 파일 | 역할 |
 |---|---|
-| `app/page.tsx` | GSAP 스크롤 크로스페이드 랜딩 페이지 — 4개 씬 + 히어로 clip-path 애니메이션 |
+| `app/page.tsx` | 제품 진입점 — 루트(`/`)에서 `app/summer-afternoon/scene.tsx`를 그대로 렌더한다(씬 전용 URL 없음) |
 | `app/(game)/store/page.tsx` | 아바타·라이선스 상점 — PG 결제 요청 및 발급 상태 폴링 |
 | `components/world/WorldCanvas.tsx` | 메인 월드 3D 씬 진입점 — 이동·음성·채팅·섹터 루프 전체 (Three.js 단일 WebGL 캔버스) |
 | `components/world/MiniMap.tsx` | 5시 GIS 미니맵 — 독립 Mapbox GL 캔버스에 유저 실제 GPS 위치 표시 |
