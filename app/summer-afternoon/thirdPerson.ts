@@ -38,8 +38,13 @@ const CAMERA_LERP = 5
 // 전경으로 새어 보이지 않고, (b) 캐릭터가 지면에 붙어 그라운디드한 몰입감이 산다.
 // 반대로 카메라를 너무 낮추고 시선을 수평으로 두면 저고도 near-level 시선이
 // 지형 립을 넘어 바다를 비춘다(전경 청록 띠 버그). 이 3개 값이 프레이밍 노브다.
-const CAMERA_BACK = 6.5
-const CAMERA_HEIGHT = 1.65
+//
+// 카메라는 발이 아니라 시선 목표점(아래 LOOK_HEIGHT/FORWARD)을 중심으로 한
+// 구면좌표에 선다. 원본 WebGL 행렬 실측: 인트로 줌(반경 +12→0) 내내 pitch가
+// -9.866°로 불변 → 원본은 시선 목표점을 중심으로 반경만 줄인다. 정착 시
+// 캐릭터 뒤 ≈5.3m, 발끝 위 ≈2.1m. 반경 5.9·앙각 9.866°면 뒤 5.3m·높이 2.2m.
+const CAMERA_RADIUS = 5.9
+const CAMERA_ELEVATION = THREE.MathUtils.degToRad(9.866)
 /**
  * 인트로 카메라 돌리 — 멀리서(줌아웃) 시작해 제자리로 당겨온다.
  * 원본 playIntroAnimation: followSphericalZoom 12 → 0, duration 6s, easeInOut3.
@@ -54,12 +59,10 @@ const CAMERA_LOOK_FORWARD = 0.5
  * shakeSpeed .2. theta/phi에 사인노이즈를 얹어 쉬는 중에도 화면이 부드럽게
  * 흔들린다. touchAmount(0→1)로 서서히 켜진다(원본 gsap delay:4 duration:4).
  */
-// 원본 소스는 shake(.08,.08,.02). 원본 영상 광학흐름 측정 결과 화면상 흔들림은
-// 가로 0.018%/f, 세로 0.029%/f (세로가 1.56배). 우리 리그는 라디안당 세로가 더
-// 민감해, phi를 0.055로 낮추면 원본의 가로·세로 절대 속도와 비율(1.56)이 둘 다
-// 일치한다(theta는 원본값 유지). 즉 좌우와 함께 상하도 원본만큼 흔들린다.
+// 원본 소스 shake(.08,.08,.02) 그대로. 흔들림이 원본처럼 순수 회전이라 원본값이
+// 곧 맞는 값이다(WebGL 행렬 실측, 인트로 후 10~40s 표준편차 pitch 1.09°·yaw 1.19°).
 const SHAKE_THETA = 0.08
-const SHAKE_PHI = 0.055
+const SHAKE_PHI = 0.08
 const SHAKE_ROLL = 0.02
 const SHAKE_SPEED = 0.2
 const SHAKE_FADE_DELAY = 4
@@ -277,10 +280,9 @@ export function createThirdPerson({
     return raycaster.intersectObject(collider, false).length > 0
   }
 
-  /** 캐릭터 → 카메라 사이에 벽이 끼면 반경을 줄인다 */
+  /** 시선 목표점 → 카메라 사이에 벽이 끼면 반경을 줄인다 */
   function cameraRadius(from: THREE.Vector3, dir: THREE.Vector3, wanted: number): number {
-    probe.copy(from).setY(from.y + CAMERA_LOOK_HEIGHT)
-    raycaster.set(probe, dir)
+    raycaster.set(from, dir)
     raycaster.far = wanted
     const hit = raycaster.intersectObject(collider, false)[0]
     return hit ? Math.max(1, hit.distance - CAMERA_CLEARANCE) : wanted
@@ -390,10 +392,17 @@ export function createThirdPerson({
         introActive = false
       }
       toCam.set(Math.sin(camYaw), 0, Math.cos(camYaw))
-      const backDist = cameraRadius(position, toCam, CAMERA_BACK)
+      // 시선 목표점 — 캐릭터보다 살짝 위(1.2)와 전방(0.5)(원본 lookatMeshOffset).
+      // 카메라는 이 점을 중심으로 한 구면 위에 선다.
+      lookAt.set(
+        position.x - toCam.x * CAMERA_LOOK_FORWARD,
+        position.y + CAMERA_LOOK_HEIGHT,
+        position.z - toCam.z * CAMERA_LOOK_FORWARD,
+      )
 
-      // idle 흔들림("살랑살랑") — touchAmount(0→1)로 서서히 켜지는 사인노이즈를
-      // 카메라 구면 좌표(theta/phi)에 얹는다. 인트로 중엔 0이라 스냅에 영향 없음.
+      // idle 흔들림("살랑살랑") — touchAmount(0→1)로 서서히 켜지는 사인노이즈.
+      // 원본 실측상 흔들리는 동안 카메라 위치는 완전히 고정이고 시선만 돈다 →
+      // 궤도가 아니라 lookAt 이후의 회전으로 얹는다. 인트로 중엔 0.
       const touchAmount =
         introSec < 0
           ? 0
@@ -417,42 +426,33 @@ export function createThirdPerson({
       parYaw += (parTargetYaw - parYaw) * Math.min(1, PARALLAX_LERP * dt)
       parPitch += (parTargetPitch - parPitch) * Math.min(1, PARALLAX_LERP * dt)
 
-      // 기본 카메라 오프셋(충돌 보정 수평거리 + 높이). 인트로 줌은 이 오프셋을
-      // 구면 반경째로 늘려(뒤로+위로 함께) 카메라가 지형 위에 머물게 한다 —
-      // 원본 followSphericalZoom과 동일. 수평으로만 빼면 카메라가 지형 끝을 넘어
-      // 하단에 바다/공백이 보인다.
-      camOffset.set(toCam.x * backDist, CAMERA_HEIGHT, toCam.z * backDist)
-      if (introZoom > 0) {
-        const baseLen = camOffset.length()
-        camOffset.multiplyScalar((baseLen + introZoom) / baseLen)
-      }
-      camSpherical.setFromVector3(camOffset)
-      // 흔들림·패럴랙스를 얹기 전의 기준 각(추적 리그가 정한 그라운디드 시점)
+      // 시선 목표점 기준 구면 방향(앙각 고정). 패럴랙스만 궤도로 얹는다.
+      camSpherical.set(1, Math.PI / 2 - CAMERA_ELEVATION, camYaw)
       const basePhi = camSpherical.phi
-      camSpherical.theta += swayTheta + parYaw
+      camSpherical.theta += parYaw
       // 위로 젖히는 방향(phi 증가)만 좁게 잘라 바다가 전경에 새는 것을 원천 차단.
       // 아래로 내려다보는 방향(phi 감소)은 안전하므로 넉넉히 허용한다.
       camSpherical.phi = THREE.MathUtils.clamp(
-        basePhi + swayPhi + parPitch,
+        basePhi + parPitch,
         basePhi - CAM_PHI_DOWN,
         basePhi + CAM_PHI_UP,
       )
       camOffset.setFromSpherical(camSpherical)
-      desiredCam.set(position.x + camOffset.x, position.y + camOffset.y, position.z + camOffset.z)
+      // 벽 충돌로 줄인 반경에 인트로 줌을 더한다 — 원본 followSphericalZoom처럼
+      // 같은 광선을 따라 멀어지므로 인트로 내내 시선 각도가 변하지 않는다.
+      const radius = cameraRadius(lookAt, camOffset, CAMERA_RADIUS) + introZoom
+      desiredCam.copy(lookAt).addScaledVector(camOffset, radius)
 
       // 인트로 중엔 돌리를 정확히 따라가고(스냅), 이후엔 부드럽게 추적한다
       if (introActive) camera.position.copy(desiredCam)
       else camera.position.lerp(desiredCam, Math.min(1, CAMERA_LERP * dt))
-      // 시선은 캐릭터보다 살짝 위(1.1)와 전방(0.5)을 본다(원본 lookatMeshOffset)
-      lookAt.set(
-        position.x - toCam.x * CAMERA_LOOK_FORWARD,
-        position.y + CAMERA_LOOK_HEIGHT,
-        position.z - toCam.z * CAMERA_LOOK_FORWARD,
-      )
       // 아주 미세한 롤(수평선 기울기)까지 원본 흔들림에 맞춘다
       viewDir.copy(lookAt).sub(camera.position).normalize()
       camera.up.set(0, 1, 0).applyAxisAngle(viewDir, swayRoll)
       camera.lookAt(lookAt)
+      // 흔들림은 위치를 건드리지 않는 순수 회전(요우는 월드 Y, 피치는 로컬 X)
+      camera.rotateOnWorldAxis(THREE.Object3D.DEFAULT_UP, swayTheta)
+      camera.rotateX(swayPhi)
     },
 
     dispose() {
