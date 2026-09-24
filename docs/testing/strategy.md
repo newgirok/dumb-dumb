@@ -25,7 +25,7 @@
 |---|---|
 | `lib/geo/validator.ts` | 씬 좌표 이동 속도 초과 드롭 / 정상 좌표 통과 |
 | `lib/geo/sector.ts` | 섹터 경계 판별 / Pre-Join 임계값 50m 진입 감지 |
-| `lib/map/snap.ts` | 미니맵 GPS 위치 마커 중앙 고정 / 줌 범위(16~17) 클램프 |
+| `lib/map/snap.ts` | 반경 15m 이내 길 선분의 최근접점으로 보정 / 15m 밖이거나 길 피처가 없으면 원좌표 유지 / 길이 아닌 선형 피처 무시 |
 | `lib/three/prune.ts` | 반경 450m 외곽 오브젝트 `dispose()` 호출 여부 |
 | `lib/auth/session.ts` | 만료 토큰 파싱 거부 / 리프레시 성공 |
 | `lib/voice/spatial-audio.ts` | 거리 기반 볼륨 감쇠 / 3D 패닝 파라미터 산출 |
