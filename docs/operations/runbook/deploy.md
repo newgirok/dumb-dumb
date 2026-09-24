@@ -9,6 +9,7 @@
 | 컴포넌트 | 호스팅 | 트리거 |
 |---|---|---|
 | Next.js 프론트엔드 | Vercel | main 브랜치 push 시 자동 |
+| Next.js 프론트엔드 (컨테이너) | `Dockerfile` `runner` 스테이지 (`output: 'standalone'`, `node server.js`) | 이미지 빌드 후 기동 |
 | NestJS API 서버 | 자체 호스팅 (VM/컨테이너) | 수동 또는 CI 파이프라인 |
 | DB 마이그레이션 | 자체 PostgreSQL | psql로 SQL 순차 적용 |
 
@@ -39,7 +40,8 @@ DB 접속 정보와 API 서버 환경변수가 프로덕션 값으로 준비되�
 
 `supabase/migrations/`의 SQL(`0001`~`0010`)을 파일명 순서대로 프로덕션 PostgreSQL에 적용한다.
 전용 CLI 러너는 없으며 psql로 직접 적용한다. PostGIS / pg_cron / pgcrypto / citext 확장이
-설치되어 있어야 한다.
+설치되어 있어야 한다. Supabase가 아닌 PostgreSQL에 처음 적용할 때는 `0002`·`0004`가 참조하는 `auth.users` 스텁이
+먼저 있어야 하고, 적용 뒤 `app_api` 로그인을 켠다([로컬 환경 세팅](../../onboarding/local-setup.md) 3-2·3-3).
 
 ```bash
 # 예: 아직 적용되지 않은 마이그레이션을 순서대로 적용
@@ -62,7 +64,7 @@ DDL 권한이 없다. 프로덕션 DB에 직접 영향을 주므로, 반드시 �
 cd apps/api
 npm ci
 npm run build
-npm run start:prod       # 컴파일된 dist 실행
+npm run start:prod       # 컴파일된 dist/apps/api/src/main 실행
 ```
 
 컨테이너로 운영하는 경우 위 build를 이미지 빌드 단계에서 수행하고, 런타임은 `start:prod`를
@@ -79,7 +81,7 @@ npm run start:prod       # 컴파일된 dist 실행
 시크릿 값이 변경된 경우에만, API 서버의 환경변수를 갱신하고 프로세스를 재기동한다.
 
 ```bash
-# apps/api/.env (또는 배포 플랫폼의 환경변수 설정)
+# apps/api/.env.local 또는 apps/api/.env (또는 배포 플랫폼의 환경변수 설정)
 DATABASE_URL=postgresql://app_api@<db-host>:5432/<db>
 JWT_ACCESS_SECRET=...
 JWT_REFRESH_SECRET=...      # 액세스와 서로 다른 값
@@ -92,7 +94,9 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 ```
 
-`JWT_ACCESS_SECRET`을 교체하면 발급된 액세스 토큰이 전부 무효가 되어 재로그인이 필요하다.
+`JWT_ACCESS_SECRET`을 교체하면 발급된 액세스 토큰이 전부 무효가 되지만, 브라우저는 401을 받으면 리프레시 토큰(별도 시크릿)으로
+새 액세스 토큰을 받아 재시도하므로 재로그인은 필요 없다. 이미 열린 월드 소켓은 접속 시에만 토큰을 검증하므로 유지된다.
+`JWT_REFRESH_SECRET`을 교체하면 리프레시 토큰이 전부 무효가 되어 재로그인이 필요하다.
 소셜 로그인 리다이렉트 URI가 공급자 콘솔에 프로덕션 도메인으로 등록되어 있는지 확인한다.
 
 ---
@@ -109,20 +113,29 @@ vercel --prod
 ```
 
 Vercel 대시보드 → "Environment Variables"에서 다음이 설정되었는지 확인한다:
-`API_URL`(서버 전용, NestJS 주소), `NEXT_PUBLIC_WS_URL`(월드 소켓), `NEXT_PUBLIC_MAPBOX_TOKEN`,
-`NEXT_PUBLIC_LIVEKIT_URL`, `NEXT_PUBLIC_APP_URL`.
+`API_URL`(서버 전용, NestJS 주소), `NEXT_PUBLIC_WS_URL`(대시보드 월드 소켓), `NEXT_PUBLIC_MAPBOX_TOKEN`,
+`NEXT_PUBLIC_LIVEKIT_URL`. `NEXT_PUBLIC_*` 값은 빌드 시점에 구워지므로 바꾼 뒤에는 재배포한다.
+
+컨테이너로 배포할 때는 `docker-compose.yml`의 `app-prod`(`profile: prod`)로 이미지를 만든다.
+`NEXT_PUBLIC_*`는 빌드 인자로 구워지므로 `--env-file`로 채운다. `NEXT_PUBLIC_WS_URL`은 빌드 인자에
+없어 이미지가 기본값 `http://localhost:9001`로 소켓에 접속한다.
+
+```bash
+docker compose --env-file .env.local --profile prod up -d --build app-prod
+```
 
 ---
 
 ## 6. 배포 후 검증 체크리스트
 
 - [ ] DB 마이그레이션 `0001`~`0010` 전부 적용됨 (psql로 스키마 확인)
-- [ ] API 서버 헬스 정상 (`GET /api/health` → `{ "status": "ok" }`)
-- [ ] socket.io 월드 게이트웨이 접속 및 `positions` 수신 정상
+- [ ] API 서버 헬스 정상 (API 서버 `GET /health` → `{ "status": "ok" }`)
+- [ ] 루트 3D 씬(`/`) 로딩·인트로 정상, 인트로 뒤 5시 미니맵 지도 표시
+- [ ] socket.io 월드 게이트웨이(`/world`) 접속 및 `positions` 수신 정상 (로그인한 두 클라이언트를 대시보드 월드의 같은 섹터에 두고 확인)
 - [ ] Vercel 빌드 성공 (Vercel 대시보드 "Deployments")
 - [ ] Mapbox 토큰 도메인 락 설정 (프로덕션 도메인만 허용)
-- [ ] LiveKit API 키 유효성 확인 (음성 연결 테스트)
-- [ ] 결제 웹훅 URL이 프로덕션 NestJS billing 엔드포인트로 등록됨 (PG사 대시보드)
+- [ ] LiveKit API 키 유효성 확인 (대시보드 월드에서 음성 룸 토큰 발급·연결 테스트)
+- [ ] 결제 웹훅 URL이 프로덕션 API 서버 `POST /billing/webhook`으로 등록됨 (PG사 대시보드)
 - [ ] API가 `app_api` 롤로 접속하여 `orders` 등 RLS 정책이 적용됨을 확인
 
 ---
