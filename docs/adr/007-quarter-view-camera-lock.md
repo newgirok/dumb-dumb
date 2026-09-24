@@ -24,16 +24,32 @@
 
 ## 구현 — 메인 씬 3인칭 추적 카메라
 
-캐릭터 뒤 고정 오프셋에 카메라를 두고, 매 프레임 캐릭터 위치를 부드럽게 따라간다. Pitch는 고정하고 유저 입력에 의한 궤도 회전은 받지 않는다.
+카메라는 캐릭터의 **시선 목표점**(발 위 1.2m, 진행 방향 0.5m 앞)을 중심으로 한 구면 위에 선다. 반경 5.9m·앙각 9.866°로 고정되어, 캐릭터 뒤 약 5.3m·발끝 위 약 2.2m에서 항상 같은 각도로 내려다본다. 구현은 `app/summer-afternoon/thirdPerson.ts`에 있다.
+
+| 요소 | 규칙 |
+|---|---|
+| 방위(요우) | 이동 방향을 따라 캐릭터 뒤로 자동 복귀한다(1.8/s, 최대 0.8rad/s, 정지 중 0.05배). 캐릭터가 카메라 쪽으로 걸어오면 돌지 않는다. 유저가 카메라를 직접 돌리는 입력은 받지 않는다 |
+| 추적 | 목표 위치로 `lerp`(5/s)해 부드럽게 따라간다 |
+| 벽 충돌 | 시선 목표점 → 카메라 광선이 collider에 막히면 반경을 줄인다(여유 0.4m, 최소 1m) |
+| 인트로 | 반경 +12m에서 6초 easeInOutCubic으로 0까지 줄인다. 같은 광선 위를 움직이므로 인트로 내내 Pitch가 변하지 않으며, 인트로 동안은 추적 `lerp` 없이 돌리 위치에 바로 선다 |
+| 대기 흔들림 | 카메라 위치는 고정하고 `lookAt` 이후 회전만 얹는다(요우·피치 0.08rad, 롤 0.02rad × 사인 노이즈, 속도 0.2). 인트로 시작 4초 뒤부터 4초에 걸쳐 켜진다 |
+| 커서 패럴랙스 | 커서 위치에 비례해 요우 ±0.16rad·피치 ±0.06rad만큼 궤도를 기울인다. 위로 젖히는 쪽은 0.02rad까지만 허용해 지형 너머 바다가 전경에 드러나지 않게 한다. 대기 흔들림과 같은 시점에 켜진다 |
 
 ```typescript
-const CAM_OFFSET = new THREE.Vector3(0, 6, 8); // 뒤·위 고정 오프셋
+const CAMERA_RADIUS = 5.9                                // 시선 목표점 기준 반경
+const CAMERA_ELEVATION = THREE.MathUtils.degToRad(9.866) // 고정 앙각 = 내려다보는 Pitch
 
-function updateCamera(character: THREE.Object3D) {
-  const target = character.position.clone().add(CAM_OFFSET);
-  camera.position.lerp(target, 0.1); // 0.1 Lerp로 추적
-  camera.lookAt(character.position);
-}
+// 시선 목표점 — 발 위 1.2m, 진행 방향 0.5m 앞
+lookAt.set(pos.x - toCam.x * 0.5, pos.y + 1.2, pos.z - toCam.z * 0.5)
+dir.setFromSpherical(new THREE.Spherical(1, Math.PI / 2 - CAMERA_ELEVATION, camYaw))
+
+// 벽 충돌로 줄인 반경에 인트로 줌을 더해 같은 광선 위에 세운다
+const radius = cameraRadius(lookAt, dir, CAMERA_RADIUS) + introZoom
+camera.position.lerp(desired.copy(lookAt).addScaledVector(dir, radius), Math.min(1, 5 * dt))
+
+camera.lookAt(lookAt)
+camera.rotateOnWorldAxis(THREE.Object3D.DEFAULT_UP, swayYaw) // 대기 흔들림은 순수 회전
+camera.rotateX(swayPitch)
 ```
 
 ## 구현 — 미니맵 뷰 잠금
