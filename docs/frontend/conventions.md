@@ -149,8 +149,13 @@ const renderer = new THREE.WebGLRenderer({
 ### 레이어 생명주기
 
 - 레이어 추가는 `map.on('load', () => { ... })` 내부에서만 수행
-- 컴포넌트 언마운트·페이지 이동 시 `map.remove()` 반드시 호출
-- 미니맵은 유저를 추적해 고정하며, 드래그·줌 조작은 잠근다(`dragPan`/`scrollZoom` disable)
+- 컴포넌트 언마운트·페이지 이동 시 `ResizeObserver.disconnect()`와 `map.remove()` 반드시 호출
+- 미니맵은 유저를 추적해 고정하며, 드래그·줌 조작은 잠근다(`interactive: false`). 첫 GPS 좌표는 `jumpTo`, 이후 갱신은 `easeTo`(600ms)로 따라간다
+
+### 크기 전환
+
+- 미니맵을 클릭하면 152px ↔ 340px 원형으로 0.5초 동안 커지고 작아진다
+- 전환 중에는 컨테이너 크기가 매 프레임 바뀌므로, `ResizeObserver`로 크기 변화를 따라 `map.resize()`를 호출해 캔버스가 늘어나 보이지 않게 한다
 
 ---
 
