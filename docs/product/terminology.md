@@ -8,18 +8,20 @@
 
 | 용어 | 정의 |
 |---|---|
-| **3D 숲 씬 (Forest Scene)** | 메인 월드. 베이크드 로우폴리 지오메트리로 구성된 단일 Three.js 씬. 오솔길·집·창고·나무·바위·간판·랜드마크가 씬에 구워진 정적/인스턴스 에셋으로 존재한다. 좌표계는 씬 로컬 좌표. |
-| **3인칭 추적 카메라 (Third-Person Camera)** | 캐릭터를 뒤에서 따라가며 씬 내 이동을 담는 메인 카메라. |
-| **GIS 미니맵 (Minimap)** | 화면 5시(우하단)에 놓인 나침반형 독립 Mapbox GL 캔버스. 유저의 실제 GPS 위치를 실지형 지도 위에 표시하는 보조 뷰. |
-| **로우폴리 (Low-Poly)** | 각지고 간결한 폴리곤으로 구성된 3D 스타일. 숲 씬·동물 캐릭터·랜드마크 에셋 전체에 적용. |
-| **가시거리 안개 (Fog of War)** | 캐릭터 중심에서 일정 반경 바깥을 덮는 씬의 뷰 디스턴스(거리 안개). 탐험 긴장감과 BM을 연동하는 핵심 메카닉. |
-| **가시거리 라이선스** | 씬 뷰 디스턴스 등급을 영구적으로 확장하는 기능 라이선스. 아바타 외형과 완전히 독립된 별도 상품. |
-| **이동 조작** | PC는 키보드 WASD, 모바일은 가상 조이스틱으로 씬 내 캐릭터를 이동시킨다. |
-| **GPS 위치 표시** | 모바일 GPS 좌표를 5시 GIS 미니맵 위에 실시간 표시한다. 씬 이동을 직접 구동하지 않고 미니맵 전용으로 쓰인다. |
-| **오솔길 (Trail)** | 씬 지오메트리에 구워진 길 에셋. 캐릭터는 씬에 놓인 오솔길과 개활지를 걷는다. |
-| **랜드마크 (Landmark)** | 숲 속에 존재하는 그루터기·바위·굴·옹달샘 등 자연물 오브젝트. 씬에 배치된 로우폴리 에셋이며, 일부는 B2B 스폰서십 대상(브랜드 텍스처 + 미니맵 좌표 마커)이 된다. |
-| **섹터 (Sector)** | 씬 로컬 공간을 일정 크기로 나눈 실시간 브로드캐스트 단위. 섹터별로 socket.io 채널/룸이 존재하며 서버가 섹터 단위로 위치를 묶어 방송한다. |
-| **Pre-Join** | 섹터 경계선 50m 전방에서 다음 섹터 socket.io 채널/룸을 미리 구독하여 경계 이동 시 끊김 방지. |
+| **루트 3D 씬 (Root Scene)** | 루트(`/`)에서 로그인·서버 연결 없이 공개되는 단독 3D 씬(`app/summer-afternoon`). 베이크드 로우폴리 지오메트리를 씬 전용 단일 Three.js 캔버스에 그리며, 좌표계는 씬 로컬 미터 좌표다. |
+| **대시보드 월드 (Dashboard World)** | `/dashboard`의 멀티플레이 월드(`components/world/WorldCanvas.tsx`). Mapbox GL Standard 실지형 지도 위에 Three.js 캐릭터를 커스텀 레이어로 얹고, 좌표계는 위경도(EPSG:4326)다. |
+| **3인칭 추적 카메라 (Third-Person Camera)** | 루트 3D 씬의 메인 카메라. 시선 목표점(발 위 1.2m) 중심 반경 5.9m·앙각 9.866°에서 캐릭터를 뒤따른다. |
+| **쿼터뷰 고정 카메라 (Quarter-View Camera)** | 대시보드 월드의 지도 카메라. pitch 45°·bearing 45°를 고정하고 이동할 때마다 지도 중심을 캐릭터로 맞추며, 줌(14~20)만 허용한다. |
+| **GIS 미니맵 (Minimap)** | 루트 3D 씬 화면 5시(우하단)에 놓인 나침반형 독립 Mapbox GL 캔버스. 유저의 실제 GPS 위치를 실지형 지도 위에 표시하는 보조 뷰. |
+| **로우폴리 (Low-Poly)** | 각지고 간결한 폴리곤으로 구성된 3D 스타일. 루트 3D 씬 에셋과 캐릭터 전체에 적용. |
+| **가시거리 안개 (Fog of War)** | 캐릭터 중심에서 가시거리 반경 바깥을 가리는 메카닉. 탐험 긴장감과 BM을 연동하는 핵심 요소이며, 월드 렌더링 적용은 Phase 5에서 진행한다. |
+| **가시거리 라이선스** | 유저별 가시거리 반경(`user_licenses.visibility_radius_m`, 기본 25m)을 영구적으로 확장하는 기능 라이선스. 아바타 외형과 완전히 독립된 별도 상품. |
+| **이동 조작** | 루트 3D 씬은 PC WASD·방향키·마우스 가상 조이스틱, 모바일 터치 드래그 가상 조이스틱으로 움직인다. 대시보드 월드는 PC WASD·방향키, 모바일 실제 GPS로 움직인다. |
+| **GPS 위치** | 루트 3D 씬에서는 5시 GIS 미니맵의 위치 표시에만 쓰인다. 대시보드 월드에서는 시작 위치를 정하고, 모바일에서는 캐릭터 이동을 직접 구동한다. |
+| **도로 스냅 (Road Snap)** | 대시보드 월드에서 새 위치를 15m 이내 Mapbox `road` 레이어 선분의 최근접점으로 보정하는 처리(`lib/map/snap.ts`). |
+| **랜드마크 (Landmark)** | 월드에 배치해 브랜드 텍스처를 입히는 B2B 스폰서십 대상 오브젝트. 좌표는 `sponsor_buildings.geom`에 두고, 월드 배치와 미니맵 좌표 마커는 Phase 5에서 붙인다. |
+| **섹터 (Sector)** | 대시보드 월드의 실시간 브로드캐스트 단위. 위경도를 500m × 500m 격자로 나누며(위도별 경도 폭), 섹터마다 socket.io 룸과 LiveKit 음성 룸이 있다. 서버가 섹터 단위로 위치를 묶어 방송한다. |
+| **Pre-Join** | 섹터 경계 50m 이내에서 인접 섹터 socket.io 룸을 함께 구독하여 경계 이동 시 끊김 방지. |
 
 ---
 
@@ -27,14 +29,14 @@
 
 | 용어 | 정의 |
 |---|---|
-| **WebGL Context Sharing** | 메인 숲 씬을 단일 Three.js WebGLRenderingContext에서 렌더링하고, 5시 GIS 미니맵은 독립 경량 Mapbox GL 캔버스로 분리 운용하는 방식. 씬 성능을 우선한다. |
-| **미니맵 카메라 잠금 (Minimap Camera Lock)** | 5시 GIS 미니맵의 `map.on('move', ...)` 이벤트를 제어해 유저의 드래그·줌 입력을 차단(`dragPan disable`)하고 카메라를 유저 위치에 고정 추적시키는 기법. |
-| **GiST 인덱스 (Generalized Search Tree)** | PostGIS 공간 데이터에 적용하는 R-Tree 기반 인덱스. `ST_DWithin` 반경 쿼리를 0.001초 이하로 처리. 미니맵 좌표 레이어를 받친다. |
+| **WebGL 컨텍스트 구성** | 루트 3D 씬은 씬 렌더러와 5시 미니맵 Mapbox 캔버스를 서로 다른 WebGL 컨텍스트로 분리해 씬 성능을 우선한다. 대시보드 월드는 Three.js 렌더러가 Mapbox 캔버스의 WebGL 컨텍스트를 공유(Context Sharing)해 커스텀 레이어로 그린다. |
+| **미니맵 카메라 잠금 (Minimap Camera Lock)** | 5시 GIS 미니맵을 `interactive: false`로 만들어 드래그·줌·회전 입력을 모두 차단하고, 줌 16에서 카메라를 유저 GPS 위치에 고정 추적시키는 기법. |
+| **GiST 인덱스 (Generalized Search Tree)** | PostGIS 공간 데이터에 적용하는 R-Tree 기반 인덱스. `sponsor_buildings.geom`(geometry)에 걸려 있다. 조회 함수 `nearby_sponsor_buildings`는 `geom::geography` 식으로 조회해 이 인덱스와 식이 달라, 인덱스를 태우려면 geography 표현식 인덱스가 필요하다(Phase 5). |
 | **멱등성 키 (Idempotency Key)** | 결제 시 생성하는 주문 UUID. PG사 웹훅이 중복 수신되어도 동일 키를 기준으로 단 1회만 처리되도록 보장. |
-| **appearance_hash** | 아바타 외형 파라미터(몸통 색상·패턴·귀 각도·꼬리 각도·악세서리) 조합을 SHA-256으로 해싱한 값. DB UNIQUE 제약으로 외형 겹침을 물리적으로 차단. |
-| **Prune / Culling** | 캐릭터 반경 450m 외곽으로 벗어난 Three.js 오브젝트를 메모리에서 해제하는 GC 배치 작업. |
-| **Subscription Capping** | LiveKit 음성 구독 대상을 거리 기준 Top-8로 제한하여 클라이언트 CPU·배터리 소모를 방어하는 기법. |
-| **Hysteresis Buffer** | Top-N 경계 부근에서 구독·해제가 반복(Flapping)되는 현상을 막기 위한 진입/이탈 임계값 2단계 여유 구간. |
+| **appearance_hash** | 아바타 외형 파라미터(피부·헤어·헤어 색·상의·상의 색·하의·하의 색·신발·액세서리)와 난수 `seed`를 합쳐 SHA-256으로 해싱한 값. DB UNIQUE 제약이 같은 해시의 중복 발급을 막는다. seed가 해시에 들어가므로 팔레트 조합이 같아도 seed가 다르면 발급된다. |
+| **Prune / Culling** | 대시보드 월드에서 50m 이동마다 캐릭터 반경 450m 밖의 피어 오브젝트를 씬에서 빼고, 공유되지 않는 지오메트리와 재질을 해제하는 GC 작업. |
+| **Subscription Capping** | LiveKit 음성 구독 대상을 40m 이내 거리 기준 Top-8로 제한하여 클라이언트 CPU·배터리 소모를 방어하는 기법. |
+| **음성 감쇠 구간 (Fade Band)** | 근접 음성의 30m(최대 볼륨)~40m(무음) 구간. 이 구간에서 볼륨을 선형으로 줄여, 구독 경계(40m)에 다가갈수록 소리가 자연스럽게 작아지게 한다. |
 | **SFU (Selective Forwarding Unit)** | 미디어 중계 서버. P2P 대신 SFU를 경유하여 n명이 모여도 클라이언트가 서버와만 연결하면 되어 O(n) 확장. LiveKit Cloud가 제공. |
 | **CPT (Cost Per Time)** | 기간 고정제 광고 과금 방식. 클릭·행동 기반(CPC/CPA) 대신 "특정 랜드마크 1개월 독점"처럼 기간 단위 정가 판매. |
 
@@ -47,7 +49,7 @@
 | BM | Business Model |
 | PG | Payment Gateway (결제 게이트웨이) |
 | RLS | Row Level Security (PostgreSQL 행 레벨 보안, API 가드 아래 2차 방어) |
-| GLB | GL Binary (Three.js 3D 모델 포맷) |
+| GLB | GL Binary (Three.js 3D 모델 포맷, `characters.glb_url`) |
 | GPS | Global Positioning System |
 | JWT | JSON Web Token |
 | GC | Garbage Collection |
