@@ -54,30 +54,32 @@ camera.rotateX(swayPitch)
 
 ## 구현 — 미니맵 뷰 잠금
 
-미니맵은 유저 위치를 중앙에 고정하고, 조작 핸들러를 모두 비활성화한다.
+미니맵은 유저 위치를 중앙에 고정하고, `interactive: false`로 드래그·줌·회전 핸들러를 모두 끈다. 구현은 `components/world/MiniMap.tsx`에 있다. GPS 좌표를 받기 전에는 서울시청을 중심으로 둔다.
 
 ```typescript
-// 유저 입력 이벤트 전면 비활성화 (미니맵 전용)
-minimap.dragPan.disable();
-minimap.scrollZoom.disable();
-minimap.touchZoomRotate.disable();
-minimap.dragRotate.disable();
-minimap.doubleClickZoom.disable();
+// 조작 핸들러 전면 비활성화 — 유저 위치만 추적하는 나침반
+const minimap = new mapboxgl.Map({
+  container,
+  style: 'mapbox://styles/mapbox/standard',
+  center: FALLBACK_CENTER, // 서울시청
+  zoom: 16,
+  interactive: false,
+})
 
-// 유저 GPS 위치를 항상 중앙에 유지
-watchPosition(({ lon, lat }) => {
-  minimap.setCenter([lon, lat]);
-});
+// 유저 GPS 위치를 항상 중앙에 유지 — 첫 좌표는 즉시, 이후 갱신은 600ms에 걸쳐 따라간다
+watchPosition((lng, lat) => {
+  if (!hasFix) {
+    minimap.jumpTo({ center: [lng, lat] })
+    hasFix = true
+  } else {
+    minimap.easeTo({ center: [lng, lat], duration: 600 })
+  }
+})
 ```
 
 ## 미니맵 줌 레벨 고정
 
-유저가 임의로 줌아웃하지 못하도록 미니맵 줌을 근방 수준(16~17)으로 고정한다.
-
-```typescript
-minimap.setMinZoom(16);
-minimap.setMaxZoom(17);
-```
+미니맵 줌은 근방 수준인 16으로 고정한다. `interactive: false`라 유저 입력으로 줌이 바뀌지 않으므로 타일 요청이 유저 주변으로 한정된다.
 
 ## 관련
 
