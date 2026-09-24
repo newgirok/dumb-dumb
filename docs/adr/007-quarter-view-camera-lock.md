@@ -1,28 +1,32 @@
-# ADR 007: 3인칭 추적 카메라 + 미니맵 뷰 잠금
+# ADR 007: 카메라 잠금 — 3인칭 추적 · 대시보드 쿼터뷰 · 미니맵
 
 **상태:** Accepted
 
 ## 결정
 
-메인 3D 씬은 캐릭터를 뒤에서 따라가는 **3인칭 추적 카메라(고정 Pitch·오프셋)**로 운용하고, 유저의 드래그·핀치·휠 스크롤에 의한 임의 뷰 변경을 차단한다. 5시 GIS 미니맵은 **유저 위치를 항상 중앙에 두는 추적 고정 뷰**로 두고, Mapbox의 드래그·줌·회전 조작을 전면 잠근다.
+유저가 카메라를 임의로 돌릴 수 없게 잠근다.
+
+- **루트 3D 씬**: 캐릭터를 뒤에서 따라가는 **3인칭 추적 카메라(고정 앙각·반경)**로 운용한다. 드래그·핀치·휠 스크롤로 카메라를 조작하는 입력은 받지 않는다.
+- **대시보드 월드**: Mapbox 카메라를 **pitch 45°·bearing 45° 쿼터뷰로 고정**하고 이동할 때마다 지도 중심을 캐릭터로 맞춘다. 유저 입력은 줌(14~20)만 받는다(휠·더블클릭 줌은 커서 기준이라 다음 이동 전까지 중심이 어긋날 수 있다).
+- **5시 GIS 미니맵**(루트 3D 씬): **유저 위치를 항상 중앙에 두는 추적 고정 뷰**로 두고, Mapbox의 드래그·줌·회전 조작을 전면 잠근다.
 
 ## 배경
 
 카메라를 유저가 자유롭게 돌릴 수 있게 하면 다음 두 가지 문제가 발생한다.
 
 1. **멀미(Motion Sickness)**: 이동 방향에 따라 뷰가 뱅글뱅글 돌면 전정기관 자극으로 멀미 발생
-2. **일관성 붕괴**: 유저마다 제각각인 시야 각도는 UX 예측 가능성을 떨어뜨리고, 미니맵에서는 임의 줌아웃·팬으로 인해 Mapbox 타일 요청이 폭증(무료 티어 소진)한다
+2. **일관성 붕괴**: 유저마다 제각각인 시야 각도는 UX 예측 가능성을 떨어뜨리고, 미니맵·대시보드 지도에서는 임의 줌아웃·팬으로 인해 Mapbox 타일 요청이 폭증(무료 티어 소진)한다
 
 ## 근거
 
 | 항목 | 자유 뷰 | 카메라 잠금 |
 |---|---|---|
 | 멀미 리스크 | 있음 (회전 뷰) | 없음 (고정 각도 추적) |
-| 미니맵 타일 소모 | 유저가 마음대로 타일 요청 | 유저 주변만 로드 |
+| 지도 타일 소모 | 유저가 마음대로 타일 요청 | 유저 주변만 로드 (미니맵 줌 16 고정, 대시보드 줌 14~20) |
 | 캐릭터 소유감 | 낮음 (뷰가 주체) | 높음 (나(캐릭터)가 주체) |
 | UX 예측 가능성 | 낮음 | 높음 (항상 같은 시야) |
 
-## 구현 — 메인 씬 3인칭 추적 카메라
+## 구현 — 루트 3D 씬 3인칭 추적 카메라
 
 카메라는 캐릭터의 **시선 목표점**(발 위 1.2m, 진행 방향 0.5m 앞)을 중심으로 한 구면 위에 선다. 반경 5.9m·앙각 9.866°로 고정되어, 캐릭터 뒤 약 5.3m·발끝 위 약 2.2m에서 항상 같은 각도로 내려다본다. 구현은 `app/summer-afternoon/thirdPerson.ts`에 있다.
 
@@ -52,9 +56,47 @@ camera.rotateOnWorldAxis(THREE.Object3D.DEFAULT_UP, swayYaw) // 대기 흔들림
 camera.rotateX(swayPitch)
 ```
 
+## 구현 — 대시보드 월드 쿼터뷰 카메라
+
+대시보드 월드는 Mapbox 지도 카메라를 그대로 월드 카메라로 쓴다(Three.js는 같은 카메라의 MVP 행렬로 그린다 — [ADR 001](./001-webgl-context-sharing.md)). 지도는 줌 17·pitch 45°·bearing 45° 쿼터뷰로 시작하고, `setupCamera`가 팬·회전·기울기 입력과 Mapbox 키보드 조작을 끄고 줌만 14~20에서 허용한다. Mapbox 키보드 조작이 꺼져 있어 WASD·방향키는 캐릭터 이동에만 쓰인다. 캐릭터가 움직일 때마다 `followPlayer`가 지도 중심을 캐릭터 위치로 옮긴다. 구현은 `lib/map/context.ts`(초기 카메라)와 `lib/map/camera.ts`에 있다.
+
+```typescript
+// 초기 카메라 — 쿼터뷰 (lib/map/context.ts)
+const map = new mapboxgl.Map({
+  container,
+  style: 'mapbox://styles/mapbox/standard',
+  center,
+  zoom: 17,
+  pitch: 45,
+  bearing: 45,
+})
+
+// 조작 잠금 — 줌만 허용 (lib/map/camera.ts)
+export function setupCamera(map: mapboxgl.Map) {
+  map.dragPan.disable()
+  map.keyboard.disable()
+  map.dragRotate.disable()
+
+  map.scrollZoom.enable()
+  map.boxZoom.enable()
+  map.doubleClickZoom.enable()
+  map.touchZoomRotate.enable()
+  map.touchZoomRotate.disableRotation()
+  map.touchPitch.disable()
+
+  map.setMinZoom(14) // 무제한 줌아웃은 Mapbox 무료 타일 티어를 소진한다
+  map.setMaxZoom(20)
+}
+
+// 캐릭터 추적 — 이동할 때마다 지도 중심을 캐릭터에 둔다
+export function followPlayer(map: mapboxgl.Map, lng: number, lat: number) {
+  map.setCenter([lng, lat])
+}
+```
+
 ## 구현 — 미니맵 뷰 잠금
 
-미니맵은 유저 위치를 중앙에 고정하고, `interactive: false`로 드래그·줌·회전 핸들러를 모두 끈다. 구현은 `components/world/MiniMap.tsx`에 있다. GPS 좌표를 받기 전에는 서울시청을 중심으로 둔다.
+루트 3D 씬의 미니맵은 유저 위치를 중앙에 고정하고, `interactive: false`로 드래그·줌·회전 핸들러를 모두 끈다. 구현은 `components/world/MiniMap.tsx`에 있다. GPS 좌표를 받기 전에는 서울시청을 중심으로 둔다.
 
 ```typescript
 // 조작 핸들러 전면 비활성화 — 유저 위치만 추적하는 나침반
@@ -83,5 +125,5 @@ watchPosition((lng, lat) => {
 
 ## 관련
 
-- [ADR 001 — 메인 3D 씬과 GIS 미니맵의 WebGL 컨텍스트 분리](./001-webgl-context-sharing.md)
-- [비즈니스 규칙 — 이동 제한 규칙](../product/business-rules.md)
+- [ADR 001 — WebGL 컨텍스트 구성](./001-webgl-context-sharing.md)
+- [비즈니스 규칙 — 이동 규칙](../product/business-rules.md)
