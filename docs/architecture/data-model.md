@@ -3,7 +3,7 @@
 PostgreSQL + PostGIS 기반 단일 공유 스키마. 공간 연산 상세는 [ADR 005](../adr/005-postgis-gist-index.md)를 참고하세요.
 
 마이그레이션 SQL은 `supabase/migrations/`의 `0001`~`0010` 파일로 관리하며, PostGIS·pg_cron·pgcrypto·citext
-확장을 사용한다. 모든 외래 키는 애플리케이션 테이블 `users`를 참조한다.
+확장을 사용한다. 사용자 소유 데이터의 외래 키는 애플리케이션 테이블 `users`를 참조하고, `characters.order_id`는 `orders`, `ad_impressions.building_id`는 `sponsor_buildings`를 참조한다.
 
 ---
 
@@ -37,7 +37,7 @@ characters.order_id ──▶ orders.id    (묶음 상품 멱등 발급)
 |---|---|---|---|
 | `id` | UUID | PK | 계정 ID |
 | `email` | CITEXT | UNIQUE | 대소문자 무시 이메일 |
-| `password_hash` | TEXT | NULL 허용 | bcrypt 해시 (소셜 전용 계정은 없음, 항상 비밀번호 보유) |
+| `password_hash` | TEXT | NULL 허용 | bcrypt 해시. 소셜 로그인 전용 계정은 NULL |
 | `nickname` | VARCHAR(32) | NOT NULL | 표시 이름 |
 | `role` | user_role | NOT NULL | `'user'` / `'advertiser'` / `'admin'` |
 | `token_version` | INTEGER | NOT NULL | 토큰 일괄 폐기용 카운터 |
@@ -92,16 +92,17 @@ CREATE TABLE user_identities (
 
 ### `characters`
 
-유저가 보유한 유니크 3D 아바타.
+유저가 보유한 유니크 3D 아바타. 발급된 외형은 상점에 표시되며, 두 월드의 캐릭터 렌더링에는 반영하지 않는다
+(두 월드 모두 공용 kid 캐릭터를 쓴다).
 
 | 컬럼 | 타입 | 제약 | 설명 |
 |---|---|---|---|
 | `id` | BIGSERIAL | PK | 시스템 내부 ID |
-| `serial_number` | VARCHAR(32) | UNIQUE | 유저 노출용 (`Dog #3,491`), 시퀀스 `character_serial_seq` |
+| `serial_number` | VARCHAR(32) | UNIQUE | 유저 노출용 (`OW-00000001` — `OW-` + 8자리), 시퀀스 `character_serial_seq` |
 | `owner_id` | UUID | FK → users ON DELETE RESTRICT | 소유 유저 |
 | `appearance_hash` | CHAR(64) | UNIQUE | 외형 조합 SHA-256 (겹침 방지) |
-| `appearance_data` | JSONB | NOT NULL | 외형 파라미터 원본 (`{body_color, pattern_id, ear_angle, ...}`) |
-| `glb_url` | TEXT | | 렌더링용 GLB 에셋 주소 |
+| `appearance_data` | JSONB | NOT NULL | 외형 파라미터 원본 (`{skin, hair, hairColor, top, topColor, bottom, bottomColor, shoes, accessory, seed}`) |
+| `glb_url` | TEXT | | 렌더링용 에셋 주소 (발급 시 채우지 않음) |
 | `is_equipped` | BOOLEAN | DEFAULT false | 현재 장착 여부 |
 | `order_id` | UUID | FK → orders ON DELETE RESTRICT | 발급 근거 주문 |
 | `order_seq` | INTEGER | | 묶음 주문 내 순번 |
@@ -121,11 +122,15 @@ CREATE TABLE characters (
   appearance_data JSONB NOT NULL,
   glb_url         TEXT,
   is_equipped     BOOLEAN DEFAULT false,
-  order_id        UUID NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
-  order_seq       INTEGER NOT NULL,
-  created_at      TIMESTAMPTZ DEFAULT now(),
-  UNIQUE (order_id, order_seq)
+  order_id        UUID REFERENCES orders(id) ON DELETE RESTRICT,
+  order_seq       INTEGER,
+  created_at      TIMESTAMPTZ DEFAULT now()
 );
+
+-- 주문별 발급 순번 중복 차단 (0010_bundle_fulfillment.sql)
+CREATE UNIQUE INDEX characters_order_item_uniq
+  ON characters (order_id, order_seq)
+  WHERE order_id IS NOT NULL;
 ```
 
 ### `orders`
@@ -175,7 +180,8 @@ CREATE UNIQUE INDEX orders_pg_approval_uniq
 
 ### `user_licenses`
 
-유저별 가시거리 라이선스 등급(3D 씬의 뷰 디스턴스 반경). 1유저 1레코드.
+유저별 가시거리 라이선스 반경. 1유저 1레코드. 결제 발급 시 더 큰 값으로만 갱신되고 `/api/me/license`로 상점에
+표시되며, 두 월드의 렌더링에는 아직 적용하지 않는다.
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
@@ -193,15 +199,15 @@ CREATE TABLE user_licenses (
 
 ### `sponsor_buildings`
 
-B2B 광고 랜드마크 마스터 테이블. 씬에 배치되는 브랜드 텍스처 에셋과 5시 GIS 미니맵 마커를 함께
-받치며, `geom` 컬럼에 GiST 인덱스 필수.
+B2B 광고 랜드마크 마스터 테이블. Phase 5에서 월드에 배치할 브랜드 텍스처 에셋과 5시 GIS 미니맵 마커의
+원천이며, `geom` 컬럼에 GiST 인덱스가 있다. 이 테이블을 읽는 API·프론트엔드 코드는 Phase 5에서 구현한다.
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | `id` | BIGSERIAL PK | |
 | `advertiser_id` | UUID FK → users ON DELETE RESTRICT | 광고주 계정 (`role='advertiser'`) |
-| `mapbox_feature_id` | TEXT | 5시 GIS 미니맵의 실지형 Feature ID (미니맵 마커 연동) |
-| `geom` | GEOMETRY(Point, 4326) | 랜드마크 중심 좌표 — GIS 미니맵/좌표 레이어를 받치는 PostGIS (GiST 인덱스 적용) |
+| `mapbox_feature_id` | TEXT | Mapbox 실지형 Feature ID (지도·미니맵 마커 연동용) |
+| `geom` | GEOMETRY(Point, 4326) | 랜드마크 중심 위경도 (GiST 인덱스 적용) |
 | `texture_url` | TEXT | 브랜드 로고 URL |
 | `default_texture_url` | TEXT | 광고 미집행 시 기본 텍스처 |
 | `is_active` | BOOLEAN | 광고 활성 여부 |
@@ -233,7 +239,7 @@ $$);
 
 ### `ad_impressions`
 
-유효 노출 로그. 1초 이상 뷰포트 내 완전 진입한 경우만 기록.
+유효 노출 로그. 1초 이상 뷰포트 내 완전 진입한 경우만 기록한다(기록 경로는 Phase 5에서 구현).
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
@@ -253,7 +259,7 @@ API 서버(가드 + 리포지토리)가 1차 방어, PostgreSQL RLS가 2차 방�
   금지한다(커넥션 풀에 컨텍스트가 남아 유출될 수 있음).
 - API는 테이블 소유자가 아닌 전용 롤 `app_api`로 접속해야 RLS가 적용된다.
 - 핵심은 광고주 간 테넌시 격리(`sponsor_buildings`, `ad_impressions`)다. 활성 광고(`is_active=true`)는
-  렌더링을 위해 누구나 SELECT 가능하다.
+  누구나 SELECT할 수 있다(`sponsor_public_active_select`, Phase 5 렌더링용).
 - 서버 전용 작업(결제 웹훅·발급 워커)은 admin 컨텍스트(`withAdmin`)로 RLS를 우회한다.
 
 ---
@@ -263,7 +269,7 @@ API 서버(가드 + 리포지토리)가 1차 방어, PostgreSQL RLS가 2차 방�
 ### 반경 내 스폰서 랜드마크 탐지 (Phase 5 예정 기능)
 
 ```sql
--- 미니맵 상 유저 위치 반경 R미터 이내의 활성 스폰서 랜드마크
+-- 유저 위경도 반경 R미터 이내의 활성 스폰서 랜드마크
 SELECT id, texture_url,
        ST_Distance(geom::geography, ST_MakePoint($lon, $lat)::geography) AS dist_m
 FROM sponsor_buildings
@@ -271,6 +277,11 @@ WHERE is_active = true
   AND ST_DWithin(geom::geography, ST_MakePoint($lon, $lat)::geography, $radius_m)
 ORDER BY dist_m;
 ```
+
+같은 조회를 DB 함수 `nearby_sponsor_buildings(p_lng, p_lat, p_radius_m = 500)`로 제공한다(마이그레이션 `0005`).
+앱(프론트엔드·NestJS)에서 이 함수를 호출하는 API는 Phase 5에서 구현하며, 현재는 저장소의 Supabase Edge Function
+`supabase/functions/spatial-query`만 RPC로 호출한다. 함수는 `geom::geography` 식으로 조회하므로 `geom` GiST 인덱스를
+태우려면 `((geom::geography))` 표현식 인덱스가 필요하다([ADR 005](../adr/005-postgis-gist-index.md)).
 
 ---
 
