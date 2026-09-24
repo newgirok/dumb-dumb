@@ -1,6 +1,6 @@
 # 3D 오픈월드 소셜 — 문서 허브
 
-베이크드 로우폴리 3D 숲 씬 속에서 유니크 동물 캐릭터를 조종하며 다른 동물 캐릭터와 우연히 마주치고 커뮤니티를 형성하는 오픈월드 소셜 서비스. 화면 5시에는 유저의 실제 GPS 위치를 보여주는 GIS 미니맵이 함께 뜬다.
+유니크 3D 아바타를 조종하며 다른 유저와 우연히 마주치고 커뮤니티를 형성하는 오픈월드 소셜 서비스. 루트(`/`)는 로그인 없이 공개되는 단독 3D 씬으로, 화면 5시에 유저의 실제 GPS 위치를 보여주는 GIS 미니맵이 함께 뜬다. `/dashboard`는 Mapbox 실지형 지도 위에서 위치를 실시간으로 공유하고 섹터 음성 룸에 접속하는 멀티플레이 월드다(마이크 송출 UI는 예정).
 
 **GitHub**: https://github.com/newgirok/open-world-casual-journey
 
@@ -17,8 +17,9 @@
 cp .env.example .env.local
 cp apps/api/.env.example apps/api/.env.local
 
-# 2. PostgreSQL 마이그레이션 적용 (supabase/migrations/ SQL을 순서대로)
-psql "$DATABASE_URL" -f supabase/migrations/0001_init.sql   # 이후 0002~ 순차 적용
+# 2. PostgreSQL 마이그레이션 적용 (관리 롤로, supabase/migrations/ SQL을 번호 순서대로)
+#    일반 PostgreSQL이면 먼저 auth.users 스텁을 만들고, 적용 뒤 app_api 로그인을 켠다 (onboarding/local-setup.md 3장)
+for f in supabase/migrations/*.sql; do psql -v ON_ERROR_STOP=1 "$DATABASE_URL_ADMIN" -f "$f"; done
 
 # 3. API 서버 기동 (apps/api)
 cd apps/api && npm install && npm run start:dev
@@ -36,7 +37,7 @@ Docker Compose로 프론트엔드를 컨테이너에서 기동할 수도 있다(
 | 문서 | 설명 |
 |---|---|
 | [아키텍처 개요](./architecture/overview.md) | 시스템 전체 구조, 기술 스택, 외부 의존성, 비용 |
-| [파이프라인 흐름](./architecture/pipeline-flow.md) | 결제·광고 노출·이동 등 핵심 데이터 흐름 |
+| [파이프라인 흐름](./architecture/pipeline-flow.md) | 결제·이동·위치 동기화 등 핵심 데이터 흐름 |
 | [데이터 모델](./architecture/data-model.md) | PostgreSQL + PostGIS 스키마 및 ER 다이어그램 |
 | [프로젝트 구조](./architecture/project-structure.md) | 디렉토리 트리 및 파일별 역할 |
 | [ADR 목록](./adr/README.md) | 주요 기술 결정 기록 7개 |
@@ -59,14 +60,14 @@ Docker Compose로 프론트엔드를 컨테이너에서 기동할 수도 있다(
 
 | 문서 | 설명 |
 |---|---|
-| [프론트엔드 컨벤션](./frontend/conventions.md) | Three.js 월드 씬, 이동·3인칭 카메라, 5시 Mapbox 미니맵, App Router 라우트 설계, BFF 프록시, 상태 관리 |
+| [프론트엔드 컨벤션](./frontend/conventions.md) | 루트 3D 씬·대시보드 월드, 이동·카메라, 씬 HUD, 5시 Mapbox 미니맵, App Router 라우트 설계, BFF 프록시, 상태 관리 |
 
 ### 백엔드 개발
 
 | 문서 | 설명 |
 |---|---|
 | [개발 컨벤션](./backend/conventions.md) | API 설계 원칙, NestJS 모듈 구조, 공간 쿼리 규칙, socket.io 게이트웨이 |
-| [보안 규격](./backend/security/encryption.md) | JWT 구조, 토큰 이중 구조, RLS, 가시거리 라이선스 인코딩 |
+| [보안 규격](./backend/security/encryption.md) | JWT 구조, 토큰 이중 구조, RLS, 가시거리 라이선스 |
 
 ### 테스트
 
@@ -99,8 +100,8 @@ npm run build
 npm run start:prod
 npm run type-check
 
-# DB 마이그레이션 (supabase/migrations/ SQL 순차 적용)
-psql "$DATABASE_URL" -f supabase/migrations/0002_users.sql
+# DB 마이그레이션 (관리 롤로, supabase/migrations/ SQL 번호 순서대로)
+for f in supabase/migrations/*.sql; do psql -v ON_ERROR_STOP=1 "$DATABASE_URL_ADMIN" -f "$f"; done
 
 # Docker Compose 프론트엔드 개발 서버
 docker compose up
@@ -113,11 +114,11 @@ docker compose up
 | Phase | 목표 | 상태 |
 |---|---|---|
 | Phase 0 | 프로젝트 초기화 및 인프라 셋업 | 완료 |
-| Phase 1 | UI/UX 기반 구축 (인증 플로우, HUD, 공통 컴포넌트) | 완료 |
-| Phase 2 | 섹터 이동 + socket.io 실시간 위치 동기화 | 완료 |
-| Phase 3 | LiveKit 공간 음성 자동 연결 (반경 30m) | 완료 |
-| Phase 4 | 인앱 결제 + 아바타 발급 + 가시거리 라이선스 | 완료 |
-| Phase 5 | B2B 스폰서십 광고(브랜드 텍스처 에셋 + 미니맵 마커) + 광고주 포탈 | 예정 |
+| Phase 1 | UI/UX 기반 구축 (인증 플로우, 공통 컴포넌트) | 완료 |
+| Phase 2 | 대시보드 월드 이동 + socket.io 섹터 위치 동기화 | 완료 |
+| Phase 3 | LiveKit 공간 음성 (섹터 룸, 40m 이내 Top-8 구독) — 남은 작업: 마이크 옵트인 UI | 진행 중 |
+| Phase 4 | 인앱 결제 + 아바타 발급 + 가시거리 라이선스 — 남은 작업: PG 결제창 연동, 자동 취소 | 진행 중 |
+| Phase 5 | B2B 스폰서십 광고(브랜드 텍스처 에셋 + 미니맵 마커) + 가시거리 렌더링 연동 + 광고주 포탈 | 예정 |
 | Phase 6 | 상용화 (프로덕션 부하 테스트, 동접 200명) | 예정 |
 
 ---
