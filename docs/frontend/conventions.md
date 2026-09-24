@@ -6,7 +6,7 @@
 
 ### 테마 — Animal Crossing
 
-Tailwind CSS v4 + `@theme` 블록 기반 커스텀 디자인 시스템. 모든 색상은 `oklch()` 색공간으로 정의한다.
+Tailwind CSS v4 + `@theme` 블록 기반 커스텀 디자인 시스템. 색상 토큰은 `oklch()` 색공간으로 정의한다.
 
 ```css
 /* app/globals.css */
@@ -14,11 +14,12 @@ Tailwind CSS v4 + `@theme` 블록 기반 커스텀 디자인 시스템. 모든 �
 
 @theme {
   --font-display: var(--font-display), "Nunito", ui-sans-serif, system-ui, sans-serif;
+  --font-body:    var(--font-display), "Nunito", ui-sans-serif, system-ui, sans-serif;
   --font-mono:    var(--font-mono),    "JetBrains Mono", ui-monospace, monospace;
 }
 ```
 
-### 색상 토큰 (CSS Custom Properties)
+### 색상 토큰
 
 | 토큰 | 용도 |
 |---|---|
@@ -29,12 +30,13 @@ Tailwind CSS v4 + `@theme` 블록 기반 커스텀 디자인 시스템. 모든 �
 | `--color-sky` | 보조 배경 (하늘 파랑) |
 | `--color-sand` | CTA 섹션 배경 |
 
-모든 토큰은 `app/globals.css`의 `:root` 블록에서 정의하며, `var(--color-*)` 형태로 사용한다.
+모든 토큰은 `app/globals.css`의 `@theme` 블록에서 정의하며, Tailwind 유틸리티(`bg-paper`, `text-bark` 등)나 `var(--color-*)` 형태로 사용한다. 보조 단계(`-2`, `-3`, `-dark`)와 `--color-accent*`, 그림자(`--shadow-card`, `--shadow-btn`), 이징(`--ease-smooth`, `--ease-bounce`) 토큰도 같은 블록에 있다.
 
 ### 폰트
 
 - **Display / Body**: Nunito (Google Fonts, `next/font/google`)
 - **Mono**: JetBrains Mono (코드, 시리얼 번호 등)
+- **루트 3D 씬**: 로딩 화면·HUD·정보 모달은 `/ref-assets/fonts/Stylish-Regular.woff2`를 씬 안에서 `@font-face`로 불러 쓴다
 
 ```tsx
 // app/layout.tsx
@@ -42,15 +44,19 @@ import { Nunito, JetBrains_Mono } from 'next/font/google'
 const nunito = Nunito({ subsets: ['latin'], variable: '--font-display', display: 'swap' })
 ```
 
-### 애니메이션 유틸리티 클래스
+### 애니메이션 토큰
 
-| 클래스 | 효과 | 용도 |
+`@theme`의 `--animate-*` 토큰이 Tailwind `animate-*` 유틸리티가 된다.
+
+| 유틸리티 | 효과 | 사용처 |
 |---|---|---|
-| `.float` | 4초 상하 부유 | 히어로 이모지, UI 강조 요소 |
-| `.float-slow` | 6초 상하 부유 | 배경 오브젝트 |
-| `.sway` | 5초 좌우 흔들림 | 자연물 (나무, 꽃) |
+| `animate-float` | 4초 상하 부유(−10px) | 정의만 있음 |
+| `animate-float-slow` | 6초 상하 부유 | 정의만 있음 |
+| `animate-sway` | 5초 좌우 흔들림(±3°) | 정의만 있음 |
+| `animate-cute-bounce` | 0.9초 스쿼시·스트레치 바운스 | `CuteLoader` (페이지 전환 로딩 캐릭터) |
+| `animate-cute-shadow` | 0.9초 그림자 축소·확대 | `CuteLoader` |
 
-모든 애니메이션은 `will-change: transform`을 포함해 GPU 가속된다.
+`fog-vignette` 유틸리티는 `--fog-radius` 런타임 변수를 쓰는 radial-gradient 비네트로, `lib/three/fog.ts`와 짝을 이룬다. 두 월드 모두 이 비네트를 붙이지 않는다.
 
 ### 로그인 페이지 레이아웃
 
@@ -65,42 +71,68 @@ Spot Virtual 스타일 스플릿 레이아웃 (`app/(auth)/login/page.tsx`):
 
 ---
 
-## 메인 월드 — Three.js WebGL 씬 (ADR 001)
+## 3D 월드 — 루트 3D 씬과 대시보드 월드 (ADR 001)
 
-메인 월드는 **단일 Three.js WebGL 캔버스**에 렌더링하는 베이크드 로우폴리 3D 숲 씬이다. 오솔길·집·창고·나무·바위·간판·랜드마크는 씬 지오메트리에 구워진 정적/인스턴스 에셋이며, 월드 좌표계는 씬 로컬(위경도 아님)이다. 씬 진입점은 `app/summer-afternoon/`(scene/thirdPerson/audio/rampShader) 계열이다.
+3D 월드는 두 갈래다. 공개 제품 진입점인 **루트 3D 씬**과, 로그인 유저가 실시간으로 만나는 **대시보드 월드**가 서로 다른 렌더링 구조로 동작한다.
 
-### 초기화 규칙
+| 구분 | 루트 3D 씬 | 대시보드 월드 |
+|---|---|---|
+| 경로·진입점 | `/` · `app/summer-afternoon/scene.tsx` | `/dashboard` · `components/world/WorldCanvas.tsx` |
+| 베이스 | 베이크드 로우폴리 3D 씬 (`/ref-assets` 참조 에셋, 여름 오후 해변 마을) | Mapbox GL Standard 실지형 지도 + Three.js 커스텀 레이어 |
+| 좌표계 | 씬 로컬 미터 (Y-up) | 위경도 (EPSG:4326). 오브젝트는 원점 기준 미터로 변환해 배치 |
+| 렌더러 | 씬 전용 `WebGLRenderer` 단일 캔버스 | Mapbox 캔버스의 WebGL 컨텍스트를 공유하는 `WebGLRenderer` |
+| 네트워크 | 없음 (인증·위치 동기화·채팅·음성 없음) | socket.io 위치·채팅, LiveKit 섹터 음성 룸 접속·구독 (마이크 송출 UI 예정) |
+| 미니맵 | 5시 GIS 미니맵 | 없음 |
 
-**`lib/map/context.ts`에서만** WebGL 렌더러를 초기화한다. 다른 파일에서 직접 `THREE.WebGLRenderer`를 인스턴스화 금지.
+### 렌더러 초기화 규칙
+
+각 월드의 렌더러는 아래 지점에서만 만든다.
+
+- **루트 3D 씬**: `app/summer-afternoon/scene.tsx`가 `new THREE.WebGLRenderer({ antialias: true })`로 만든다. 픽셀 비율은 `min(devicePixelRatio, 2)`, 그림자는 `PCFSoftShadowMap`. 후처리는 EffectComposer로 `RenderPass` → `LUTPass`(KTX2 LUT) → `OutputPass` → 인트로 전환 `ShaderPass` 순서다.
+- **대시보드 월드**: `lib/map/context.ts`의 `initWorldMap`만 렌더러를 만든다. 커스텀 레이어(`three-scene`, slot `top`)의 `onAdd`에서 Mapbox의 캔버스와 GL 컨텍스트로 생성하고 `autoClear = false`로 둔다.
 
 ```typescript
-// lib/map/context.ts — 단일 진입점
-const renderer = new THREE.WebGLRenderer({
-  canvas,
-  antialias: true,
-});
+// lib/map/context.ts — 대시보드 월드 렌더러는 Mapbox GL 컨텍스트를 공유한다
+onAdd(m, gl) {
+  renderer = new THREE.WebGLRenderer({ canvas: m.getCanvas(), context: gl, antialias: true })
+  renderer.autoClear = false
+}
 ```
+
+- 개발용 에셋 뷰어 `/preview`(`app/preview/page.tsx`)는 자체 렌더러와 OrbitControls를 쓴다.
 
 ### 렌더 루프 규칙
 
-- 렌더 루프는 씬 컨텍스트가 소유하는 단일 `requestAnimationFrame` 루프에서만 돈다
-- 매 프레임 씬 업데이트 → 3인칭 카메라 갱신 → `renderer.render(scene, camera)` 순서를 지킨다
-- 씬 뷰 디스턴스(거리 안개)는 가시거리 등급값에 맞춰 카메라·안개 파라미터로 반영한다
+- **루트 3D 씬**: `scene.tsx`가 소유한 단일 `requestAnimationFrame` 루프에서 돈다. 프레임 간격(dt)은 0.1초로 클램프하고, 3인칭 컨트롤러 갱신 → 캐릭터 포즈(idle/run/air, 0.15초 크로스페이드) 전환 → 태양 그림자 캐릭터 추적 → 발소리 → UFO 부유·근접 판정 → 애니메이션 믹서 → 갈매기 → 하늘 돔 카메라 추종 → LOD 갱신 → 인트로 전환 uniform → `composer.render()` 순서를 지킨다
+- **대시보드 월드**: 렌더링은 Mapbox가 구동한다. 커스텀 레이어 `render()`가 매 프레임 `projectionMatrix`(Mapbox MVP × 원점 이동·미터 스케일·축 변환)를 갱신하고 `resetState()` → `clearDepth()` → `render()` → `triggerRepaint()`를 호출한다. 깊이만 비우므로 캐릭터가 3D 건물에 가리지 않는다. `WorldCanvas`의 `requestAnimationFrame` 루프는 PC 키보드 이동, 캐릭터 애니메이션, 피어 위치 보간(9/s)만 담당한다
+- 루트 3D 씬의 거리 안개는 램프 셰이더가 카메라 거리 40~300m 구간에서 명도를 0.6으로 모으고 채도를 0.3 이하로 누르는 고정값이다. 가시거리 라이선스 등급은 두 월드 모두 렌더링에 반영하지 않는다
 
 ### 오브젝트 생명주기
 
-- 씬에서 제거할 때 반드시 `geometry.dispose()` + `material.dispose()` 쌍으로 호출
-- `lib/three/prune.ts`의 `pruneObjects()` 를 통해서만 배치 해제 수행 (직접 dispose 호출 금지)
-- GLB 로더는 `lib/three/character.ts` 에서만 인스턴스화 (중복 생성 금지)
+- `.bin` 에셋은 `lib/three/binLoader.ts`의 `loadBinGeometry`로만 로드한다. 이름별 Promise 캐시와 공유 DRACOLoader 워커를 쓰며, 캐시가 소유한 지오메트리(`userData.shared = true`)는 dispose하지 않는다. 인스턴스마다 속성을 붙여야 하면 `clone()`한 뒤 쓴다
+- 대시보드 월드의 캐릭터는 `lib/three/character.ts`의 `loadCharacter`(ref-assets kid 스킨드 메시)로 만들고 `Character.dispose()`로 정리한다. 내 캐릭터는 로드에 실패하면 `createCharacterMesh` 절차적 메시로 대체하고, 피어 캐릭터에는 폴백이 없다. 루트 3D 씬의 kid는 `scene.tsx`가 `createSkin`으로 직접 조립한다
+- 대시보드 월드의 피어 오브젝트 해제는 `lib/three/prune.ts`의 `PruneManager.tick()`으로만 한다(50m 이동마다 450m 밖 오브젝트를 dispose 후 씬에서 제거)
+- 루트 3D 씬은 언마운트 시 루프를 멈추고 오디오·머티리얼·KTX2 로더·컴포저·렌더러를 dispose한 뒤 캔버스를 제거한다. 대시보드 월드는 소켓·음성을 끊고 캐릭터를 dispose한 뒤 `disposeBinLoader()`와 `map.remove()`를 호출한다
 
 ---
 
 ## 이동·카메라
 
+### 루트 3D 씬
+
 - **PC**: WASD·방향키로 카메라 기준 전후좌우로 이동하고, 스페이스로 점프한다. 마우스 왼쪽 버튼을 누르고 있으면 화면 고정점(가로 중앙, 위에서 72.5% — 캐릭터 발밑)에서 커서까지의 방향으로 이동하며, 200px 이상 떨어지면 최고 속도(3m/s)가 된다. 오른쪽 클릭도 점프다.
 - **모바일**: 화면을 누른 채 끌면 PC 마우스와 같은 화면 고정점 기준 가상 조이스틱으로 이동한다. 모바일 GPS는 5시 미니맵의 실제 위치 표시에만 쓰이고 월드 이동을 직접 구동하지 않는다.
-- **카메라**: 3인칭 추적 카메라로 씬 안을 이동한다(`app/summer-afternoon/thirdPerson`). 화면 중심 주체는 캐릭터이며, 이동 좌표는 씬 로컬 좌표다(위치 브로드캐스트·근접 음성·속도 검증 모두 씬 좌표 기준). 카메라는 시선 목표점(발 위 1.2m) 중심 반경 5.9m·앙각 9.866°의 고정 각도로 서며, 리그 세부는 [ADR 007](../adr/007-quarter-view-camera-lock.md)을 따른다.
+- **카메라**: 3인칭 추적 카메라로 씬 안을 이동한다(`app/summer-afternoon/thirdPerson`). 화면 중심 주체는 캐릭터이며, 이동 좌표는 씬 로컬 좌표이고 서버로 보내지 않는다. 카메라는 시선 목표점(발 위 1.2m) 중심 반경 5.9m·앙각 9.866°의 고정 각도로 서며, 리그 세부는 [ADR 007](../adr/007-quarter-view-camera-lock.md)을 따른다.
 - 캐릭터는 충돌 메시(`collider.bin`) 지면을 따라 걷고, 벽 앞과 0.6m보다 높은 단차 앞에서는 멈춘다(점프 중에는 단차에 올라설 수 있다).
+
+### 대시보드 월드
+
+- **PC**(`pointer: coarse`가 아닌 기기): WASD·방향키로 이동한다(남북 3m/s — 같은 도/초를 경도에도 더해 동서는 약 2.4m/s, 대각선은 약 3.8m/s. `WorldCanvas`의 `window` 키보드 리스너, 입력창 포커스 중에는 무시).
+- **모바일**: 실제 GPS(`lib/geo/watchPosition.ts`)로 이동한다. 위치를 받지 못하면 좌상단에 위치 권한 안내를 띄운다.
+- 시작 위치는 GPS 현재 위치(`lib/geo/currentPosition.ts`)이며, 얻지 못하면 서울시청 부근(126.9784, 37.5666)에서 시작한다.
+- 새 위치는 `lib/map/snap.ts`의 `snapToRoad`로 15m 이내 도로 선분에 스냅한 뒤 캐릭터 이동 → 지도 중심 고정(`followPlayer`) → 음성 섹터 동기화 → 프루닝 순서로 반영한다.
+- 사이드바(PC)·하단 내비게이션(모바일)의 "내 위치로" 버튼은 `recenter-request` 이벤트를 보내고, `WorldCanvas`가 GPS를 다시 조회해 그 위치로 이동한다.
+- **카메라**(`lib/map/camera.ts`): pitch 45°·bearing 45° 고정(회전·기울기 입력 비활성), 드래그 팬·키보드 조작 비활성, 줌만 허용한다(스크롤·박스·더블클릭·핀치, 14~20).
 
 ---
 
@@ -137,9 +169,11 @@ const renderer = new THREE.WebGLRenderer({
 
 ## 5시 GIS 미니맵 — Mapbox GL JS
 
-화면 5시(우하단)에 나침반형 GIS 미니맵을 **독립 경량 Mapbox GL 캔버스**로 띄운다. 유저의 실제 GPS 위치를 실지형 지도 위에 표시하며, 실지형 지도는 미니맵 전용이다(메인 월드의 베이스가 아니다). 미니맵과 메인 씬은 서로 다른 WebGL 컨텍스트로 분리 운용한다(씬 성능 우선).
+루트 3D 씬 화면 5시(우하단)에 나침반형 GIS 미니맵(`components/world/MiniMap.tsx`)을 **독립 경량 Mapbox GL 캔버스**로 띄운다. 유저의 실제 GPS 위치를 실지형 지도 위에 표시하며, 루트 3D 씬 렌더러와는 서로 다른 WebGL 컨텍스트로 분리 운용한다(씬 성능 우선). 인트로 리빌이 끝난 뒤 마운트되고, `NEXT_PUBLIC_MAPBOX_TOKEN`이 없거나 WebGL을 쓸 수 없으면 지도를 만들지 않아 원형 테두리만 남는다. 스타일은 Standard + `night` 프리셋이며 지명·도로·교통·POI 라벨을 표시한다.
 
 ### 소스·레이어 네이밍 규칙
+
+미니맵과 대시보드 월드 지도에 소스·레이어를 추가할 때 공통으로 따른다. 대시보드 월드의 Three.js 커스텀 레이어 id는 `three-scene`이다.
 
 | 유형 | 패턴 | 예시 |
 |---|---|---|
@@ -148,8 +182,8 @@ const renderer = new THREE.WebGLRenderer({
 
 ### 레이어 생명주기
 
-- 레이어 추가는 `map.on('load', () => { ... })` 내부에서만 수행
-- 컴포넌트 언마운트·페이지 이동 시 `ResizeObserver.disconnect()`와 `map.remove()` 반드시 호출
+- 레이어 추가·basemap 설정은 `map.on('load', () => { ... })` 내부에서만 수행
+- 컴포넌트 언마운트·페이지 이동 시 `map.remove()` 반드시 호출(미니맵은 `ResizeObserver.disconnect()`도 함께)
 - 미니맵은 유저를 추적해 고정하며, 드래그·줌 조작은 잠근다(`interactive: false`). 첫 GPS 좌표는 `jumpTo`, 이후 갱신은 `easeTo`(600ms)로 따라간다
 
 ### 크기 전환
@@ -159,22 +193,25 @@ const renderer = new THREE.WebGLRenderer({
 
 ---
 
-## Next.js App Router 라우트 그룹
+## Next.js App Router 라우트
 
-### 그룹 설계 의도
+### 라우트 구성
 
-| 그룹 | 경로 | 목적 | 인증 |
+| 경로 | 위치 | 목적 | 페이지 게이팅 |
 |---|---|---|---|
-| `(game)` | `/dashboard`, `/store` | 인게임 대시보드(월드 씬 마운트), 아바타·라이선스 구매 | 필수 |
-| `(auth)` | `/login`, `/verify` | 이메일+비밀번호 로그인, 카카오/구글 OAuth | 비인증 진입점 |
+| `/` | `app/page.tsx` → `app/summer-afternoon/scene.tsx` | 루트 3D 씬 (공개 제품 진입점) | 없음 |
+| `/dashboard` | `app/(game)/dashboard` | 대시보드 월드 (`WorldCanvas` + `Hud`) | 없음 (소켓·음성은 액세스 토큰 필요) |
+| `/store` | `app/(game)/store` | 아바타·라이선스 상점 (주문 생성, 주문·발급 상태·내 가시거리 조회) | 없음 (API 호출은 액세스 토큰 필요) |
+| `/login`, `/verify` | `app/(auth)` | `/login`: 이메일+비밀번호 로그인·회원가입, 카카오/구글 OAuth 시작(`?error=` 표시). `/verify`: 본인인증 자리표시(Phase 5 예정). OAuth 콜백은 Route Handler `app/api/auth/oauth/[provider]/callback`이 처리 | 없음 |
+| `/preview` | `app/preview` | ref-assets 개발 뷰어 (자체 에셋 교체 시 규격 대조) | 없음 |
 
-3D 월드 씬은 `components/world/WorldCanvas.tsx`가 라우트에 마운트된다.
+`(game)` 그룹은 `Sidebar`(PC)·`BottomNav`(모바일) 레이아웃 셸을 공유한다. 대시보드 월드는 로그인 세션(리프레시 쿠키)이 없으면 지도와 로컬 이동만 동작하고, 위치 동기화·음성은 접속되지 않는다.
 
 ### 미들웨어 인증 규칙 (`middleware.ts`)
 
-- `(game)` 경로(`/dashboard`, `/store`)는 JWT 유효성 검사 후 진입
-- 미인증 요청은 `/login` 으로 리다이렉트
-- 인증 로직은 `lib/auth/middleware.ts` 에서 공유
+- `middleware.ts`의 `matcher`가 빈 배열이라 미들웨어는 어떤 경로에도 실행되지 않는다. 모든 페이지 라우트가 공개다
+- 라우팅 게이팅 로직은 `lib/auth/middleware.ts`의 `applyAuthMiddleware`에 있다. 리프레시 쿠키가 없으면 `/dashboard`·`/store`·`/admin`을 `/login?next=`로, 있으면 `/login`·`/`를 `/dashboard`로 보낸다. 인증 게이팅을 다시 켤 때 `middleware.ts`에 연결한다
+- 실제 인가는 NestJS 전역 가드(`AccessTokenGuard`)와 PostgreSQL RLS가 담당한다
 
 ### `app/api/` = BFF 프록시
 
@@ -182,13 +219,13 @@ const renderer = new THREE.WebGLRenderer({
 
 | 위치 | 프록시 대상 |
 |---|---|
-| `app/api/auth/*` | 로그인·로그아웃·회원가입·리프레시·OAuth(kakao\|google) |
-| `app/api/billing/*` | 상품 조회(`products`), 주문 생성(`orders`) |
+| `app/api/auth/*` | 로그인·로그아웃·회원가입·리프레시·OAuth(`oauth/[provider]`, `oauth/[provider]/callback`) |
+| `app/api/billing/*` | 상품 조회(`products`), 주문 생성·조회(`orders`) |
 | `app/api/me/*` | 내 캐릭터(`characters`), 내 라이선스(`license`) |
 | `app/api/voice/token` | LiveKit 룸 토큰 발급 |
-| `app/api/health` | 헬스체크 |
+| `app/api/health` | Next 서버 자체 응답(`{ "status": "ok" }`). API 서버로 프록시하지 않는다 |
 
-프록시 계층 구현은 `lib/api/`(client, config, proxy)에 둔다. `app/api/`에 결제·공간·음성 **비즈니스 로직** 추가 금지(프록시 전달만).
+프록시 계층 구현은 `lib/api/`(client, config, proxy)에 둔다. 리프레시 토큰은 로그인·회원가입·OAuth 콜백·리프레시 라우트가 `refresh_token` httpOnly 쿠키로 설정하고, 로그아웃 라우트가 지운다. PG 결제 웹훅은 BFF를 거치지 않고 API 서버(`POST /billing/webhook`)로 직접 들어간다. 월드 소켓도 브라우저가 `NEXT_PUBLIC_WS_URL`로 직접 붙는다. `app/api/`에 결제·공간·음성 **비즈니스 로직** 추가 금지(프록시 전달만).
 
 ---
 
@@ -198,10 +235,10 @@ const renderer = new THREE.WebGLRenderer({
 
 | 유형 | 위치 | 예시 |
 |---|---|---|
-| 액세스 토큰 | 브라우저 메모리(WebSocket 접속에 필요) | Access Token |
-| 인증 API 호출 | `lib/api` 프록시 경유 | 로그인, 리프레시 |
-| 지도·타 유저 위치 | socket.io 채널 직접 소비 (`lib/realtime/world.ts`) | 실시간 좌표 |
-| 가시거리 등급 | JWT Payload 파싱 (`visibility_radius_m`) | 100m, 300m |
+| 액세스 토큰 | 브라우저 메모리(`lib/auth/session.ts`, WebSocket 접속에 필요) | Access Token |
+| 인증 API 호출 | `lib/api` 프록시 경유(401이면 리프레시 후 한 번 재시도) | 로그인, 리프레시 |
+| 지도·타 유저 위치 | socket.io 채널 직접 소비 (`lib/realtime/world.ts`) → `WorldCanvas`의 ref(Map)에 보관 | 실시간 좌표 |
+| 가시거리 라이선스 | `/api/me/license` 조회 (상점) | 25m(기본), 100m, 300m |
 | 일시적 UI 상태 | `useState` / `useReducer` | 모달 열림, 로딩 |
 
 > 실시간 위치·채팅 이벤트 타입은 `shared/world/contract.ts`(프론트·백엔드 단일 소스)에서 온다. `lib/realtime/world.ts`가 이를 재노출하며, 소비 측(WorldCanvas)은 `lib/realtime/world.ts`에서 import한다.
@@ -221,18 +258,22 @@ const renderer = new THREE.WebGLRenderer({
 
 ```
 components/
-├── hud/          ← 인게임 HUD (DirectionPad, Joystick, ChatInput)
-├── layout/       ← Sidebar, BottomNav
-├── world/        ← WorldCanvas (Three.js 월드 씬 + 5시 Mapbox 미니맵)
-├── avatar/       ← AvatarCard (아바타 미리보기)
-├── transition/   ← PageTransition, CuteLoader
+├── hud/          ← 대시보드 HUD. Hud(index.tsx)는 화면 UI 없이 null을 렌더하고 onMove·onChat 배선만 둔다
+│                    (DirectionPad·Joystick·ChatInput 컴포넌트는 렌더되지 않는다)
+├── layout/       ← (game) 레이아웃 셸: Sidebar(PC), BottomNav(모바일) — "내 위치로" 버튼 포함
+├── world/        ← WorldCanvas(대시보드 월드), MiniMap(루트 3D 씬 5시 GIS 미니맵)
+├── avatar/       ← AvatarCard (아바타 미리보기 카드, 현재 사용처 없음)
+├── transition/   ← PageTransition, CuteLoader (페이지 전환 스피너)
 └── ui/           ← 공통 UI (Button, Card, Toast, Spinner)
 ```
 
+대시보드 월드의 채팅은 송신 배선(`onRegisterChatHandler` → `chat`)만 있고, 입력 UI와 수신 표시는 없다.
+
 ### 캔버스·DOM 이벤트 규칙
 
-- HUD 컴포넌트는 3D 씬 캔버스 위 `pointer-events: none` 영역에 렌더
-- HUD 내부 클릭 가능 요소는 `pointer-events: auto` + `stopPropagation()` 처리
+- 루트 3D 씬의 HUD(우상단 버튼·모달·미니맵)는 캔버스 컨테이너의 형제 요소로 렌더해, HUD 입력이 캔버스의 이동 입력에 닿지 않게 한다
+- 캔버스 위에 겹치되 입력을 받지 않는 표시 요소(비밀 카운터, 미니맵의 N 표시·위치 점 등)는 `pointer-events: none`
+- 키보드 입력은 `window` 리스너로 받는다(루트 3D 씬: 3인칭 컨트롤러 이동·점프, 정보 모달 ESC / 대시보드 월드: `WorldCanvas` 이동). 루트 3D 씬 오디오는 첫 `pointerdown`·`keydown`에서 만든다
 - 3D 캔버스에 `click`/`touchstart` 리스너 직접 바인딩 금지 (백엔드 컨벤션 프론트엔드 하네스)
 - 캔버스의 `pointer*`·`contextmenu` 리스너는 3인칭 컨트롤러(`app/summer-afternoon/thirdPerson.ts`)만 등록하며, 이동·점프 조작 전용이다. 오브젝트 선택·팝업 호출에는 쓰지 않는다
 
@@ -240,8 +281,8 @@ components/
 
 ## 관련 문서
 
-- [ADR 001 — 메인 씬·미니맵 WebGL 컨텍스트 분리](../adr/001-webgl-context-sharing.md)
-- [ADR 007 — 3인칭 추적 카메라 + 미니맵 뷰 잠금](../adr/007-quarter-view-camera-lock.md)
+- [ADR 001 — WebGL 컨텍스트 구성](../adr/001-webgl-context-sharing.md)
+- [ADR 007 — 카메라 잠금](../adr/007-quarter-view-camera-lock.md)
 - [백엔드 컨벤션 — 4대 하네스](../backend/conventions.md)
-- [보안 규격 — JWT 가시거리 인코딩](../backend/security/encryption.md)
+- [보안 규격 — JWT·RLS](../backend/security/encryption.md)
 - [프로젝트 구조](../architecture/project-structure.md)
