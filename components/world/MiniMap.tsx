@@ -51,6 +51,12 @@ export default function MiniMap() {
 
     map.addControl(new mapboxgl.AttributionControl({ compact: true }))
 
+    // 확대/축소 애니메이션 동안 컨테이너 크기가 매 프레임 바뀐다. 전환이
+    // 끝난 뒤에만 resize하면 애니메이션 내내 캔버스가 늘어나 보이므로,
+    // 크기 변화를 실시간으로 따라가며 캔버스를 다시 그린다.
+    const resizeObserver = new ResizeObserver(() => map.resize())
+    resizeObserver.observe(container)
+
     map.on('load', () => {
       // 메인 씬과 톤을 맞추되, 지명·도로·POI 라벨(문구)은 모두 표시한다
       map.setConfigProperty('basemap', 'lightPreset', 'night')
@@ -74,6 +80,7 @@ export default function MiniMap() {
 
     return () => {
       unwatch()
+      resizeObserver.disconnect()
       map.remove()
       mapRef.current = null
     }
@@ -86,8 +93,6 @@ export default function MiniMap() {
       className="absolute bottom-5 right-5 z-20 cursor-pointer transition-[width,height] duration-500 ease-out"
       style={{ width: size, height: size }}
       onClick={() => setExpanded((v) => !v)}
-      // 크기 전환이 끝나면 Mapbox 캔버스를 새 크기에 맞춰 다시 그린다
-      onTransitionEnd={() => mapRef.current?.resize()}
     >
       <div className="relative h-full w-full overflow-hidden rounded-full border-[3px] border-[#f9efdc] shadow-[2px_2px_0_0_#716c66]">
         <div ref={containerRef} className="h-full w-full" />
