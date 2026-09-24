@@ -21,15 +21,12 @@ CREATE EXTENSION IF NOT EXISTS citext;
 
 > `pg_cron`은 `shared_preload_libraries`에 등록 후 재시작해야 활성화된다. 광고 활성/비활성 스케줄(`activate-ads`, 매일 15:00 UTC=00:00 KST)에 사용된다.
 
-4. 마이그레이션 적용: `supabase/migrations/`의 SQL을 `0001`~`0010` 순서대로 psql로 적용
-5. **`app_api` 롤 생성**: API 서버는 테이블 소유자가 아닌 이 전용 롤로 접속해야 RLS가 적용된다.
+4. 마이그레이션 적용: `supabase/migrations/`의 SQL을 관리 롤로 `0001`~`0010` 순서대로 psql로 적용한다. Supabase가 아닌 PostgreSQL이면 먼저 `0002`·`0004`가 참조하는 `auth.users` 스텁을 만든다(`CREATE SCHEMA IF NOT EXISTS auth; CREATE TABLE IF NOT EXISTS auth.users (id UUID PRIMARY KEY);` — `0006`이 이 참조를 자체 `users`로 옮긴다)
+5. **`app_api` 롤 로그인 활성화**: API 서버는 테이블 소유자가 아닌 이 전용 롤로 접속해야 RLS가 적용된다. 롤과 테이블·시퀀스 권한은 `0007_rls.sql`이 `NOLOGIN`으로 만들어 두므로, 마이그레이션 뒤 로그인만 켠다.
 
 ```sql
-CREATE ROLE app_api LOGIN PASSWORD '<강력한-비밀번호>';
+ALTER ROLE app_api WITH LOGIN PASSWORD '<강력한-비밀번호>';
 GRANT CONNECT ON DATABASE <db> TO app_api;
-GRANT USAGE ON SCHEMA public TO app_api;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_api;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_api;
 ```
 
 → 접속 문자열을 API 서버의 `DATABASE_URL`로 등록한다(예: `postgresql://app_api:<pw>@<host>:5432/<db>`).
@@ -40,14 +37,14 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_api;
 
 NestJS API 서버(`apps/api`)를 호스팅한다.
 
-1. 서버/컨테이너 환경에 Node.js 20 준비, `apps/api`에서 `npm install && npm run build`
-2. `npm run start:prod`로 기동 (기본 `PORT=9001`)
+1. 서버/컨테이너 환경에 Node.js 20 이상 준비, `apps/api`에서 `npm install && npm run build`
+2. `npm run start:prod`로 기동 (기본 `PORT=9001`). 헬스 프로브는 `GET /health`
 3. **서버 시크릿은 API 서버 환경변수(또는 호스팅 플랫폼의 시크릿 저장소)로 관리**한다:
    `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `HASH_ROUNDS`,
    `PG_WEBHOOK_SECRET`, `KAKAO_CLIENT_ID/SECRET`, `GOOGLE_CLIENT_ID/SECRET`,
-   `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `TOSS_SECRET_KEY`, `KAKAO_PAY_SECRET` 등
-4. WebSocket(월드 소켓, socket.io)이 이 서버에서 함께 서빙되므로 브라우저가 붙을 공개 주소를 확보한다 → 프론트 `NEXT_PUBLIC_WS_URL`에 등록
-5. `WEB_ORIGIN`을 프론트 도메인으로 설정
+   `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
+4. WebSocket(대시보드 월드 소켓, socket.io `/world` 네임스페이스)이 이 서버에서 함께 서빙되므로 브라우저가 붙을 공개 주소를 확보한다 → 프론트 `NEXT_PUBLIC_WS_URL`에 등록
+5. `WEB_ORIGIN`을 프론트 도메인으로 설정 (HTTP CORS·소켓 CORS 허용 오리진). 소켓 CORS는 게이트웨이 데코레이터가 `.env.local`을 읽기 전에 평가되므로, 파일이 아닌 서버 프로세스 환경변수(호스트·컨테이너 환경)로 넣는다
 
 ---
 
@@ -57,16 +54,16 @@ NestJS API 서버(`apps/api`)를 호스팅한다.
 2. GitHub 저장소 Import
 3. Framework Preset: **Next.js** (자동 감지)
 4. Root Directory: `.` (루트)
-5. Environment Variables 등록 — **`NEXT_PUBLIC_*` 공개 변수만** 등록한다:
+5. Environment Variables 등록 — 아래 `NEXT_PUBLIC_*` 공개 변수와 서버 전용 `API_URL`을 등록한다:
 
 | 변수 | 값 출처 |
 |---|---|
-| `NEXT_PUBLIC_WS_URL` | API 서버 공개 주소 (월드 소켓) |
-| `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapbox account.mapbox.com → Tokens |
+| `NEXT_PUBLIC_WS_URL` | API 서버 공개 주소 (대시보드 월드 소켓) |
+| `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapbox account.mapbox.com → Tokens (대시보드 월드 지도 + 루트 3D 씬 미니맵) |
 | `NEXT_PUBLIC_LIVEKIT_URL` | LiveKit Settings → Keys |
-| `NEXT_PUBLIC_APP_URL` | Vercel 배포 후 생성되는 도메인 |
+| `API_URL` | NestJS API 서버 주소 (BFF 프록시 대상, 서버 전용 — 비우면 `http://localhost:9001`로 프록시) |
 
-> 서버 전용 시크릿과 `API_URL`(NestJS 내부 주소)은 프론트가 서버 라우트에서만 쓰므로 Vercel Project Environment Variables(비공개)로 등록하되, 브라우저에 노출되면 안 되는 값은 절대 `NEXT_PUBLIC_` 접두사를 붙이지 않는다.
+> `API_URL`은 서버 라우트(BFF 프록시)에서만 쓰는 비공개 값이라 `NEXT_PUBLIC_` 접두사를 붙이지 않는다. 브라우저에 노출되면 안 되는 값에는 절대 `NEXT_PUBLIC_` 접두사를 붙이지 않는다. `NEXT_PUBLIC_*` 값은 빌드 시점에 구워지므로 바꾼 뒤에는 재배포한다.
 
 6. "Deploy" → 첫 빌드 실행
 
@@ -86,12 +83,14 @@ NestJS API 서버(`apps/api`)를 호스팅한다.
 
 ## 5. PG(결제) 콘솔
 
+결제 완료는 PG 웹훅으로만 반영된다. 웹훅 URL은 BFF를 거치지 않는 API 서버 주소 `POST https://<API 서버>/billing/webhook`이며, `x-pg-signature` 헤더에 raw body의 HMAC-SHA256 hex(키 `PG_WEBHOOK_SECRET`)를 실어 `{ orderId, approvalNumber, amountKrw }`를 보내야 한다. 결제창 호출 코드는 없어 아래 PG 키들은 현재 어느 코드도 읽지 않는다.
+
 ### 토스페이먼츠
 
 1. [developers.tosspayments.com](https://developers.tosspayments.com) → 개발자 계정 등록
 2. 테스트 클라이언트/시크릿 키 발급 → 프로덕션 전환 시 사업자 심사 후 운영 키
-3. 웹훅 URL 등록: 결제 승인 웹훅을 API 서버(`billing` 모듈)로 향하게 설정
-4. 웹훅 서명 검증 키를 `PG_WEBHOOK_SECRET`으로 등록
+3. 웹훅 URL 등록: 위 API 서버 `billing/webhook` 경로
+4. 웹훅 서명 검증 키를 API 서버 `PG_WEBHOOK_SECRET`으로 등록
 
 ### 카카오페이
 
@@ -126,7 +125,7 @@ NestJS API 서버(`apps/api`)를 호스팅한다.
 
 - [ ] PostgreSQL 프로비저닝 (확장 4종 + 마이그레이션 0001~0010 적용)
 - [ ] `app_api` 롤 생성 + 권한 부여
-- [ ] API 서버 호스팅 + 서버 시크릿 등록
+- [ ] API 서버 호스팅 + 서버 시크릿 등록 (LiveKit 키 포함) + `GET /health` 응답 확인
 - [ ] Vercel 프로젝트 생성 + GitHub 연결 + `NEXT_PUBLIC_*` 등록
 - [ ] LiveKit Cloud 프로젝트 생성 (지역: ap-northeast)
 - [ ] 토스페이먼츠 / 카카오페이 콘솔 + 웹훅 URL + `PG_WEBHOOK_SECRET`

@@ -2,13 +2,15 @@
 
 프론트엔드(Next.js)와 API 서버(NestJS), 그리고 자체 PostgreSQL을 로컬에서 함께 띄우는 절차다.
 
+루트 3D 씬(`/`)만 볼 때는 서버가 필요 없다. 의존성 설치 후 프론트엔드만 띄우면 되고, 5시 미니맵을 보려면 `.env.local`에 `NEXT_PUBLIC_MAPBOX_TOKEN`만 넣으면 된다. API 서버와 PostgreSQL은 로그인·상점·대시보드 월드(위치 동기화·음성)에 필요하다.
+
 ---
 
 ## 사전 요구사항
 
 | 도구 | 버전 | 설치 방법 |
 |---|---|---|
-| Node.js | 20 LTS | https://nodejs.org |
+| Node.js | 20 이상 (Docker 이미지는 22) | https://nodejs.org |
 | PostgreSQL | 16+ (PostGIS 포함) | https://www.postgresql.org / https://postgis.net |
 | psql | PostgreSQL 클라이언트 | PostgreSQL 설치에 포함 |
 | Docker Desktop | 최신 (프론트 컨테이너 실행용, 선택) | https://docker.com |
@@ -64,11 +66,16 @@ CREATE EXTENSION IF NOT EXISTS citext;
 
 ### 3-2. 마이그레이션 적용
 
-`supabase/migrations/`의 SQL 파일을 **번호 순서대로** psql로 적용한다(전용 CLI 러너는 없다).
+`supabase/migrations/`의 SQL 파일을 **번호 순서대로** psql로 적용한다(전용 CLI 러너는 없다). `0002`·`0004`는 Supabase의 `auth.users`를 참조하고, `0006`이 그 참조를 자체 `users` 테이블로 옮긴다. 일반 PostgreSQL에는 `auth.users`가 없으므로 먼저 스텁을 만든다.
+
+```sql
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE TABLE IF NOT EXISTS auth.users (id UUID PRIMARY KEY);
+```
 
 ```bash
 for f in supabase/migrations/*.sql; do
-  psql -U postgres -d postgres -f "$f"
+  psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f "$f"
 done
 ```
 
@@ -80,19 +87,16 @@ psql -U postgres -d postgres -f supabase/migrations/0002_characters.sql
 # ... 0003 ~ 0010 순서대로
 ```
 
-### 3-3. `app_api` 롤 생성
+### 3-3. `app_api` 롤 로그인 활성화
 
-API 서버는 테이블 소유자가 아닌 전용 롤 **`app_api`**로 접속해야 RLS(행 수준 보안)가 적용된다.
+API 서버는 테이블 소유자가 아닌 전용 롤 **`app_api`**로 접속해야 RLS(행 수준 보안)가 적용된다. 롤과 테이블·시퀀스 권한은 `0007_rls.sql`이 `NOLOGIN`으로 만들어 두므로, 마이그레이션 뒤 로그인만 켠다.
 
 ```sql
-CREATE ROLE app_api LOGIN;
+ALTER ROLE app_api WITH LOGIN PASSWORD '<비밀번호>';
 GRANT CONNECT ON DATABASE postgres TO app_api;
-GRANT USAGE ON SCHEMA public TO app_api;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_api;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_api;
 ```
 
-> RLS 정책과 `users.role` 컬럼 권한(권한 상승 방지)은 마이그레이션 `0007_rls.sql`에서 함께 정의된다.
+> RLS 정책과 `users.role` 컬럼 권한(권한 상승 방지)은 `0007_rls.sql`, `user_identities` 정책·권한은 `0009_social_login.sql`에 정의된다.
 
 ---
 
@@ -108,10 +112,12 @@ cp .env.example .env.local
 cp apps/api/.env.example apps/api/.env.local
 ```
 
-`apps/api/.env.local`의 `DATABASE_URL`은 반드시 `app_api` 롤을 사용한다.
+`apps/api/.env.local`의 `DATABASE_URL`은 반드시 `app_api` 롤을 사용한다. 대시보드 월드의 음성 룸 접속을 쓰려면 `apps/api/.env.example`에 없는 `LIVEKIT_API_KEY`·`LIVEKIT_API_SECRET`을 `apps/api/.env.local`에 직접 추가한다(음성 토큰은 API 서버가 발급한다. 마이크 송출 UI는 아직 없어 룸 접속·구독까지만 동작한다).
 
 ```env
-DATABASE_URL=postgresql://app_api@localhost:5432/postgres
+DATABASE_URL=postgresql://app_api:<비밀번호>@localhost:5432/postgres
+LIVEKIT_API_KEY=APIxxxx
+LIVEKIT_API_SECRET=xxxx
 ```
 
 전체 항목 설명은 [환경변수 레퍼런스](./env-vars.md)를 참고하라.
@@ -133,36 +139,44 @@ npm run start:dev
 npm run dev
 ```
 
-브라우저 → Next.js Route Handler(BFF 프록시) → NestJS API 순으로 호출되며, 월드 실시간 소켓은 브라우저가 `NEXT_PUBLIC_WS_URL`(기본 `http://localhost:9001`)로 직접 접속한다.
+브라우저 → Next.js Route Handler(BFF 프록시) → NestJS API 순으로 호출되며, 대시보드 월드의 실시간 소켓은 브라우저가 `NEXT_PUBLIC_WS_URL`(기본 `http://localhost:9001`)의 `/world` 네임스페이스로 직접 접속한다.
 
 ---
 
 ## 6. 접속 확인
 
-브라우저에서 http://localhost:3000 접속. 루트 진입 시 베이크드 로우폴리 3D 숲 씬이 열리고, 화면 5시에 GIS 미니맵이 함께 뜬다.
+| 주소 | 확인 내용 |
+|---|---|
+| http://localhost:3000 | 루트 3D 씬. 로딩 화면(타이틀 + 스피너) → 인트로 전환 → 3인칭 조작. 인트로가 끝나면 화면 5시에 GIS 미니맵이 뜬다(Mapbox 토큰이 없으면 지도 없이 테두리만 남는다) |
+| http://localhost:3000/dashboard | 대시보드 월드. Mapbox 실지형 지도 위에 캐릭터가 뜨고 PC는 WASD·방향키로 움직인다. 위치 동기화·음성은 로그인 세션이 있어야 접속된다 |
+| http://localhost:9001/health | API 서버 헬스 → `{ "status": "ok" }` |
 
-첫 번째 페이지 요청 시 Turbopack이 해당 라우트를 컴파일한다(최초 ~5~9초, 이후 캐시됨). API 헬스 체크는 http://localhost:3000/api/health 로 확인할 수 있다.
+`middleware.ts`의 `matcher`가 비어 있어 모든 페이지 라우트는 로그인 없이 열린다. http://localhost:3000/api/health 는 Next 서버 자체의 응답이라 API 서버 상태를 반영하지 않는다.
 
-> 개발 편의를 위해 개발 모드에서는 루트 진입 시 인증 게이팅을 우회해 3D 씬을 바로 연다. 인증 시스템 자체는 유지되며 상용 전 재활성화한다.
+첫 번째 페이지 요청 시 Turbopack이 해당 라우트를 컴파일한다(수 초~수십 초, 이후 캐시됨).
 
 ---
 
-## Docker로 프론트만 띄우기 (선택)
+## Docker로 프론트 띄우기 (선택)
 
-`docker-compose.yml`에는 프론트엔드(`app` 서비스)만 정의되어 있다. API 서버와 PostgreSQL은 위 절차대로 호스트에서 직접 실행한다.
+`docker-compose.yml`에는 프론트엔드만 정의되어 있다. API 서버와 PostgreSQL은 위 절차대로 호스트에서 직접 실행한다. 두 서비스 모두 호스트 3000 포트를 쓰므로 동시에 띄우지 않는다.
+
+| 서비스 | 빌드 타깃 | 실행 | 용도 |
+|---|---|---|---|
+| `app` | `dev` | `next dev --turbopack` (소스 볼륨 마운트, `WATCHPACK_POLLING=true`) | 개발용. Windows에서도 핫 리로드 동작 |
+| `app-prod` | `runner` (`profile: prod`) | standalone `node server.js` | 프로덕션 빌드 확인용 |
 
 ```bash
-# 프론트 컨테이너 기동
+# 개발 컨테이너 기동 / 로그 / 종료
 docker compose up -d
-
-# 로그 확인
 docker compose logs -f
-
-# 종료
 docker compose down
+
+# 프로덕션 이미지 빌드 + 기동
+docker compose --env-file .env.local --profile prod up -d --build app-prod
 ```
 
-`WATCHPACK_POLLING=true`가 설정되어 있어 Windows에서도 핫 리로드가 정상 작동한다. 내부적으로 `next dev --turbopack`으로 실행된다.
+`app-prod`는 `NEXT_PUBLIC_MAPBOX_TOKEN`·`NEXT_PUBLIC_LIVEKIT_URL`·`NEXT_PUBLIC_APP_URL`을 **빌드 인자**로 받아 번들에 굽는다. compose는 빌드 인자를 셸 환경변수에서 읽으므로 `--env-file .env.local`로 채워야 하며, 빠뜨리면 빈 값으로 빌드되어 미니맵·대시보드 지도가 뜨지 않는다. 코드를 바꾼 뒤에는 `--build`로 이미지를 다시 만들어야 반영된다. `NEXT_PUBLIC_WS_URL`은 빌드 인자에 없어 프로덕션 이미지는 기본값 `http://localhost:9001`로 소켓에 접속한다.
 
 ---
 

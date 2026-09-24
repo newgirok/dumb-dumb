@@ -15,7 +15,7 @@
 NEXT_PUBLIC_MAPBOX_TOKEN=pk.eyJ1...
 ```
 
-무료 티어: 월 50,000 Map loads 무료. Mapbox 대시보드에서 사용량 알림 3단계 설정 권장.
+이 토큰 하나를 대시보드 월드 지도와 루트 3D 씬의 5시 미니맵이 함께 쓴다. 무료 티어: 월 50,000 Map loads 무료. Mapbox 대시보드에서 사용량 알림 3단계 설정 권장.
 
 ---
 
@@ -27,7 +27,7 @@ API 서버는 테이블 소유자가 아닌 전용 롤 **`app_api`**로 접속�
 DATABASE_URL=postgresql://app_api:<password>@<host>:5432/<database>
 ```
 
-- 로컬 예시: `postgresql://app_api@localhost:5432/postgres`
+- 로컬 예시: `postgresql://app_api:<비밀번호>@localhost:5432/postgres`
 - `app_api` 롤 생성과 권한 부여는 [클라우드 인프라 초기 셋업](./infra-setup.md) 및 [로컬 환경 세팅](./local-setup.md) 참고
 - 이 값은 API 서버 전용이며 브라우저에 노출되지 않는다(`apps/api/.env.local`에만 저장)
 
@@ -64,9 +64,23 @@ LIVEKIT_API_SECRET=xxxx           ← 서버 전용 (API 서버 환경변수)
 NEXT_PUBLIC_LIVEKIT_URL=wss://your-project.livekit.cloud   ← 프론트 공개
 ```
 
-룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급한다. 무료 티어: 월 일정 분(分) 무료. 대시보드 사용량 알림 3단계 설정 권장.
+룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급한다(TTL 1시간). `LIVEKIT_API_KEY`·`LIVEKIT_API_SECRET`은 `apps/api/.env.example`에 없으므로 `apps/api/.env.local`에 직접 추가한다. 음성은 대시보드 월드에서만 쓰인다. 무료 티어: 월 일정 분(分) 무료. 대시보드 사용량 알림 3단계 설정 권장.
 
 ---
+
+## PG 웹훅
+
+결제 완료는 PG 웹훅으로만 반영된다. API 서버의 `POST /billing/webhook`이 다음 규격을 받는다.
+
+- 본문: `{ "orderId": "<주문 UUID>", "approvalNumber": "<승인번호>", "amountKrw": <금액> }`
+- 헤더 `x-pg-signature`: raw body의 HMAC-SHA256 hex (키 `PG_WEBHOOK_SECRET`)
+- 금액이 주문 금액과 다르거나 서명이 틀리면 반영하지 않는다
+
+```
+PG_WEBHOOK_SECRET=...          ← API 서버 전용
+```
+
+아래 토스페이먼츠·카카오페이 키는 PG 결제창 연동용이다. 결제창 호출 코드가 없어 현재 어느 코드도 이 키를 읽지 않는다.
 
 ## 토스페이먼츠
 
@@ -78,8 +92,6 @@ NEXT_PUBLIC_LIVEKIT_URL=wss://your-project.livekit.cloud   ← 프론트 공개
 TOSS_CLIENT_KEY=test_ck_...    ← 클라이언트 (테스트)
 TOSS_SECRET_KEY=test_sk_...    ← 서버 전용 (테스트)
 ```
-
-웹훅 서명 검증 키는 `PG_WEBHOOK_SECRET`으로 API 서버에 등록한다(raw body 서명 검증에 사용).
 
 ---
 
@@ -121,7 +133,7 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...   ← 서버 전용
 ```
 
-> 리다이렉트 URI는 공급자 콘솔 등록값과 정확히 일치해야 한다. 미설정 시 해당 공급자 로그인 버튼은 400을 반환한다.
+> 리다이렉트 URI는 공급자 콘솔 등록값과 정확히 일치해야 한다. 미설정 시 해당 공급자 로그인 버튼은 `/login?error=oauth_unavailable`로 돌아온다.
 
 ---
 
