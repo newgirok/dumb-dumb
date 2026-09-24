@@ -204,7 +204,7 @@ const renderer = new THREE.WebGLRenderer({
 | 가시거리 등급 | JWT Payload 파싱 (`visibility_radius_m`) | 100m, 300m |
 | 일시적 UI 상태 | `useState` / `useReducer` | 모달 열림, 로딩 |
 
-> 실시간 위치·채팅 이벤트 타입은 `shared/world/contract.ts`(프론트·백엔드 단일 소스)에서 온다. `lib/realtime/world.ts`가 이를 재노출하므로 소비 측(WorldCanvas)은 기존 import 경로를 그대로 쓴다.
+> 실시간 위치·채팅 이벤트 타입은 `shared/world/contract.ts`(프론트·백엔드 단일 소스)에서 온다. `lib/realtime/world.ts`가 이를 재노출하며, 소비 측(WorldCanvas)은 `lib/realtime/world.ts`에서 import한다.
 
 ### 금지 패턴
 
