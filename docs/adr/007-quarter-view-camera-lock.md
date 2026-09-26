@@ -8,7 +8,7 @@
 
 - **루트 3D 씬**: 캐릭터를 뒤에서 따라가는 **3인칭 추적 카메라(고정 앙각·반경)**로 운용한다. 드래그·핀치·휠 스크롤로 카메라를 조작하는 입력은 받지 않는다.
 - **대시보드 월드**: Mapbox 카메라를 **pitch 45°·bearing 45° 쿼터뷰로 고정**하고 이동할 때마다 지도 중심을 캐릭터로 맞춘다. 유저 입력은 줌(14~20)만 받는다(휠·더블클릭 줌은 커서 기준이라 다음 이동 전까지 중심이 어긋날 수 있다).
-- **5시 GIS 미니맵**(루트 3D 씬): **유저 위치를 항상 중앙에 두는 추적 고정 뷰**로 두고, Mapbox의 드래그·줌·회전 조작을 전면 잠근다.
+- **5시 GIS 미니맵**: **추적 대상을 항상 중앙에 두는 고정 뷰**로 두고, Mapbox의 드래그·줌·회전 조작을 전면 잠근다. 루트 3D 씬은 유저의 실제 GPS 위치를 북쪽 위로 보여 주고, 내 동네 시험판은 캐릭터 자리를 화면이 보는 쪽이 위로 오게 돌려 보여 준다(테두리의 N 표시가 북쪽을 가리킨다). 내 동네의 3인칭 카메라는 루트 3D 씬과 같다.
 
 ## 배경
 
@@ -28,32 +28,34 @@
 
 ## 구현 — 루트 3D 씬 3인칭 추적 카메라
 
-카메라는 캐릭터의 **시선 목표점**(발 위 1.2m, 진행 방향 0.5m 앞)을 중심으로 한 구면 위에 선다. 반경 5.9m·앙각 9.866°로 고정되어, 캐릭터 뒤 약 5.3m·발끝 위 약 2.2m에서 항상 같은 각도로 내려다본다. 구현은 `app/summer-afternoon/thirdPerson.ts`에 있다.
+카메라는 캐릭터의 **시선 목표점**(발 위 1.1m, 캐릭터 정면 0.5m)을 중심으로 한 구면 위에 선다. 반경 5.836m·앙각 9.866°(원본 `relativeCameraPosition (0, 1, -5.75)`)로 고정되어, 캐릭터 뒤 약 5.25m·발끝 위 약 2.1m에서 항상 같은 각도로 내려다본다. 원본 `followCamera`의 수식·상수를 그대로 옮겼으며, 원본 상수가 60fps 한 프레임 기준이라 모든 `lerp` 비율은 실제 프레임 길이로 환산한다(`1 - (1 - k)^(dt×60)`). 구현은 `app/summer-afternoon/thirdPerson.ts`에 있다.
 
 | 요소 | 규칙 |
 |---|---|
-| 방위(요우) | 이동 방향을 따라 캐릭터 뒤로 자동 복귀한다(1.8/s, 최대 0.8rad/s, 정지 중 0.05배). 캐릭터가 카메라 쪽으로 걸어오면 돌지 않는다. 유저가 카메라를 직접 돌리는 입력은 받지 않는다 |
-| 추적 | 목표 위치로 `lerp`(5/s)해 부드럽게 따라간다 |
-| 벽 충돌 | 시선 목표점 → 카메라 광선이 collider에 막히면 반경을 줄인다(여유 0.4m, 최소 1m) |
-| 인트로 | 반경 +12m에서 6초 easeInOutCubic으로 0까지 줄인다. 같은 광선 위를 움직이므로 인트로 내내 Pitch가 변하지 않으며, 인트로 동안은 추적 `lerp` 없이 돌리 위치에 바로 선다 |
-| 대기 흔들림 | 카메라 위치는 고정하고 `lookAt` 이후 회전만 얹는다(요우·피치 0.08rad, 롤 0.02rad × 사인 노이즈, 속도 0.2). 인트로 시작 4초 뒤부터 4초에 걸쳐 켜진다 |
-| 커서 패럴랙스 | 커서 위치에 비례해 요우 ±0.16rad·피치 ±0.06rad만큼 궤도를 기울인다. 위로 젖히는 쪽은 0.02rad까지만 허용해 지형 너머 바다가 전경에 드러나지 않게 한다. 대기 흔들림과 같은 시점에 켜진다 |
+| 방위(요우) | 2단 스무딩 — 목표 방위가 캐릭터 등 뒤로 프레임당 0.03 비율로 돌고(이동 입력이 없으면 0.025배), 실제 방위가 목표를 프레임당 0.075 비율로 따라간다. 캐릭터가 카메라 쪽으로 걸어오면 돌지 않는다. 좌우 키를 계속 누르면 캐릭터가 반경 약 2.5m 원을 그리며 카메라가 약 1.6rad/s로 돈다. 유저가 카메라를 직접 돌리는 입력은 받지 않는다 |
+| 추적 | 시선 목표점이 캐릭터를 프레임당 0.15(휴대폰 0.175) 비율로 늦게 따라가고 카메라는 그 점에 붙어 선다(달리는 중에는 캐릭터 뒤 약 5.7m) |
+| 클리핑 | near 1m·far 175m(원본). 카메라 1.5~2m 안의 면(캐릭터 제외)은 셰이더가 가로줄 디더로 솎아낸다 |
+| 벽 충돌 | 시선 목표점 → 카메라 광선이 collider에 막히면 목표 반경을 맞은 거리의 90%로 줄이고(최소 캡슐 반경 × 1.25), 실제 반경은 프레임당 0.05 비율로 따라간다 |
+| 인트로 | 반경 +12m에서 6초 동안 원본 `inOut3`(cubic-bezier(0.6, 0, 0, 1))으로 0까지 줄인다. 같은 광선 위를 움직이므로 인트로 내내 Pitch가 변하지 않는다 |
+| 대기 흔들림 | 카메라 위치는 두고 시선 방향만 돌린다(요우·피치 0.08rad, 롤 0.02rad × 사인 노이즈, 속도 0.2). 인트로 시작 4초 뒤부터 4초에 걸쳐(power2.inOut) 켜진다 |
+| 커서 패럴랙스 | 커서 위치(±1) × π/2에 요우 -0.075·피치 -0.05를 곱한 만큼(최대 요우 ±0.118rad·피치 ±0.079rad) 시선 목표점을 중심으로 궤도를 돈다. 프레임당 0.035 비율로 따라가며, 대기 흔들림과 같은 시점에 켜진다. 터치는 첫 손가락 위치를 따르고 손을 떼면 절반 속도로 가운데로 돌아오며, 휴대폰은 위아래 패럴랙스가 없다 |
 
 ```typescript
-const CAMERA_RADIUS = 5.9                                // 시선 목표점 기준 반경
-const CAMERA_ELEVATION = THREE.MathUtils.degToRad(9.866) // 고정 앙각 = 내려다보는 Pitch
+const CAMERA_DISTANCE = Math.hypot(1, 5.75)      // 시선 목표점 기준 반경 5.836m
+const CAMERA_PHI = Math.acos(1 / CAMERA_DISTANCE) // 극각 80.134° = 앙각 9.866°
+// 60fps 기준 프레임당 비율 k를 실제 프레임 길이(ratio = dt × 60)로 환산
+const lerpCoef = (k: number, ratio: number) => 1 - Math.pow(1 - k, ratio)
 
-// 시선 목표점 — 발 위 1.2m, 진행 방향 0.5m 앞
-lookAt.set(pos.x - toCam.x * 0.5, pos.y + 1.2, pos.z - toCam.z * 0.5)
-dir.setFromSpherical(new THREE.Spherical(1, Math.PI / 2 - CAMERA_ELEVATION, camYaw))
+// 목표 방위 → 실제 방위 2단 스무딩. 캐릭터가 카메라 쪽으로 걸어오면(정반대) 배수 0
+const mul = moving ? THREE.MathUtils.clamp(Math.cos(charThetaTarget - camTheta) + 1, 0, 1) : 0.025
+camThetaTarget += shortestAngle(charTheta - camThetaTarget) * lerpCoef(0.03 * mul, ratio)
+camTheta += (camThetaTarget - camTheta) * lerpCoef(0.075, ratio)
 
-// 벽 충돌로 줄인 반경에 인트로 줌을 더해 같은 광선 위에 세운다
-const radius = cameraRadius(lookAt, dir, CAMERA_RADIUS) + introZoom
-camera.position.lerp(desired.copy(lookAt).addScaledVector(dir, radius), Math.min(1, 5 * dt))
-
-camera.lookAt(lookAt)
-camera.rotateOnWorldAxis(THREE.Object3D.DEFAULT_UP, swayYaw) // 대기 흔들림은 순수 회전
-camera.rotateX(swayPitch)
+// 벽 충돌·인트로 줌은 반경만 바꾼다 — 같은 광선 위라 Pitch 불변
+radius += (radiusTarget - radius) * lerpCoef(0.05, ratio)
+lookTarget.lerp(panTarget, lerpCoef(0.15, ratio))
+camera.position.setFromSphericalCoords(radius, CAMERA_PHI + parPhi, camTheta + parTheta).add(lookTarget)
+camera.lookAt(swayedLookPoint) // 대기 흔들림은 시선 방향만 돌린다
 ```
 
 ## 구현 — 대시보드 월드 쿼터뷰 카메라
@@ -118,6 +120,23 @@ watchPosition((lng, lat) => {
   }
 })
 ```
+
+내 동네 시험판은 `MiniMap`에 `track`(캐릭터 경위도와 화면 방위)을 넘긴다. 이때 미니맵은 GPS 대신 캐릭터를 따라가며 화면 방향으로 돈다. Standard 스타일은 한 번 다시 그리는 데 10~30ms가 들어 매 프레임 옮기지 않는다 — 지도를 원 밖으로 사방 48px 넓게 그려 두고, 그 안의 이동과 20° 안의 회전은 캔버스에 CSS 변환만 건다. 여백을 벗어나거나 더 돌면 그 자리·방향으로 다시 그리고, 새 그림이 캔버스에 올라오는 `render` 때 CSS를 맞춘다.
+
+```typescript
+// 캐릭터 추적(내 동네) — 여백 안은 CSS로만, 벗어나면 다시 그린다
+const at = minimap.project([t.lng, t.lat])
+const dx = at.x - width / 2, dy = at.y - height / 2
+const turn = shortestAngle(t.bearing - drawnBearing)
+if (Math.abs(dx) <= 48 && Math.abs(dy) <= 48 && Math.abs(turn) <= 20) {
+  canvas.style.transform = `rotate(${-turn}deg) translate(${-dx}px, ${-dy}px)`
+} else {
+  minimap.jumpTo({ center: [t.lng, t.lat], bearing: t.bearing })
+  drawnBearing = t.bearing
+}
+```
+
+변환은 Mapbox 컨테이너가 아니라 캔버스에 건다. Mapbox는 컨테이너와 그 위 요소의 CSS 변환을 읽어 크기를 재고 컨테이너를 `position: relative`로 덮어쓰므로, 넓히는 일은 컨테이너를 감싼 div가 맡는다.
 
 ## 미니맵 줌 레벨 고정
 

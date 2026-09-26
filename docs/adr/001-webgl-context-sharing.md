@@ -7,6 +7,7 @@
 두 월드는 렌더링 구조가 다르다.
 
 - **루트 3D 씬**(`/`, `app/summer-afternoon/`)은 씬이 직접 만드는 **Three.js `<canvas>` 하나(단일 WebGL 컨텍스트)**에 베이크드 로우폴리 씬을 그린다. 화면 5시(우하단)의 나침반형 GIS 미니맵(`components/world/MiniMap.tsx`)은 이와 **분리된 독립 Mapbox GL `<canvas>`**로 운용한다. 두 컨텍스트는 GPU 자원을 공유하지 않고 각자 그린다.
+- **내 동네 시험판**(`/neighborhood`, `app/neighborhood/`)도 같은 구조다. 자체 Three.js 캔버스에 바닥 구역을 그리고, 미니맵은 분리된 Mapbox 캔버스다. 바닥 마스크는 워커의 OffscreenCanvas에서 그려 픽셀만 넘겨받으므로 길 그리기도 씬 렌더 루프 밖에서 돈다.
 - **대시보드 월드**(`/dashboard`, `components/world/WorldCanvas.tsx`)는 Mapbox 실지형 지도가 월드의 바닥이다. Three.js는 Mapbox **커스텀 레이어**로 올라가 Mapbox 캔버스의 WebGL 컨텍스트를 **공유**하며, 지도와 같은 카메라로 캐릭터를 그린다.
 
 ## 배경
@@ -14,7 +15,7 @@
 루트 3D 씬과 미니맵은 렌더링 요구가 근본적으로 다르다.
 
 - **루트 3D 씬**: 매 프레임 캐릭터·애니메이션·그림자·후처리를 그려야 하는 성능 최우선 영역이다. 화면 대부분을 차지하며 사용자의 조작 초점이 여기 있다.
-- **GIS 미니맵**: 유저의 실제 GPS 위치를 실지형 지도 위에 보여 주는 보조 위젯이다. 갱신 빈도가 낮고 화면 점유율이 작다.
+- **GIS 미니맵**: 유저의 실제 GPS 위치(내 동네는 캐릭터 자리)를 실지형 지도 위에 보여 주는 보조 위젯이다. 화면 점유율이 작고, 지도를 다시 그리는 빈도를 낮게 유지한다 — 내 동네처럼 캐릭터를 매 프레임 따라갈 때도 작은 이동·회전은 캔버스를 CSS로 옮기고, 여백(48px)·20°를 넘을 때만 다시 그린다([ADR 007](./007-quarter-view-camera-lock.md)).
 
 이 둘을 하나의 WebGL 컨텍스트에 합치면, 미니맵의 벡터 타일 파이프라인이 씬의 렌더 루프에 끼어들어 프레임 예산을 잠식한다. 미니맵의 타일 로딩 스톨이 곧 씬의 프레임 드랍으로 이어진다.
 
@@ -48,12 +49,12 @@
 
 ```typescript
 // 루트 3D 씬 — 씬 전용 Three.js 캔버스 + 후처리 (app/summer-afternoon/scene.tsx)
-const renderer = new THREE.WebGLRenderer({ antialias: true })
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+const renderer = new THREE.WebGLRenderer({ antialias: false, depth: false }) // 계단은 SMAA로 편다
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)) // × 적응형 배수(0.7~1)
 mount.appendChild(renderer.domElement)
 
 const composer = new EffectComposer(renderer)
-composer.addPass(new RenderPass(scene, camera)) // 이어서 LUTPass · OutputPass · 인트로 전환 패스
+composer.addPass(new RenderPass(scene, camera)) // 이어서 최종 패스(LUT·인트로·오버레이) · SMAAPass · OutputPass
 
 const loop = (now: number) => {
   // 씬·카메라 갱신 …
@@ -97,7 +98,7 @@ map.on('load', () => map.addLayer({ ...customLayer, slot: 'top' }))
 
 ## 결과
 
-- 루트 3D 씬의 프레임 예산이 미니맵 타일 로딩과 독립된다
+- 루트 3D 씬·내 동네의 프레임 예산이 미니맵 타일 로딩·다시 그리기와 독립된다
 - 루트 3D 씬과 미니맵을 각자의 좌표계·렌더 루프에서 독립 튜닝한다
 - 대시보드 월드의 캐릭터는 지도와 같은 카메라 행렬로 그려지고, 15m 이내에 도로가 있으면 도로 위로 스냅된다
 - 대시보드 월드는 캔버스 하나로 지도와 3D를 함께 그리며, 캐릭터는 깊이 초기화 덕분에 건물 위에 항상 보인다
