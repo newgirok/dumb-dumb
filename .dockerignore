@@ -1,5 +1,10 @@
-node_modules
+# 패턴은 컨텍스트 최상위 기준이다 — 하위 폴더까지 막으려면 **/ 를 붙인다
+**/node_modules
 .next
 .git
-.env*.local
+**/.env*.local
 *.md
+# 프론트 이미지에 필요 없는 것 — API 서버(따로 배포), 테스트 산출물, 로그
+apps
+.playwright-mcp
+*.log
