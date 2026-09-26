@@ -1,134 +1,202 @@
 import * as THREE from 'three'
+import { MeshBVH } from 'three-mesh-bvh'
+import { sineNoise1 } from './noise'
+import type { TouchState } from './touchCircles'
 
 /**
- * 원본과 같은 3인칭 조작.
+ * 원본과 같은 3인칭 조작 — 원본 controls·collisionPhysics·followCamera를 뜯어
+ * 같은 수식과 상수로 옮겼다.
  *
- * 원본 controls/followCamera를 뜯어보면 카메라는 유저가 직접 못 돌린다
- * (enableRotate=false). 드래그는 카메라 회전이 아니라 "가상 조이스틱"이라
- * 이동 입력에 그대로 더해지고(_v0.x += touchDelta.x), 카메라는 캐릭터
- * 뒤쪽으로 느리게(원본 lerp 0.03) 알아서 돌아온다. 카메라와 캐릭터 사이에
- * 벽이 끼면 반경을 줄여 파고들지 않게 한다.
+ * - 입력: WASD·방향키 + 마우스 가상 조이스틱(화면 고정점 기준) + 터치 조이스틱
+ *   (누른 자리 기준, 탭하면 점프) + 게임패드. 카메라는 유저가 직접 못 돌리고
+ *   (원본 enableRotate=false) 캐릭터 등 뒤로 알아서 돌아온다.
+ * - 이동: 속도를 바로 정하지 않고 입력만큼 가속한 뒤 매 프레임 감쇠한다(관성).
+ *   ≈0.5s에 걸쳐 최고 속도 ≈3.75m/s에 이르고, 손을 떼면 ≈0.7m 미끄러져 선다.
+ * - 충돌: 캐릭터를 캡슐로 보고 collider.bin과 겹친 만큼 밀어낸다(원본과 같은
+ *   three-mesh-bvh). 벽을 따라 미끄러지고, 낮은 턱만 넘고, 난간에서는 떨어진다.
+ * - 카메라: 캐릭터 방향 → 목표 방위 → 실제 방위의 2단 스무딩으로 느리게 돌고,
+ *   시선 목표점은 캐릭터를 살짝 늦게 따라간다.
  *
- * 지면 높이·벽·카메라 충돌은 collider.bin 레이캐스트로 구한다.
- * (원본은 MeshBVH를 쓰지만 레이 3~4개/프레임이면 표준 Raycaster로 충분하다.)
+ * 원본 상수는 모두 "60fps 한 프레임" 단위라 lerp·감쇠·적분을 실제 프레임 길이
+ * (ratio = dt×60)로 환산한다 — 원본 lerpCoefFPS·frictionFPS·ratioFPS와 같다.
  */
 
-// 이동 속도(m/s). 원하는 페이스로 이 값만 조정하면 된다.
-const WALK_SPEED = 3.0
-/** 캐릭터가 진행 방향으로 도는 속도 */
-const TURN_LERP = 10
+// ── 이동 물리(원본 collisionPhysics) — 속도는 m/프레임, 가속은 m/프레임² ──
+/** 입력 1당 가속(원본 positionForce .005). 감쇠와 맞물려 최고 속도 ≈3.75m/s */
+const POSITION_FORCE = 0.005
+/** 프레임당 속도 감쇠(원본 damp .92) — 출발·정지의 관성을 만든다 */
+const DAMP = 0.92
+/** 원본 gravity(≈ -35m/s²). 감쇠까지 받아 점프가 짧고 경쾌하다 */
+const GRAVITY = -0.009832
+/** 원본 jumpForce — 높이 ≈1.08m, 체공 ≈0.52s */
+const JUMP_FORCE = 0.2
+/** 한 프레임을 나눠 충돌을 푸는 횟수(원본 substeps, 최소 3) */
+const SUBSTEPS = 4
+/** 캡슐 반경 = 키 × 0.2(원본 radiusPercentage) */
+const RADIUS_PERCENTAGE = 0.2
+/** 법선 y가 이보다 크면 바닥으로 본다(원본 floorDetectInclination .8) */
+const FLOOR_NORMAL_Y = 0.8
+/** 발밑이 이보다 떠 있어야 공중 모션으로 바꾼다(원본 0.2m) */
+const AIR_DISTANCE = 0.2
+/** 바닥을 떠나고 이 시간이 지나야 공중으로 확정한다(원본 45ms) — 요철에서 깜빡임 방지 */
+const AIR_DELAY = 0.045
+/** 월드 최저점보다 이만큼 떨어지면 시작 지점으로 되돌린다(원본 fallLimitDistance) */
+const FALL_LIMIT = 10
+/** 시작 지점을 이 반경(정육면체) 안에서 무작위로 고른다(원본 initialRadius 4) */
+const SPAWN_RADIUS = 4
+/** 이만큼 가만히 있으면 심심해하는 모션으로 바꾼다(원본 inactiveTime 60s) */
+const INACTIVE_MS = 60_000
+
+// ── 캐릭터 방향 ──
+/** 목표 방향이 입력 방향으로 도는 비율(원본 directionLerp .075) */
+const DIRECTION_LERP = 0.075
+/** 실제 방향이 목표 방향을 따라가는 비율(원본 rotationCharLerp .4) */
+const ROTATION_LERP = 0.4
+/** 이 수평 속도(m/프레임) 사이에서 방향을 실제 속도 쪽으로도 맞춘다(원본 rotVelocityMin/Max) */
+const ROT_VELOCITY_MIN = 0.0035
+const ROT_VELOCITY_MAX = 0.02
+
+// ── 입력(원본 controls) ──
 /**
- * 카메라가 캐릭터 뒤로 자동으로 돌아오는 속도.
- * 원본은 프레임당 lerp ≈ 0.03으로 느리게 돌아온다. 60fps 기준
- * `CAMERA_YAW_LERP * dt ≈ 0.03`이 되도록 1.8로 맞춘다.
+ * 원본 가상 조이스틱 — 클릭 지점이 아니라 화면의 "고정점" 기준이다.
+ * 원본 mouseCenter (0, -0.45): 가로 중앙, 세로는 위에서 72.5% 지점(≈캐릭터
+ * 발밑). 커서가 이 점에서 얼마나 떨어졌는지로 이동 방향·세기가 정해지고,
+ * controlMouseAmount(200px)에서 최대가 된다. 그래서 "클릭하면 그 방향으로
+ * 곧장 이동"하고, 누른 채 커서를 옮기면 방향이 바뀐다(원본과 동일).
  */
-const CAMERA_YAW_LERP = 1.8
-/** 멈춰 있을 때의 회전 배수(거의 안 돎) */
-const CAMERA_IDLE_MUL = 0.05
-/**
- * 카메라가 캐릭터 뒤로 돌아오는 최대 각속도(rad/s). 좌우로 이동할 때 카메라가
- * 너무 빨리 따라 돌면 회전 반경이 작아져 '제자리 스핀'처럼 보인다. 상한을 두면
- * 캐릭터가 넓은 원호를 그리며 돈다. 대략 원 반경 ≈ WALK_SPEED / MAX_CAM_YAW_RATE.
- */
-const MAX_CAM_YAW_RATE = 0.8
-/** 카메라가 목표 위치를 따라잡는 속도 */
-const CAMERA_LERP = 5
-// 3인칭 추적 카메라 프레이밍(발끝-지면 기준). 카메라 눈높이보다 시선을 낮춰
-// 살짝 내려다보게 두면 (a) 근경이 지형으로 덮여 도로 아래 바다 평면(y=-0.8)이
-// 전경으로 새어 보이지 않고, (b) 캐릭터가 지면에 붙어 그라운디드한 몰입감이 산다.
-// 반대로 카메라를 너무 낮추고 시선을 수평으로 두면 저고도 near-level 시선이
-// 지형 립을 넘어 바다를 비춘다(전경 청록 띠 버그). 이 3개 값이 프레이밍 노브다.
-//
-// 카메라는 발이 아니라 시선 목표점(아래 LOOK_HEIGHT/FORWARD)을 중심으로 한
-// 구면좌표에 선다. 원본 WebGL 행렬 실측: 인트로 줌(반경 +12→0) 내내 pitch가
-// -9.866°로 불변 → 원본은 시선 목표점을 중심으로 반경만 줄인다. 정착 시
-// 캐릭터 뒤 ≈5.3m, 발끝 위 ≈2.1m. 반경 5.9·앙각 9.866°면 뒤 5.3m·높이 2.2m.
-const CAMERA_RADIUS = 5.9
-const CAMERA_ELEVATION = THREE.MathUtils.degToRad(9.866)
+const CONTROL_MOUSE_AMOUNT = 200
+const MOUSE_CENTER_Y_FRAC = 0.725
+/** 터치는 누른 자리에서 이만큼(px) 끌면 최대 세기(원본 controlTouchAmount 75) */
+const CONTROL_TOUCH_AMOUNT = 75
+/** 이보다 짧게(px·초) 누르고 떼면 탭 — 터치 탭은 점프다(원본 CLICK_DISTANCE·CLICK_TIME) */
+const TAP_DISTANCE = 15
+const TAP_TIME_MS = 750
+/** 점프 요청이 유효한 시간(원본 75ms) — 착지 직전에 눌러도 착지하자마자 뛴다 */
+const JUMP_REQUEST_MS = 75
+/** 오른쪽 버튼을 이보다 짧게 눌렀다 떼면 점프(원본 0.5s) */
+const RIGHT_CLICK_MS = 500
+/** 인트로 시작 후 조작을 받기 시작하는 시점(원본 delayedCall 1.5s) */
+const CONTROLS_DELAY = 1.5
+
+// ── 카메라(원본 followCamera·orbitCamera·baseCamera) ──
+// 발끝 기준 카메라 상대 위치(원본 relativeCameraPosition (0, 1, -5.75))를 시선
+// 목표점 중심 구면좌표로 바꾼 값 — 반경 5.836m, 극각 80.134°(=앙각 9.866°).
+// 인트로 줌·벽 충돌은 반경만 바꾸므로 내내 같은 각도로 내려다본다.
+const CAMERA_DISTANCE = Math.hypot(1, 5.75)
+const CAMERA_PHI = Math.acos(1 / CAMERA_DISTANCE)
+/** 시선 목표점 = 발 위 1.1m, 캐릭터 정면 0.5m(원본 lookatMeshOffset) */
+const LOOK_OFFSET = new THREE.Vector3(0, 1.1, 0.5)
+/** 시선 오프셋이 캐릭터 방향을 따라 도는 비율(원본 .0125) */
+const LOOK_OFFSET_LERP = 0.0125
+/** 시선 목표점이 캐릭터를 따라가는 비율(원본 lerpPan — 데스크톱 .15, 모바일 .175) */
+const PAN_LERP = 0.15
+const PAN_LERP_MOBILE = 0.175
+/** 목표 방위가 캐릭터 등 뒤로 도는 비율(원본 cameraRotationLerp .03) */
+const CAMERA_ROTATION_LERP = 0.03
+/** 이동 입력이 없을 때의 회전 배수(원본 cameraInactiveMultiplier .025) */
+const CAMERA_INACTIVE_MUL = 0.025
+/** 실제 방위가 목표 방위를 따라가는 비율(원본 lerpRotate .075) — 2단 스무딩 */
+const ROTATE_LERP = 0.075
+/** 반경이 목표(벽 충돌·인트로 줌)를 따라가는 비율(원본 lerpZoom .05) */
+const ZOOM_LERP = 0.05
 /**
  * 인트로 카메라 돌리 — 멀리서(줌아웃) 시작해 제자리로 당겨온다.
- * 원본 playIntroAnimation: followSphericalZoom 12 → 0, duration 6s, easeInOut3.
+ * 원본 playIntroAnimation: followSphericalZoom 12 → 0, 6s, ease "inOut3".
  */
 const INTRO_ZOOM = 12
 const INTRO_DURATION = 6
-// 시선 높이(발끝 기준) — 카메라(1.55)보다 낮춰 살짝 내려다본다. 전방 0.5.
-const CAMERA_LOOK_HEIGHT = 1.2
-const CAMERA_LOOK_FORWARD = 0.5
+/**
+ * 커서 패럴랙스 — 드래그와 무관하게 커서 위치(±1)에 π/2와 이 배수를 곱한 만큼
+ * 카메라가 시선 목표점을 중심으로 궤도를 돈다(원본 displacement.position
+ * (-.075, -.05) → 최대 요우 ±0.118rad, 피치 ±0.079rad). 이동 방향 계산에는
+ * 쓰지 않는 순수 시점 오프셋이다. 터치는 손을 떼면 절반 속도로 가운데로 돌아오고
+ * (원본 resetOnTouch), 모바일은 위아래 패럴랙스가 없다.
+ */
+const PARALLAX_THETA = -0.075
+const PARALLAX_PHI = -0.05
+/** 패럴랙스가 커서를 따라가는 비율(원본 lerpPosition .035) */
+const PARALLAX_LERP = 0.035
 /**
  * idle 카메라 흔들림("살랑살랑") — 원본 setupCamera: shake(.08,.08,.02),
- * shakeSpeed .2. theta/phi에 사인노이즈를 얹어 쉬는 중에도 화면이 부드럽게
- * 흔들린다. touchAmount(0→1)로 서서히 켜진다(원본 gsap delay:4 duration:4).
+ * shakeSpeed .2. 카메라 위치는 그대로 두고 시선 방향만 사인노이즈로 돌린다.
+ * 패럴랙스와 함께 touchAmount(0→1)로 서서히 켜진다(원본 delay 4s, 4s).
  */
-// 원본 소스 shake(.08,.08,.02) 그대로. 흔들림이 원본처럼 순수 회전이라 원본값이
-// 곧 맞는 값이다(WebGL 행렬 실측, 인트로 후 10~40s 표준편차 pitch 1.09°·yaw 1.19°).
 const SHAKE_THETA = 0.08
 const SHAKE_PHI = 0.08
 const SHAKE_ROLL = 0.02
 const SHAKE_SPEED = 0.2
 const SHAKE_FADE_DELAY = 4
 const SHAKE_FADE_DURATION = 4
+/** 카메라 극각이 뒤집히지 않게 두는 여유(원본 EPS) */
+const PHI_EPS = 1e-6
 
-/**
- * 패시브 마우스 패럴랙스 — 드래그와 무관하게 "커서를 움직이면 카메라가 은은히
- * 둘러보는" 감각. 커서의 화면상 위치([-1,1])에 비례해 카메라 구면좌표의
- * 요우(theta)/피치(phi)에 소량의 오프셋을 준다. camYaw(자동 추종)에는 더하지
- * 않으므로 이동 방향과 피드백 루프가 생기지 않는다(패럴랙스는 순수 시점 오프셋).
- * 인트로 이후 touchAmount로 서서히 켜져 리빌 스냅을 방해하지 않는다.
- */
-const PARALLAX_YAW = 0.16
-const PARALLAX_PITCH = 0.06
-const PARALLAX_LERP = 3
-/**
- * 카메라 상하 시야 제한(원본식). 카메라를 위로 젖히면(구면좌표 phi 증가) 시선이
- * 수평에 가까워지며 지형 립 너머의 바다 평면(y=-0.8)이 전경에 드러난다(청록 띠).
- * 그래서 '위로' 방향은 아주 좁게(CAM_PHI_UP), 내려다보는 '아래' 방향은 안전하므로
- * 넉넉히(CAM_PHI_DOWN) 허용한다. 마우스를 화면 위로 끝까지 올려도 여기서 멈춘다.
- */
-const CAM_PHI_UP = 0.02
-const CAM_PHI_DOWN = 0.18
+const UP = new THREE.Vector3(0, 1, 0)
 
-/**
- * 원본 noises.sineNoise1 — 6개 사인 합을 6으로 나눈 [-1,1] 매끈한 노이즈.
- * 세 번째 인자에 시간을 넣어 느린 파도 같은 흔들림을 만든다.
- */
-function sineNoise1(x: number, y: number, z: number): number {
-  let r = 0
-  r += Math.sin(x * 1.5 + y * 3.4598 + z * 1.234)
-  r += Math.sin(x * 3.12 + y * -3.234 + z * 4.221)
-  r += Math.sin(x * 0.355 + y * 2.3 + z * -1.375)
-  r += Math.sin(x * -0.156 + y * -3.34 + z * -0.4566)
-  r += Math.sin(x * -4.1235 + y * -0.485 + z * -1.45)
-  r += Math.sin(x * 2.54 + y * -0.879 + z * -2.123)
-  return r / 6
+/** 원본 lerpCoefFPS — 60fps 기준 프레임당 비율 k를 ratio 프레임만큼 적용한 계수 */
+function lerpCoef(k: number, ratio: number): number {
+  return 1 - Math.pow(1 - k, ratio)
 }
-/** 카메라가 벽을 파고들지 않도록 확보하는 여유 */
-const CAMERA_CLEARANCE = 0.4
-/** 이 거리 안에 벽이 있으면 그 방향으로 못 간다 */
-const WALL_CLEARANCE = 0.6
-/** 한 걸음에 오를 수 있는 최대 단차 — 이보다 급하면 건물·벽으로 보고 막는다 */
-const MAX_STEP = 0.6
-const JUMP_SPEED = 5.2
-const GRAVITY = -14
-/**
- * 원본 가상 조이스틱 — 클릭 지점이 아니라 화면의 "고정점" 기준이다.
- * 원본 mouseCenter (0, -0.45): 가로 중앙, 세로는 위에서 72.5% 지점(≈캐릭터
- * 발밑). 커서가 이 점에서 얼마나 떨어졌는지로 이동 방향·속도가 정해지고,
- * controlMouseAmount(200px)에서 최고 속도가 된다. 그래서 "클릭하면 그 방향으로
- * 곧장 이동"하고, 누른 채 커서를 옮기면 방향이 바뀐다(원본과 동일).
- */
-const CONTROL_MOUSE_AMOUNT = 200
-const MOUSE_CENTER_Y_FRAC = 0.725
+
+/** -PI..PI로 감싼 최단 각도차 */
+function shortestAngle(delta: number): number {
+  return THREE.MathUtils.euclideanModulo(delta + Math.PI, Math.PI * 2) - Math.PI
+}
+
+/** 원본 math.fit — 입력을 [a, b]로 자른 뒤 [c, d]로 선형 매핑 */
+function fit(v: number, a: number, b: number, c: number, d: number): number {
+  return THREE.MathUtils.mapLinear(
+    THREE.MathUtils.clamp(v, Math.min(a, b), Math.max(a, b)),
+    a,
+    b,
+    c,
+    d,
+  )
+}
+
+/** 원본 CustomEase "inOut3" = cubic-bezier(0.6, 0, 0, 1). x(s)를 이분법으로 푼다 */
+function easeInOut3(t: number): number {
+  let lo = 0
+  let hi = 1
+  for (let i = 0; i < 20; i++) {
+    const s = (lo + hi) / 2
+    if (1.8 * (1 - s) * (1 - s) * s + s * s * s < t) lo = s
+    else hi = s
+  }
+  const s = (lo + hi) / 2
+  return s * s * (3 - 2 * s)
+}
+
+/** gsap 기본 이징 power2.inOut(=cubic) — 원본 touchAmount 트윈은 이징 지정 없이 기본값을 쓴다 */
+function easePower2InOut(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+}
+
+/** 원본 gamepadAxisNormalize — 0.15~0.25 사이 데드존을 부드럽게 넘긴다 */
+function gamepadAxis(value = 0): number {
+  return value * THREE.MathUtils.smoothstep(Math.abs(value), 0.15, 0.25)
+}
 
 export interface ThirdPerson {
   update(dt: number): void
   dispose(): void
   /** 인트로 카메라 돌리를 시작한다(멀리서 제자리로) */
   startIntro(): void
-  /** 수평 이동 속도 (잔디 반응용) */
-  speed: number
+  /** 조작을 켜고 끈다 — 원본은 정보 모달이 떠 있는 동안 조작을 끈다 */
+  setEnabled(enabled: boolean): void
+  /** 그 자리(바닥 위)로 곧장 옮긴다 — 카메라도 같은 만큼 옮겨 따라오게 한다(휴대폰 GPS가 멀리 튀었을 때) */
+  snap(x: number, z: number): void
+  /** 수평 속도 — 원본 velocityHorizontal(60fps 한 프레임당 m). 잔디 반응·애니메이션 블렌드용 */
+  velocityHorizontal: number
+  /** 이동 입력이 들어오고 있는가 */
   moving: boolean
-  /** 공중에 떠 있는가 (kid-air 재생용) */
+  /** 공중 모션 상태 (kid-air 재생용) */
   airborne: boolean
+  /** 60초 넘게 가만히 있어 심심해하는 상태 (kid-bored 재생용) */
+  bored: boolean
+  /** 카메라가 바라보는 점(흔들림 포함) — 동적 그림자 중심을 여기에 맞춘다 */
+  readonly target: THREE.Vector3
+  /** 터치 조이스틱 상태 — 화면 원 UI가 읽는다 */
+  readonly touch: TouchState
 }
 
 export function createThirdPerson({
@@ -137,62 +205,136 @@ export function createThirdPerson({
   collider,
   domElement,
   start,
+  mobile,
+  onTouchJump,
+  steer,
 }: {
   camera: THREE.PerspectiveCamera
-  character: THREE.Object3D
+  character: THREE.Mesh
   collider: THREE.Mesh
   domElement: HTMLElement
   start: THREE.Vector3
+  /** 휴대폰 — 카메라가 조금 더 빨리 따라오고 위아래 패럴랙스가 없다(원본 client.device) */
+  mobile: boolean
+  /** 두 번째 손가락으로 탭해 점프했을 때 그 자리(NDC)를 알린다(점프 원 UI) */
+  onTouchJump?: (ndc: THREE.Vector2) => void
+  /** 바깥에서 주는 월드 방향 입력(x 동·z 남, 길이 0~1) — 휴대폰 GPS 따라가기. 없으면 null */
+  steer?: () => { x: number; z: number } | null
 }): ThirdPerson {
   const keys = { forward: false, back: false, left: false, right: false }
-  // drag = 화면 고정점 기준 커서 방향·세기(길이 0~1). 원본 touchDelta처럼
-  // (x: 좌우, y: 앞뒤) 이동 입력에 그대로 더해진다.
+  // drag = 이동 조이스틱 방향·세기(길이 0~1). (x: +우 / y: +아래)
+  // 마우스는 화면 고정점 기준, 터치는 처음 누른 자리 기준이다.
   const drag = new THREE.Vector2()
-  // 커서의 화면상 정규화 위치([-1,1]) — 드래그 여부와 무관하게 항상 추적한다.
+  // 커서(터치는 첫 손가락)의 화면상 정규화 위치([-1,1], y는 아래가 +) — 패럴랙스용
   const pointer = new THREE.Vector2(0, 0)
-  // 현재 적용 중인 패럴랙스 오프셋(요우/피치) — 목표값으로 부드럽게 수렴한다.
-  let parYaw = 0
-  let parPitch = 0
   let dragging = false
-  let verticalSpeed = 0
-  let jumpQueued = false
-  let camYaw = character.rotation.y + Math.PI
-  // 인트로 돌리는 벽시계(performance.now)로 구동한다 — 에셋 로딩 직후 첫 프레임의
-  // 큰 dt가 누적돼 인트로가 통째로 스킵되던 문제를 막는다(원본도 gsap 벽시계 트윈).
-  let introActive = false
+  let enabled = true
+  // 원본 touches — 손가락 두 개까지 따로 추적한다(0번이 이동, 1번은 탭 점프만)
+  const fingers: ({ id: number; x: number; y: number; startMs: number } | null)[] = [null, null]
+  // 첫 손가락 마지막 입력이 터치였는가(원본 resetOnTouch — 떼면 패럴랙스가 가운데로 돌아온다)
+  let touchInput = false
+  let gamepadJump = false
+  let inactiveMs = 0
+  const touch: TouchState = { active: false, start: new THREE.Vector2(), delta: new THREE.Vector2() }
+  // 스페이스를 누르고 있어도 한 번만 뛴다(원본 _jumpKeyLocked — 키 반복 무시)
+  let jumpLocked = false
+  let jumpRequestUntil = 0
+  let rightDownMs = -Infinity
+  // 인트로·흔들림은 벽시계(performance.now)로 구동한다 — 에셋 로딩 직후 첫
+  // 프레임의 큰 dt가 누적돼 인트로가 통째로 스킵되던 문제를 막는다.
   let introStartMs = -1
-  // idle 흔들림 위상용 기준 시각
   let clockBaseMs = -1
 
-  const position = start.clone()
-  const raycaster = new THREE.Raycaster()
-  const down = new THREE.Vector3(0, -1, 0)
-  const probe = new THREE.Vector3()
-  const move = new THREE.Vector3()
-  const desiredCam = new THREE.Vector3()
-  const toCam = new THREE.Vector3()
-  const lookAt = new THREE.Vector3()
-  const camOffset = new THREE.Vector3()
-  const viewDir = new THREE.Vector3()
-  const camSpherical = new THREE.Spherical()
+  // 충돌 — 원본처럼 collider를 BVH로 만들어 캡슐 충돌·레이캐스트에 쓴다.
+  // (표준 Raycaster는 5만 삼각형을 전부 훑어 프레임당 여러 번 쏘기엔 느리다.)
+  const bvh = new MeshBVH(collider.geometry)
+  collider.geometry.computeBoundingBox()
+  const worldMinY = collider.geometry.boundingBox!.min.y
+  // 캡슐은 발끝에서 시작한다. 반경 = 키 × 0.2, 나머지가 두 구 사이 선분이다.
+  // (스킨드 메시는 첫 렌더 전 본 행렬이 비어 있어 지오메트리 bbox로 잰다)
+  character.geometry.computeBoundingBox()
+  const height = character.geometry.boundingBox!.max.y - character.geometry.boundingBox!.min.y
+  const capsuleRadius = height * RADIUS_PERCENTAGE
+  const capsuleLength = height - capsuleRadius * 2
 
-  collider.updateMatrixWorld(true)
+  // 시작 지점 — 원본 setInitialPosition처럼 start 주변 ±4m 정육면체에서 한 점을 고르고
+  // collider 표면의 최근접점에 세운다(접속할 때마다 조금씩 다른 자리에서 시작한다)
+  const spawn = start
+    .clone()
+    .add(
+      new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1)
+        .multiplyScalar(SPAWN_RADIUS),
+    )
+  const initialPosition = bvh.closestPointToPoint(spawn)?.point.clone() ?? spawn
+  const position = initialPosition.clone()
+  const velocity = new THREE.Vector3()
+  const accel = new THREE.Vector3()
+  let onFloor = false
+  // 공중 판정(원본 _detectJump) — 바닥에 있다고 보는지, 바닥을 떠난 시각
+  let grounded = false
+  let offFloorSince = -1
+
+  // 캐릭터 방위 — 원본 spherical.theta는 "캐릭터 등 뒤" 방향이다(= rotation.y + π).
+  // 목표 방위가 입력을 따라 돌고, 실제 방위가 목표를 따라간다.
+  let charTheta = character.rotation.y + Math.PI
+  let charThetaTarget = charTheta
+
+  // 카메라 — 목표 방위가 캐릭터 등 뒤를 따라 돌고, 실제 방위가 목표를 따라간다.
+  // 카메라는 시선 목표점을 중심으로 한 구면(반경·극각 고정)에 선다.
+  let camTheta = charTheta
+  let camThetaTarget = charTheta
+  let radius = CAMERA_DISTANCE
+  let radiusTarget = CAMERA_DISTANCE
+  let parTheta = 0
+  let parPhi = 0
+  const lookOffset = LOOK_OFFSET.clone().applyAxisAngle(UP, charTheta + Math.PI)
+  const lookTarget = position.clone().add(lookOffset)
+  const basePosition = new THREE.Vector3()
+    .setFromSphericalCoords(radius, CAMERA_PHI, camTheta)
+    .add(lookTarget)
+
+  const ray = new THREE.Ray()
+  const segment = new THREE.Line3()
+  const segmentStart = new THREE.Vector3()
+  const capsuleBox = new THREE.Box3()
+  const triPoint = new THREE.Vector3()
+  const segPoint = new THREE.Vector3()
+  const triNormal = new THREE.Vector3()
+  const push = new THREE.Vector3()
+  const offsetGoal = new THREE.Vector3()
+  const panTarget = new THREE.Vector3()
+  const lookPoint = new THREE.Vector3()
+  const back = new THREE.Vector3()
+  const right = new THREE.Vector3()
+  const spherical = new THREE.Spherical()
+
+  /** 원본 _requestJump — 누를 때 한 번 요청하고, 요청은 75ms 동안만 유효하다 */
+  const requestJump = (pressed: boolean) => {
+    if (!pressed) {
+      jumpLocked = false
+      return
+    }
+    if (jumpLocked) return
+    jumpLocked = true
+    jumpRequestUntil = performance.now() + JUMP_REQUEST_MS
+  }
 
   const onKey = (e: KeyboardEvent) => {
+    if (!enabled) return
     const pressed = e.type === 'keydown'
     switch (e.code) {
       case 'KeyW': case 'ArrowUp': keys.forward = pressed; break
       case 'KeyS': case 'ArrowDown': keys.back = pressed; break
       case 'KeyA': case 'ArrowLeft': keys.left = pressed; break
       case 'KeyD': case 'ArrowRight': keys.right = pressed; break
-      case 'Space': if (pressed) jumpQueued = true; break
+      case 'Space': requestJump(pressed); break
       default: return
     }
     e.preventDefault()
   }
 
   // 화면 고정점(가로 중앙, 세로 72.5%)에서 커서까지의 거리를 이동 입력으로
-  // 환산한다(원본 mouseCenter 방식). 200px에서 최고 속도, 길이는 1로 클램프.
+  // 환산한다(원본 mouseCenter 방식). 200px에서 최대, 길이는 1로 클램프.
   // (x: +우 / y: +아래) → update()에서 strafe(+drag.x), forward(-drag.y)로 쓴다.
   const updateDrag = (clientX: number, clientY: number) => {
     const rect = domElement.getBoundingClientRect()
@@ -218,89 +360,375 @@ export function createThirdPerson({
     )
   }
 
-  // 왼쪽 버튼 = 커서 방향 이동(누르는 즉시), 오른쪽 버튼 = 점프.
-  // 오른쪽 버튼은 브라우저 컨텍스트 메뉴를 띄우므로 onContextMenu로 막는다.
-  const onDown = (e: PointerEvent) => {
-    if (e.button === 2) {
-      // 오른쪽 클릭 = 점프
-      jumpQueued = true
-      e.preventDefault()
-      return
-    }
-    if (e.button !== 0) return
-    dragging = true
-    // 클릭 즉시 그 방향으로 이동(원본과 동일 — 눌린 순간 touchDelta 계산)
-    updateDrag(e.clientX, e.clientY)
+  // 터치 조이스틱 — 처음 누른 자리에서 75px 끌면 최대(원본 touchDelta = -dragged / 75)
+  const updateTouchDrag = (dx: number, dy: number) => {
+    drag.set(dx, dy).divideScalar(CONTROL_TOUCH_AMOUNT)
+    if (drag.length() > 1) drag.normalize()
+    touch.delta.set(-drag.x, -drag.y)
+  }
+
+  const capture = (pointerId: number) => {
     try {
-      domElement.setPointerCapture(e.pointerId)
+      domElement.setPointerCapture(pointerId)
     } catch {
       /* 합성 이벤트 등 활성 포인터가 없으면 캡처 생략 */
     }
   }
-  const onMove = (e: PointerEvent) => {
-    // 패럴랙스는 드래그 여부와 무관하게 커서를 따라간다
-    updatePointer(e.clientX, e.clientY)
-    if (!dragging) return
-    updateDrag(e.clientX, e.clientY)
-  }
-  const onUp = (e: PointerEvent) => {
-    if (e.button !== 0) return
-    dragging = false
-    drag.set(0, 0)
+  const release = (pointerId: number) => {
     try {
-      domElement.releasePointerCapture(e.pointerId)
+      domElement.releasePointerCapture(pointerId)
     } catch {
       /* 활성 포인터가 없으면 무시 */
     }
   }
+
+  // 마우스 왼쪽 버튼 = 커서 방향 이동(누르는 즉시). pointerdown은 처음 누른 버튼에만
+  // 오므로(다른 버튼을 겹쳐 누르면 pointermove) 드래그는 왼쪽 버튼으로 시작할 때만 된다.
+  // 터치는 손가락마다 따로 오고, 첫 손가락만 이동 조이스틱이 된다.
+  const onDown = (e: PointerEvent) => {
+    if (!enabled) return
+    if (e.pointerType === 'mouse') {
+      if (e.button !== 0) return
+      dragging = true
+      touchInput = false
+      // 클릭 즉시 그 방향으로 이동(원본과 동일 — 눌린 순간 touchDelta 계산)
+      updateDrag(e.clientX, e.clientY)
+      capture(e.pointerId)
+      return
+    }
+    const slot = fingers[0] === null ? 0 : fingers[1] === null ? 1 : -1
+    if (slot < 0) return
+    if (fingers[0] === null && fingers[1] === null) capture(e.pointerId)
+    fingers[slot] = { id: e.pointerId, x: e.clientX, y: e.clientY, startMs: performance.now() }
+    if (slot !== 0) return
+    touchInput = true
+    dragging = true
+    touch.active = true
+    const rect = domElement.getBoundingClientRect()
+    touch.start.set(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -(((e.clientY - rect.top) / rect.height) * 2 - 1),
+    )
+    updatePointer(e.clientX, e.clientY)
+    updateTouchDrag(0, 0)
+  }
+  const onMove = (e: PointerEvent) => {
+    if (e.pointerType === 'mouse') {
+      // 패럴랙스는 드래그 여부와 무관하게 커서를 따라간다
+      updatePointer(e.clientX, e.clientY)
+      if (dragging && !touchInput) updateDrag(e.clientX, e.clientY)
+      return
+    }
+    const first = fingers[0]
+    if (!first || first.id !== e.pointerId) return
+    updatePointer(e.clientX, e.clientY)
+    updateTouchDrag(e.clientX - first.x, e.clientY - first.y)
+  }
+  // 마우스 pointerup은 모든 버튼을 뗐을 때 온다 — 원본 touch_end처럼 드래그를 끝낸다.
+  // 터치는 짧게 누르고 뗀 탭이면 점프한다(두 번째 손가락 탭은 그 자리에 점프 원).
+  const onUp = (e: PointerEvent) => {
+    if (e.pointerType === 'mouse') {
+      if (touchInput) return
+      dragging = false
+      drag.set(0, 0)
+      release(e.pointerId)
+      return
+    }
+    const slot = fingers.findIndex((f) => f?.id === e.pointerId)
+    if (slot < 0) return
+    const finger = fingers[slot]!
+    fingers[slot] = null
+    if (slot === 0) {
+      dragging = false
+      touch.active = false
+      drag.set(0, 0)
+      touch.delta.set(0, 0)
+    }
+    const tapped =
+      e.type === 'pointerup' &&
+      Math.hypot(e.clientX - finger.x, e.clientY - finger.y) < TAP_DISTANCE &&
+      performance.now() - finger.startMs < TAP_TIME_MS
+    if (tapped && enabled) {
+      requestJump(true)
+      requestJump(false)
+      if (slot !== 0 && onTouchJump) {
+        const rect = domElement.getBoundingClientRect()
+        onTouchJump(
+          new THREE.Vector2(
+            ((e.clientX - rect.left) / rect.width) * 2 - 1,
+            -(((e.clientY - rect.top) / rect.height) * 2 - 1),
+          ),
+        )
+      }
+    }
+    if (fingers[0] === null && fingers[1] === null) release(e.pointerId)
+  }
+  // 오른쪽 버튼 = 짧게 눌렀다 떼면 점프(원본 _mouseDown/_mouseUp). 버튼마다
+  // 이벤트가 오는 mouse 이벤트로 받아 왼쪽 드래그 중에도 뛸 수 있다.
+  const onMouseDown = (e: MouseEvent) => {
+    if (e.button === 2) rightDownMs = performance.now()
+  }
+  const onMouseUp = (e: MouseEvent) => {
+    if (!enabled || e.button !== 2 || performance.now() - rightDownMs >= RIGHT_CLICK_MS) return
+    requestJump(true)
+    requestJump(false)
+  }
   const onContextMenu = (e: Event) => e.preventDefault()
+  // 창이 포커스를 잃으면 눌린 키·드래그를 모두 푼다(원본 _endInteraction) —
+  // 키를 누른 채 다른 창으로 가도 캐릭터가 계속 걷지 않게 한다.
+  const endInteraction = () => {
+    keys.forward = keys.back = keys.left = keys.right = false
+    jumpLocked = false
+    gamepadJump = false
+    dragging = false
+    drag.set(0, 0)
+    fingers[0] = fingers[1] = null
+    touch.active = false
+    touch.delta.set(0, 0)
+  }
+  const onVisibility = () => {
+    if (document.visibilityState !== 'visible') endInteraction()
+  }
 
   window.addEventListener('keydown', onKey)
   window.addEventListener('keyup', onKey)
+  window.addEventListener('blur', endInteraction)
+  document.addEventListener('visibilitychange', onVisibility)
   domElement.addEventListener('pointerdown', onDown)
   domElement.addEventListener('pointermove', onMove)
   domElement.addEventListener('pointerup', onUp)
   domElement.addEventListener('pointercancel', onUp)
+  domElement.addEventListener('mousedown', onMouseDown)
+  domElement.addEventListener('mouseup', onMouseUp)
   domElement.addEventListener('contextmenu', onContextMenu)
 
-  /** 위에서 아래로 쏴서 지면 높이를 구한다. 못 맞히면 이전 높이 유지 */
-  function groundHeight(x: number, z: number, fallback: number): number {
-    probe.set(x, fallback + 5, z)
-    raycaster.set(probe, down)
-    raycaster.far = 30
-    const hit = raycaster.intersectObject(collider, false)[0]
-    return hit ? hit.point.y : fallback
+  /**
+   * 캡슐을 한 걸음(h 프레임분) 옮기고 겹친 삼각형마다 밀어낸다(원본 _substep).
+   * 밀려난 방향의 속도 성분을 지워 벽에서는 미끄러지고 바닥에서는 선다.
+   */
+  function substep(h: number) {
+    position.addScaledVector(velocity, h)
+    segment.start.set(position.x, position.y + capsuleRadius, position.z)
+    segment.end.set(position.x, position.y + capsuleRadius + capsuleLength, position.z)
+    segmentStart.copy(segment.start)
+    capsuleBox.makeEmpty()
+    capsuleBox.expandByPoint(segment.start)
+    capsuleBox.expandByPoint(segment.end)
+    capsuleBox.min.addScalar(-capsuleRadius)
+    capsuleBox.max.addScalar(capsuleRadius)
+
+    bvh.shapecast({
+      intersectsBounds: (box) => box.intersectsBox(capsuleBox),
+      intersectsTriangle: (tri) => {
+        const distance = tri.closestPointToSegment(segment, triPoint, segPoint)
+        if (distance >= capsuleRadius) return false
+        // 아래 구가 위로 밀려났고 삼각형이 완만하면 바닥에 서 있는 것이다
+        const atBottom = segPoint.equals(segment.start)
+        const dir = segPoint.sub(triPoint).normalize()
+        const depth = capsuleRadius - distance
+        segment.start.addScaledVector(dir, depth)
+        segment.end.addScaledVector(dir, depth)
+        if (atBottom && dir.y > 0 && tri.getNormal(triNormal).y > FLOOR_NORMAL_Y) onFloor = true
+        return false
+      },
+    })
+
+    push.subVectors(segment.start, segmentStart)
+    const amount = Math.max(0, push.length() - 1e-5 * h)
+    push.normalize()
+    position.addScaledVector(push, amount)
+    velocity.addScaledVector(push, -push.dot(velocity))
   }
 
-  /** 진행 방향에 벽이 있으면 막는다 */
-  function blocked(from: THREE.Vector3, dir: THREE.Vector3): boolean {
-    probe.copy(from).setY(from.y + 0.8)
-    raycaster.set(probe, dir)
-    raycaster.far = WALL_CLEARANCE
-    return raycaster.intersectObject(collider, false).length > 0
+  /**
+   * 원본 followCamera → orbitCamera → baseCamera 한 프레임. 원본처럼 캐릭터
+   * 물리보다 먼저, 직전 프레임의 캐릭터 상태로 갱신한다.
+   */
+  function updateCamera(ratio: number, clock: number, introSec: number) {
+    // 시선 목표점 — 발 위 1.1m·캐릭터 정면 0.5m. 오프셋은 캐릭터 방향을 따라 아주
+    // 느리게 돌고, 목표점 자체는 캐릭터를 살짝 늦게 따라간다.
+    offsetGoal.copy(LOOK_OFFSET).applyAxisAngle(UP, charTheta + Math.PI)
+    lookOffset.lerp(offsetGoal, lerpCoef(LOOK_OFFSET_LERP, ratio))
+    panTarget.copy(position).add(lookOffset)
+
+    // 목표 방위는 캐릭터 등 뒤(charTheta)로 돈다. 배수가 핵심이다: 캐릭터가
+    // 카메라 쪽으로 곧장 걸어오면(정반대) 배수 0이라 카메라가 안 돈다. 이게
+    // 없으면 "카메라가 돌면 이동 방향이 또 바뀌는" 되먹임으로 화면이 계속 돈다.
+    const alignment = Math.cos(charThetaTarget - camTheta)
+    const rotateMul = state.moving
+      ? THREE.MathUtils.clamp(alignment + 1, 0, 1)
+      : CAMERA_INACTIVE_MUL
+    camThetaTarget +=
+      shortestAngle(charTheta - camThetaTarget) *
+      lerpCoef(CAMERA_ROTATION_LERP * rotateMul, ratio)
+
+    // 시선 목표점 → 카메라 사이에 벽이 끼면 반경을 줄인다(맞은 거리의 90%,
+    // 최소 캡슐 반경 × 1.25). 인트로 줌은 같은 광선 위로 반경만 더한다.
+    ray.origin.copy(lookTarget)
+    ray.direction.subVectors(basePosition, lookTarget).normalize()
+    const hit = bvh.raycastFirst(ray, THREE.FrontSide)
+    radiusTarget =
+      hit && hit.distance < CAMERA_DISTANCE
+        ? Math.max(capsuleRadius * 1.25, hit.distance * 0.9)
+        : CAMERA_DISTANCE
+    if (introSec >= 0 && introSec < INTRO_DURATION) {
+      radiusTarget += INTRO_ZOOM * (1 - easeInOut3(introSec / INTRO_DURATION))
+    }
+
+    // 2단 스무딩 — 실제 방위·반경·시선 목표점이 각자 목표를 따라간다
+    camTheta += (camThetaTarget - camTheta) * lerpCoef(ROTATE_LERP, ratio)
+    radius += (radiusTarget - radius) * lerpCoef(ZOOM_LERP, ratio)
+    lookTarget.lerp(panTarget, lerpCoef(mobile ? PAN_LERP_MOBILE : PAN_LERP, ratio))
+    basePosition.setFromSphericalCoords(radius, CAMERA_PHI, camTheta).add(lookTarget)
+
+    // 패럴랙스·흔들림 세기 — 인트로 시작 4초 뒤부터 4초에 걸쳐 켜진다
+    const touchAmount =
+      introSec < 0
+        ? 0
+        : easePower2InOut(
+            THREE.MathUtils.clamp((introSec - SHAKE_FADE_DELAY) / SHAKE_FADE_DURATION, 0, 1),
+          )
+
+    // 패럴랙스 — 커서 위치만큼 시선 목표점을 중심으로 궤도를 돈다. 터치를 뗀 뒤에는
+    // 가운데로 절반 속도로 돌아온다(원본 resetOnTouch).
+    const released = touchInput && !touch.active
+    const parallaxX = released ? 0 : pointer.x
+    const parallaxY = released || mobile ? 0 : pointer.y
+    const parallaxLerp = lerpCoef(PARALLAX_LERP * (released ? 0.5 : 1), ratio)
+    parTheta += (parallaxX * Math.PI * 0.5 * PARALLAX_THETA * touchAmount - parTheta) * parallaxLerp
+    parPhi += (parallaxY * Math.PI * 0.5 * PARALLAX_PHI * touchAmount - parPhi) * parallaxLerp
+    camera.position.setFromSphericalCoords(
+      radius,
+      THREE.MathUtils.clamp(CAMERA_PHI + parPhi, PHI_EPS, Math.PI - PHI_EPS),
+      camTheta + parTheta,
+    )
+    camera.position.add(lookTarget)
+
+    // 흔들림 — 궤도 위치(basePosition)에서 시선 목표점을 보는 방향만 돌린다
+    const swayTheta = sineNoise1(12.23, 3.44, -3.234 + clock * SHAKE_SPEED) * SHAKE_THETA * touchAmount
+    const swayPhi = sineNoise1(-2.45, 4.789, 7.343 + clock * SHAKE_SPEED) * SHAKE_PHI * touchAmount
+    const swayRoll = sineNoise1(23.434, -1.565, 8.454 + clock * SHAKE_SPEED) * SHAKE_ROLL * touchAmount
+    spherical.setFromVector3(lookPoint.subVectors(lookTarget, basePosition))
+    spherical.theta += swayTheta
+    spherical.phi = THREE.MathUtils.clamp(spherical.phi + swayPhi, PHI_EPS, Math.PI - PHI_EPS)
+    lookPoint.setFromSpherical(spherical).add(basePosition)
+
+    // 아주 미세한 롤(수평선 기울기) — 위쪽 벡터를 카메라 오른쪽으로 살짝 기울인다
+    back.subVectors(basePosition, lookTarget).normalize()
+    right.crossVectors(UP, back).normalize()
+    camera.up.copy(UP).addScaledVector(right, swayRoll).normalize()
+    camera.lookAt(lookPoint)
   }
 
-  /** 시선 목표점 → 카메라 사이에 벽이 끼면 반경을 줄인다 */
-  function cameraRadius(from: THREE.Vector3, dir: THREE.Vector3, wanted: number): number {
-    raycaster.set(from, dir)
-    raycaster.far = wanted
-    const hit = raycaster.intersectObject(collider, false)[0]
-    return hit ? Math.max(1, hit.distance - CAMERA_CLEARANCE) : wanted
+  /** 원본 collisionPhysics._update 한 프레임 — 가속 → 적분·충돌 → 감쇠 → 공중·점프 판정 */
+  function updatePhysics(ratio: number, clock: number, forward: number, strafe: number) {
+    if (state.moving) {
+      // 카메라 방위 기준으로 가속한다 — 전진은 카메라에서 멀어지는 방향
+      accel.set(
+        -Math.sin(camTheta) * forward + Math.cos(camTheta) * strafe,
+        0,
+        -Math.cos(camTheta) * forward - Math.sin(camTheta) * strafe,
+      )
+      // 목표 방위는 입력 방향(의 등 뒤)으로 서서히 돈다
+      const inputTheta = Math.atan2(accel.x, accel.z) + Math.PI
+      charThetaTarget +=
+        (charTheta + shortestAngle(inputTheta - charTheta) - charThetaTarget) *
+        lerpCoef(DIRECTION_LERP, ratio)
+      accel.multiplyScalar(POSITION_FORCE)
+    }
+    if (!onFloor) accel.y += GRAVITY
+    charTheta += (charThetaTarget - charTheta) * lerpCoef(ROTATION_LERP, ratio)
+    character.rotation.y = charTheta + Math.PI
+
+    velocity.addScaledVector(accel, ratio)
+    accel.set(0, 0, 0)
+    // 한 걸음이 캡슐 반경을 넘지 않게 나눠 움직인다(벽 관통 방지)
+    const steps = Math.max(Math.round(ratio * SUBSTEPS), 3)
+    velocity.clampLength(0, steps * capsuleRadius * 0.9)
+    onFloor = false
+    for (let i = 0; i < steps; i++) substep(ratio / steps)
+    velocity.multiplyScalar(Math.pow(DAMP, ratio))
+
+    // 실제로 움직이는 방향으로도 몸을 돌린다(벽에 밀려 미끄러질 때 자연스럽다)
+    state.velocityHorizontal = Math.hypot(velocity.x, velocity.z)
+    if (state.velocityHorizontal > ROT_VELOCITY_MIN) {
+      const velocityTheta = Math.atan2(velocity.x, velocity.z) + Math.PI
+      const k =
+        DIRECTION_LERP *
+        fit(state.velocityHorizontal, ROT_VELOCITY_MIN, ROT_VELOCITY_MAX, 0, 1)
+      charThetaTarget += shortestAngle(velocityTheta - charThetaTarget) * lerpCoef(k, ratio)
+    }
+
+    // 공중 판정 — 바닥을 45ms 넘게 떠났고 발밑이 0.2m보다 떠 있을 때만 공중이다.
+    // 떨어지다 땅이 0.2m 안으로 가까워지면 착지 전에 미리 공중 모션을 푼다.
+    ray.origin.set(position.x, position.y + 0.001, position.z)
+    ray.direction.set(0, -1, 0)
+    const ground = bvh.raycastFirst(ray, THREE.FrontSide)
+    const high = !ground || ground.distance > AIR_DISTANCE
+    if (grounded !== onFloor) {
+      if (!grounded) {
+        grounded = true
+        state.airborne = false
+      } else if (offFloorSince < 0) {
+        offFloorSince = clock
+      } else if (clock - offFloorSince > AIR_DELAY && high) {
+        grounded = false
+        offFloorSince = -1
+        state.airborne = true
+      }
+    } else {
+      offFloorSince = -1
+    }
+    if (!grounded) state.airborne = high
+    if (state.airborne) state.bored = false
+    if (performance.now() < jumpRequestUntil && onFloor) {
+      jumpRequestUntil = 0
+      velocity.y += JUMP_FORCE
+    }
+
+    // 월드 밖으로 떨어지면 시작 지점으로 되돌린다
+    if (position.y + FALL_LIMIT < worldMinY) {
+      position.copy(initialPosition)
+      velocity.set(0, 0, 0)
+    }
+    character.position.copy(position)
   }
 
-  /** -PI..PI로 감싼 최단 각도차 */
-  function shortestAngle(delta: number): number {
-    return THREE.MathUtils.euclideanModulo(delta + Math.PI, Math.PI * 2) - Math.PI
+  /** 원본 controls — 게임패드 0번의 왼쪽 스틱을 이동에, A 버튼을 점프에 더한다 */
+  function readGamepad(): Gamepad | null {
+    try {
+      return navigator.getGamepads?.()[0] ?? null
+    } catch {
+      return null
+    }
   }
 
   const state: ThirdPerson = {
-    speed: 0,
+    velocityHorizontal: 0,
     moving: false,
     airborne: false,
+    bored: false,
+    target: lookPoint,
+    touch,
 
     startIntro() {
-      introActive = true
       introStartMs = performance.now()
+      // 원본처럼 줌아웃 위치로 곧장 세운 뒤 당겨온다
+      radius = radiusTarget = CAMERA_DISTANCE + INTRO_ZOOM
+    },
+
+    setEnabled(value: boolean) {
+      enabled = value
+      // 끌 때 눌려 있던 키·드래그를 푼다 — 캐릭터는 관성으로 미끄러져 선다
+      if (!value) endInteraction()
+    },
+
+    snap(x: number, z: number) {
+      const target = bvh.closestPointToPoint(new THREE.Vector3(x, position.y, z))?.point ?? new THREE.Vector3(x, position.y, z)
+      lookTarget.add(target.clone().sub(position))
+      position.copy(target)
+      velocity.set(0, 0, 0)
+      character.position.copy(position)
     },
 
     update(dt: number) {
@@ -308,160 +736,77 @@ export function createThirdPerson({
       if (clockBaseMs < 0) clockBaseMs = nowMs
       const clock = (nowMs - clockBaseMs) / 1000
       const introSec = introStartMs >= 0 ? (nowMs - introStartMs) / 1000 : -1
-      // 키 입력과 드래그 조이스틱을 하나의 (전진, 우측) 벡터로 합친다
-      const forwardRaw = (keys.forward ? 1 : 0) - (keys.back ? 1 : 0) - drag.y
-      const strafeRaw = (keys.right ? 1 : 0) - (keys.left ? 1 : 0) + drag.x
-      const magnitude = Math.min(1, Math.hypot(forwardRaw, strafeRaw))
+      // 원본 ticker.ratio — 60fps 한 프레임을 1로 둔 프레임 길이(최대 5프레임분)
+      const ratio = Math.min(5, dt * 60)
 
-      state.moving = magnitude > 0.05
-      if (state.moving) {
-        const forward = forwardRaw / magnitude
-        const strafe = strafeRaw / magnitude
-        // 카메라는 캐릭터의 camYaw 쪽에 있으므로 전진은 카메라에서 멀어지는 방향
-        move.set(
-          -Math.sin(camYaw) * forward + Math.cos(camYaw) * strafe,
-          0,
-          -Math.cos(camYaw) * forward - Math.sin(camYaw) * strafe,
-        )
-        move.normalize()
-        // 건물·벽 앞에서 막고(수평 레이), 계단보다 급하게 높아지는 지면도 막아
-        // 건물을 타고 올라가지 않게 한다. 완만한 경사는 그대로 오른다.
-        const stepDist = WALK_SPEED * magnitude * dt
-        const nextX = position.x + move.x * stepDist
-        const nextZ = position.z + move.z * stepDist
-        const nextGround = groundHeight(nextX, nextZ, position.y)
-        const climbable = state.airborne || nextGround - position.y <= MAX_STEP
-        if (!blocked(position, move) && climbable) {
-          position.x = nextX
-          position.z = nextZ
+      updateCamera(ratio, clock, introSec)
+
+      // 원본 controls._update — 키는 방향만 보고(정규화), 마우스 조이스틱은 세기까지
+      // 더한 뒤 길이 1로 자른다. 인트로 1.5초 전에는 조작을 받지 않는다.
+      let forward = 0
+      let strafe = 0
+      if (introSec >= CONTROLS_DELAY) {
+        forward = (keys.forward ? 1 : 0) - (keys.back ? 1 : 0)
+        strafe = (keys.right ? 1 : 0) - (keys.left ? 1 : 0)
+        const keyLength = Math.hypot(forward, strafe)
+        if (keyLength > 0) {
+          forward /= keyLength
+          strafe /= keyLength
         }
-        // 캐릭터는 진행 방향을 부드럽게 바라본다
-        const targetAngle = Math.atan2(move.x, move.z)
-        character.rotation.y +=
-          shortestAngle(targetAngle - character.rotation.y) * Math.min(1, TURN_LERP * dt)
-      }
-
-      // 지면 높이 + 점프/중력
-      const ground = groundHeight(position.x, position.z, position.y)
-      if (jumpQueued && !state.airborne) {
-        verticalSpeed = JUMP_SPEED
-        state.airborne = true
-      }
-      jumpQueued = false
-
-      if (state.airborne) {
-        verticalSpeed += GRAVITY * dt
-        position.y += verticalSpeed * dt
-        if (position.y <= ground) {
-          position.y = ground
-          verticalSpeed = 0
-          state.airborne = false
+        forward -= drag.y
+        strafe += drag.x
+        const pad = enabled ? readGamepad() : null
+        if (pad) {
+          strafe += gamepadAxis(pad.axes[0])
+          forward -= gamepadAxis(pad.axes[1])
+          const button = pad.buttons[0]
+          if (button?.pressed) {
+            gamepadJump = true
+            requestJump(true)
+          } else if (gamepadJump) {
+            gamepadJump = false
+            requestJump(false)
+          }
+        }
+        // 월드 방향 입력은 카메라 기준 전후·좌우로 바꿔 더한다(가속 식의 역변환)
+        const world = steer?.()
+        if (world) {
+          forward -= Math.sin(camTheta) * world.x + Math.cos(camTheta) * world.z
+          strafe += Math.cos(camTheta) * world.x - Math.sin(camTheta) * world.z
+        }
+        const length = Math.hypot(forward, strafe)
+        if (length > 1) {
+          forward /= length
+          strafe /= length
         }
       } else {
-        position.y = ground
+        jumpRequestUntil = 0
       }
+      state.moving = Math.hypot(forward, strafe) > 1e-5
 
-      character.position.copy(position)
-      state.speed = state.moving ? WALK_SPEED * magnitude : 0
+      updatePhysics(ratio, clock, forward, strafe)
 
-      // 카메라는 이동 방향을 따라 캐릭터 뒤로 자동 회전한다(원본 방식).
-      // 배수가 핵심이다: 캐릭터가 카메라 쪽으로 곧장 걸어오면(정반대, dot=-1)
-      // 배수가 0이 되어 카메라가 안 돈다. 이게 없으면 "카메라가 돌면 이동
-      // 방향이 또 바뀌는" 피드백 루프로 화면이 계속 회전한다. 정면(뒤)으로
-      // 걸을 땐 desiredYaw≈camYaw라 회전량이 0 → 직진은 정확히 직진이 된다.
-      const desiredYaw = character.rotation.y + Math.PI
-      const alignment = Math.cos(desiredYaw - camYaw)
-      const rotateMul = state.moving
-        ? THREE.MathUtils.clamp(alignment, -1, 0) + 1
-        : CAMERA_IDLE_MUL
-      // 상한을 둬 좌우 이동 시 카메라가 넓은 원호로 천천히 따라 돌게 한다
-      // (상한이 없으면 반경이 작아져 제자리 스핀처럼 보인다)
-      const yawStep =
-        shortestAngle(desiredYaw - camYaw) * Math.min(1, CAMERA_YAW_LERP * rotateMul * dt)
-      camYaw += THREE.MathUtils.clamp(yawStep, -MAX_CAM_YAW_RATE * dt, MAX_CAM_YAW_RATE * dt)
-
-      // 인트로 돌리 — 멀리서(줌아웃 12) 시작해 6초에 걸쳐 제자리로(원본 easeInOut3).
-      // 벽시계 기반이라 로딩 히칭이 있어도 정확히 6초 동안 확대된다.
-      let introZoom = 0
-      if (introSec >= 0 && introSec < INTRO_DURATION) {
-        introActive = true
-        const it = introSec / INTRO_DURATION
-        const eased = it < 0.5 ? 4 * it * it * it : 1 - Math.pow(-2 * it + 2, 3) / 2
-        introZoom = INTRO_ZOOM * (1 - eased)
+      // 원본 characters._update — 속도가 사실상 0인 채로 60초가 지나면 심심해한다
+      if (Math.abs(velocity.x) + Math.abs(velocity.y) + Math.abs(velocity.z) < 1e-5) {
+        inactiveMs += dt * 1000
+        if (inactiveMs > INACTIVE_MS && !state.airborne) state.bored = true
       } else {
-        introActive = false
+        inactiveMs = 0
+        state.bored = false
       }
-      toCam.set(Math.sin(camYaw), 0, Math.cos(camYaw))
-      // 시선 목표점 — 캐릭터보다 살짝 위(1.2)와 전방(0.5)(원본 lookatMeshOffset).
-      // 카메라는 이 점을 중심으로 한 구면 위에 선다.
-      lookAt.set(
-        position.x - toCam.x * CAMERA_LOOK_FORWARD,
-        position.y + CAMERA_LOOK_HEIGHT,
-        position.z - toCam.z * CAMERA_LOOK_FORWARD,
-      )
-
-      // idle 흔들림("살랑살랑") — touchAmount(0→1)로 서서히 켜지는 사인노이즈.
-      // 원본 실측상 흔들리는 동안 카메라 위치는 완전히 고정이고 시선만 돈다 →
-      // 궤도가 아니라 lookAt 이후의 회전으로 얹는다. 인트로 중엔 0.
-      const touchAmount =
-        introSec < 0
-          ? 0
-          : THREE.MathUtils.clamp(
-              (introSec - SHAKE_FADE_DELAY) / SHAKE_FADE_DURATION,
-              0,
-              1,
-            )
-      const swayTheta =
-        sineNoise1(12.23, 3.44, -3.234 + clock * SHAKE_SPEED) * SHAKE_THETA * touchAmount
-      const swayPhi =
-        sineNoise1(-2.45, 4.789, 7.343 + clock * SHAKE_SPEED) * SHAKE_PHI * touchAmount
-      const swayRoll =
-        sineNoise1(1.5, 2.5, 8.454 + clock * SHAKE_SPEED) * SHAKE_ROLL * touchAmount
-
-      // 패시브 마우스 패럴랙스 — 커서 위치로 카메라를 은은히 둘러본다. camYaw(자동
-      // 추종)와 분리된 순수 시점 오프셋이라 이동 방향에 되먹임되지 않는다. 인트로
-      // 이후 touchAmount로 서서히 켜지고, 목표값으로 부드럽게 수렴한다.
-      const parTargetYaw = -pointer.x * PARALLAX_YAW * touchAmount
-      const parTargetPitch = -pointer.y * PARALLAX_PITCH * touchAmount
-      parYaw += (parTargetYaw - parYaw) * Math.min(1, PARALLAX_LERP * dt)
-      parPitch += (parTargetPitch - parPitch) * Math.min(1, PARALLAX_LERP * dt)
-
-      // 시선 목표점 기준 구면 방향(앙각 고정). 패럴랙스만 궤도로 얹는다.
-      camSpherical.set(1, Math.PI / 2 - CAMERA_ELEVATION, camYaw)
-      const basePhi = camSpherical.phi
-      camSpherical.theta += parYaw
-      // 위로 젖히는 방향(phi 증가)만 좁게 잘라 바다가 전경에 새는 것을 원천 차단.
-      // 아래로 내려다보는 방향(phi 감소)은 안전하므로 넉넉히 허용한다.
-      camSpherical.phi = THREE.MathUtils.clamp(
-        basePhi + parPitch,
-        basePhi - CAM_PHI_DOWN,
-        basePhi + CAM_PHI_UP,
-      )
-      camOffset.setFromSpherical(camSpherical)
-      // 벽 충돌로 줄인 반경에 인트로 줌을 더한다 — 원본 followSphericalZoom처럼
-      // 같은 광선을 따라 멀어지므로 인트로 내내 시선 각도가 변하지 않는다.
-      const radius = cameraRadius(lookAt, camOffset, CAMERA_RADIUS) + introZoom
-      desiredCam.copy(lookAt).addScaledVector(camOffset, radius)
-
-      // 인트로 중엔 돌리를 정확히 따라가고(스냅), 이후엔 부드럽게 추적한다
-      if (introActive) camera.position.copy(desiredCam)
-      else camera.position.lerp(desiredCam, Math.min(1, CAMERA_LERP * dt))
-      // 아주 미세한 롤(수평선 기울기)까지 원본 흔들림에 맞춘다
-      viewDir.copy(lookAt).sub(camera.position).normalize()
-      camera.up.set(0, 1, 0).applyAxisAngle(viewDir, swayRoll)
-      camera.lookAt(lookAt)
-      // 흔들림은 위치를 건드리지 않는 순수 회전(요우는 월드 Y, 피치는 로컬 X)
-      camera.rotateOnWorldAxis(THREE.Object3D.DEFAULT_UP, swayTheta)
-      camera.rotateX(swayPhi)
     },
 
     dispose() {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('keyup', onKey)
+      window.removeEventListener('blur', endInteraction)
+      document.removeEventListener('visibilitychange', onVisibility)
       domElement.removeEventListener('pointerdown', onDown)
       domElement.removeEventListener('pointermove', onMove)
       domElement.removeEventListener('pointerup', onUp)
       domElement.removeEventListener('pointercancel', onUp)
+      domElement.removeEventListener('mousedown', onMouseDown)
+      domElement.removeEventListener('mouseup', onMouseUp)
       domElement.removeEventListener('contextmenu', onContextMenu)
     },
   }

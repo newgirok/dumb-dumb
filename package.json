@@ -28,7 +28,8 @@
     "recast-navigation": "^0.43.1",
     "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.6.0",
-    "three": "^0.169.0"
+    "three": "^0.169.0",
+    "three-mesh-bvh": "^0.9.15"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",

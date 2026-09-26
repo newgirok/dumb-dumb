@@ -301,6 +301,164 @@ export function createInstancedLOD(
   return group
 }
 
+/**
+ * 원본 LODExtended — 카메라에서 패치 바운딩 스피어 "표면"까지의 거리로 단계를
+ * 고른다(중심 거리가 아니라서 큰 패치도 가까이 오면 바로 고해상도가 된다).
+ * 마지막 단계에서 hideDistance보다 멀어지면 통째로 숨긴다.
+ */
+export class LODExtended extends THREE.LOD {
+  constructor(
+    /** 패치 바운딩 스피어(월드 좌표) */
+    readonly sphere: THREE.Sphere,
+    private readonly hideDistance = Infinity,
+  ) {
+    super()
+  }
+
+  update(camera: THREE.Camera): void {
+    const levels = this.levels
+    if (!levels.length) return
+    const distance =
+      (camera.position.distanceTo(this.sphere.center) - this.sphere.radius) /
+      ((camera as THREE.PerspectiveCamera).zoom ?? 1)
+    levels[0].object.visible = true
+    let i = 1
+    for (; i < levels.length; i++) {
+      let switchAt = levels[i].distance
+      if (levels[i].object.visible) switchAt -= switchAt * levels[i].hysteresis
+      if (distance < switchAt) break
+      levels[i - 1].object.visible = false
+      levels[i].object.visible = true
+    }
+    if (i - 1 === levels.length - 1 && distance > this.hideDistance) i = 0
+    for (; i < levels.length; i++) levels[i].object.visible = false
+  }
+}
+
+/**
+ * 원본 instancedPatches — 인스턴스를 "가장 가까운 이웃을 차례로 잇는" 순서로 묶는다.
+ * 0번에서 시작해 남은 것 중 가장 가까운 인스턴스로 건너가며 패치에 담고,
+ * 패치가 maxPerPatch개가 되거나 다음 이웃이 maxDistance 이상 떨어지면 패치를 닫는다.
+ */
+function groupIntoPatches(
+  positions: THREE.BufferAttribute | THREE.InterleavedBufferAttribute,
+  maxPerPatch: number,
+  maxDistance: number,
+): number[][] {
+  const count = positions.count
+  const remaining = Array.from({ length: count }, (_, i) => i)
+  const patches: number[][] = []
+  const here = new THREE.Vector3()
+  const there = new THREE.Vector3()
+  let current: number[] = []
+  let visited = 0
+  let next = 0
+  while (remaining.length > 0) {
+    const index = next
+    visited++
+    current.push(index)
+    remaining.splice(remaining.indexOf(index), 1)
+    here.fromBufferAttribute(positions, index)
+    let nearest = -1
+    let nearestSq = Infinity
+    for (const other of remaining) {
+      const d = there.fromBufferAttribute(positions, other).distanceToSquared(here)
+      if (d < nearestSq) {
+        nearest = other
+        nearestSq = d
+      }
+    }
+    const close = nearest >= 0 && Math.sqrt(nearestSq) < maxDistance
+    if (nearest >= 0) next = nearest
+    if (current.length === maxPerPatch || !close || visited === count) {
+      patches.push(current)
+      current = []
+    }
+  }
+  return patches
+}
+
+export interface PatchLevel {
+  geometry: THREE.BufferGeometry
+  /** 이 단계로 넘어가는 거리(m, 패치 스피어 표면 기준) */
+  distance: number
+  material: THREE.Material
+}
+
+/**
+ * 원본 instancedPatches + LODExtended — 인스턴스를 이웃 순서로 패치에 묶고 패치마다
+ * LOD를 만든다. 패치 바운딩 스피어는 원본 frustumcullInstanced와 같다(인스턴스 위치
+ * 박스 중심, 반경 = 가장 먼 인스턴스 + 지오메트리 반경 × 최대 스케일).
+ * perInstance에 넘긴 인스턴스 속성(잔디 random 등)은 패치별로 잘라 붙인다.
+ */
+export function createInstancedPatches(
+  levels: PatchLevel[],
+  instances: THREE.BufferGeometry,
+  {
+    maxPerPatch,
+    maxDistance,
+    hideDistance = Infinity,
+    perInstance = [],
+  }: { maxPerPatch: number; maxDistance: number; hideDistance?: number; perInstance?: string[] },
+): THREE.Group {
+  const matrices = readInstanceMatrices(instances)
+  const patches = groupIntoPatches(instances.attributes.position, maxPerPatch, maxDistance)
+  const group = new THREE.Group()
+  const box = new THREE.Box3()
+  const point = new THREE.Vector3()
+  const scale = new THREE.Vector3()
+
+  for (const patch of patches) {
+    box.makeEmpty()
+    let maxScale = 0
+    for (const index of patch) {
+      box.expandByPoint(point.setFromMatrixPosition(matrices[index]))
+      scale.setFromMatrixScale(matrices[index])
+      maxScale = Math.max(maxScale, scale.x, scale.y, scale.z)
+    }
+    const center = box.getCenter(new THREE.Vector3())
+    let farthestSq = 0
+    for (const index of patch) {
+      farthestSq = Math.max(farthestSq, center.distanceToSquared(point.setFromMatrixPosition(matrices[index])))
+    }
+
+    const lodLevels = levels.map((level) => {
+      let geometry = level.geometry
+      if (perInstance.length) {
+        // 정점 속성은 공유하고 인스턴스 속성만 패치 몫으로 새로 만든다
+        geometry = new THREE.BufferGeometry()
+        geometry.setIndex(level.geometry.index)
+        for (const [name, attr] of Object.entries(level.geometry.attributes)) geometry.setAttribute(name, attr)
+        for (const name of perInstance) {
+          const source = instances.attributes[name]
+          const values = new Float32Array(patch.length * source.itemSize)
+          patch.forEach((index, i) => {
+            for (let c = 0; c < source.itemSize; c++) {
+              values[i * source.itemSize + c] = source.array[index * source.itemSize + c]
+            }
+          })
+          geometry.setAttribute(name, new THREE.InstancedBufferAttribute(values, source.itemSize))
+        }
+      }
+      if (!level.geometry.boundingSphere) level.geometry.computeBoundingSphere()
+      const radius = Math.sqrt(farthestSq) + level.geometry.boundingSphere!.radius * maxScale
+      return { geometry, radius, level }
+    })
+
+    const sphere = new THREE.Sphere(center, lodLevels[0].radius)
+    const lod = new LODExtended(sphere, hideDistance)
+    for (const { geometry, radius, level } of lodLevels) {
+      const mesh = new THREE.InstancedMesh(geometry, level.material, patch.length)
+      patch.forEach((index, i) => mesh.setMatrixAt(i, matrices[index]))
+      mesh.instanceMatrix.needsUpdate = true
+      mesh.boundingSphere = new THREE.Sphere(center.clone(), radius)
+      lod.addLevel(mesh, level.distance)
+    }
+    group.add(lod)
+  }
+  return group
+}
+
 export interface VertexAnimation {
   /** position/normal/uv를 1프레임 값으로 채운 지오메트리 + vposition 인덱스 */
   geometry: THREE.BufferGeometry
@@ -365,12 +523,19 @@ export function createVertexAnimation(source: THREE.BufferGeometry): VertexAnima
   }
 }
 
-/** 곡선 지오메트리(position_1)를 닫힌 CatmullRom 경로로 만든다 */
-export function createClosedCurve(source: THREE.BufferGeometry): THREE.CatmullRomCurve3 {
+/**
+ * 곡선 지오메트리(position_1)를 원본 createCurves처럼 점을 직선으로 이은 닫힌
+ * 경로로 만들고, 길이를 고르게 나눈 점 목록을 돌려준다(원본 곡선 텍스처 한 줄).
+ * 점 수는 길이 1m당 10점을 2의 거듭제곱으로 올린 값(최대 2048)이다.
+ */
+export function createSpacedCurvePoints(source: THREE.BufferGeometry): THREE.Vector3[] {
   const attr = source.attributes.position_1 ?? source.attributes.position
+  const path = new THREE.CurvePath<THREE.Vector3>()
   const points: THREE.Vector3[] = []
-  for (let i = 0; i < attr.count; i++) {
-    points.push(new THREE.Vector3(attr.getX(i), attr.getY(i), attr.getZ(i)))
-  }
-  return new THREE.CatmullRomCurve3(points, true)
+  for (let i = 0; i < attr.count; i++) points.push(new THREE.Vector3().fromBufferAttribute(attr, i))
+  for (let i = 0; i < points.length - 1; i++) path.add(new THREE.LineCurve3(points[i], points[i + 1]))
+  path.autoClose = true
+  const sampled = path.getPoints(Math.round(path.getLength() * 10)).length
+  const width = THREE.MathUtils.clamp(THREE.MathUtils.ceilPowerOfTwo(Math.max(2, sampled)), 2, 2048)
+  return path.getSpacedPoints(width).slice(0, width)
 }

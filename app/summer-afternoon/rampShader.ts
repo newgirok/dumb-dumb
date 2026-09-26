@@ -10,7 +10,7 @@ import * as THREE from 'three'
  *
  * 여기서는 MeshLambertMaterial에 onBeforeCompile로 주입해 인스턴싱·스키닝·
  * 그림자맵을 three가 처리하게 두고, 원본의 램프/안개/구름그림자/바람흔들림/
- * 지형마스크/잔디 로직을 그대로 옮겼다.
+ * 지형마스크/잔디/근접 디더/정적 그림자(CSM) 로직을 그대로 옮겼다.
  */
 
 /** 여러 재질이 공유하는 uniform — 매 프레임 값만 갱신한다 */
@@ -21,7 +21,25 @@ export interface SharedUniforms {
   /** 잔디가 밀려나는 기준이 되는 캐릭터 위치·속도 */
   charPos: { value: THREE.Vector3 }
   charSpeed: { value: number }
+  /** 정적 그림자(CSM) — LOD 단계별로 한 번 구운 맵(원본 csmLODLevel 3) */
+  csmMaps: { value: THREE.Texture }[]
+  /** 월드 → 정적 그림자맵 UV 행렬 */
+  csmMatrix: { value: THREE.Matrix4 }
+  /** (맵 크기, PCF 반경, 전환 시작 거리, 전환 끝 거리) */
+  csmOptions: { value: THREE.Vector4 }
+  /** 동적 그림자 중심(방향광 target) — 여기서 멀어질수록 정적 그림자로 넘어간다 */
+  csmTarget: { value: THREE.Vector3 }
 }
+
+/** 정적 그림자맵을 굽기 전 자리 — 깊이 1(=그림자 없음)로 채운 1×1 */
+function emptyShadowMap(): THREE.Texture {
+  const texture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1)
+  texture.needsUpdate = true
+  return texture
+}
+
+/** 원본 csmLODLevel — LOD 단계마다 정적 그림자맵을 따로 굽는다 */
+export const CSM_LEVELS = 3
 
 export function createSharedUniforms(): SharedUniforms {
   return {
@@ -29,12 +47,19 @@ export function createSharedUniforms(): SharedUniforms {
     tCloudsTop: { value: null },
     charPos: { value: new THREE.Vector3() },
     charSpeed: { value: 0 },
+    csmMaps: Array.from({ length: CSM_LEVELS }, () => ({ value: emptyShadowMap() })),
+    csmMatrix: { value: new THREE.Matrix4() },
+    csmOptions: { value: new THREE.Vector4(1, 1, 9, 12) },
+    csmTarget: { value: new THREE.Vector3() },
   }
 }
 
 const HELPERS = /* glsl */ `
   float fit(float v, float a, float b, float c, float d) {
     return c + (clamp(v, min(a, b), max(a, b)) - a) * (d - c) / (b - a);
+  }
+  float linearstep(float edge0, float edge1, float x) {
+    return clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
   }
   float getRamp(float index) {
     return 1.0 - index / 100.0 + 0.5 / 100.0;
@@ -48,19 +73,21 @@ const HELPERS = /* glsl */ `
     return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
   }
   vec3 hsv2rgb(vec3 c) {
-    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+    vec3 rgb = clamp(abs(mod(c.x * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+    return c.z * mix(vec3(1.0), rgb, c.y);
   }
-  // 원본 안개 — 거리에 따라 채도를 낮추고 명도를 올린다.
-  // 채도는 "낮추기만" 한다: 이미 채도가 0.3 미만인 중립색(전선 등)을 0.3으로
-  // 끌어올리면 색상값이 0(=빨강)인 회색이 원거리에서 붉게 변해 깨져 보인다.
+  // 원본 안개 — 40~300m에서 명도는 0.6, 채도는 0.3으로 수렴한다
   void addFog(inout vec3 outcolor, float lenCam) {
     vec3 hsv = rgb2hsv(outcolor);
     float fogDist = fit(lenCam, 40.0, 300.0, 0.0, 1.0);
     hsv.z = mix(hsv.z, 0.6, fogDist);
-    hsv.y = mix(hsv.y, min(hsv.y, 0.3), fogDist);
+    hsv.y = mix(hsv.y, 0.3, fogDist);
     outcolor = hsv2rgb(hsv);
+  }
+  // 원본 근접 디더 — 카메라 1.5~2m 안의 면을 1.5cm 가로줄로 솎아 투명하게 비운다
+  float lineFade(vec3 p, float size, float amount) {
+    float h = size * 0.5;
+    return 1.0 - step(amount * 1.01, (abs(mod(p.y, size) - h) / h));
   }
 `
 
@@ -156,7 +183,7 @@ const BILLBOARD = /* glsl */ `
 /**
  * project_vertex를 직접 대체한다.
  * 원본은 instanceMatrix까지 적용한 월드 좌표(_wPos)를 변위시킨 뒤 투영하므로
- * 같은 순서를 따라야 한다. 안개·구름은 변위 전 좌표(vWorldPos)를 쓴다.
+ * 같은 순서를 따라야 한다. 안개·구름·그림자 좌표는 변위 전 좌표(vWorldPos)를 쓴다.
  */
 function projectVertex(displacement: string, billboard = false): string {
   return /* glsl */ `
@@ -173,25 +200,87 @@ function projectVertex(displacement: string, billboard = false): string {
   `
 }
 
+/** 정적 그림자 좌표 — 원본 csmBiases.x(0.07m)만큼 법선 방향으로 밀어 아크네를 막는다 */
+const CSM_NORMAL_BIAS = 0.07
+/** 정적 그림자 비교 바이어스(원본 csmBiases.y) */
+const CSM_BIAS = 1e-6
+
 /**
- * three r169에는 getShadowMask()가 없다. 원본이 한 것처럼
- * lights_fragment_begin의 그림자 계산식을 가로채 _shadow0으로 빼낸다.
- *
- * onBeforeCompile 시점의 소스에는 #include가 아직 전개돼 있지 않아서,
- * 청크 원본을 직접 가져와 수술한 뒤 include 자리에 끼워 넣는다. 전역 치환인
- * 이유는 청크에 point/spot/directional 각각의 같은 구문이 있고, 해당 광원이
- * 없는 블록은 전처리에서 빠지므로 남는 건 실제 광원 것뿐이기 때문이다.
+ * 공통 정점 셰이더 패치 — 그림자 좌표를 원본처럼 "변위 전·빌보드 후" 월드
+ * 좌표로 계산하고(three 기본 worldpos는 빌보드 전 좌표다), 정적 그림자 좌표를 더한다.
  */
-function captureShadowTerm(fragmentShader: string): string {
+function patchVertex(vertexShader: string, header: string, project: string): string {
+  return vertexShader
+    .replace(
+      '#include <common>',
+      `#include <common>
+       uniform float time;
+       uniform mat4 csmMatrix;
+       varying vec3 vWorldPos;
+       varying vec4 vCsmShadowCoord;
+       ${NOISE}
+       ${header}`,
+    )
+    .replace('#include <project_vertex>', project)
+    .replace('#include <worldpos_vertex>', 'vec4 worldPosition = vec4(vWorldPos, 1.0);')
+    .replace(
+      '#include <shadowmap_vertex>',
+      `#include <shadowmap_vertex>
+       vec3 csmWorldNormal = inverseTransformDirection(transformedNormal, viewMatrix);
+       vCsmShadowCoord = csmMatrix * (worldPosition + vec4(csmWorldNormal * ${CSM_NORMAL_BIAS.toFixed(3)}, 0.0));`,
+    )
+}
+
+/**
+ * 원본 tweakedLightsFragment — 방향광 그림자 식을 가로채 동적 그림자(가까운 곳)와
+ * 정적 그림자(먼 곳)를 섞고, 경계를 smoothstep으로 눌러 텍셀이 덜 보이게 한 값을
+ * _shadow0으로 빼낸다. interior는 정적 그림자를 섞지 않는다(원본 IS_INTERIOR).
+ *
+ * onBeforeCompile 시점의 소스에는 #include가 아직 전개돼 있지 않아서, 청크
+ * 원본을 직접 가져와 수술한 뒤 include 자리에 끼워 넣는다. 전역 치환인 이유는
+ * 청크에 point/spot/directional 각각의 같은 구문이 있고, 해당 광원이 없는
+ * 블록은 전처리에서 빠지므로 남는 건 실제 광원 것뿐이기 때문이다.
+ */
+function captureShadowTerm(fragmentShader: string, interior = false): string {
   const patched = THREE.ShaderChunk.lights_fragment_begin.replace(
     /directLight\.color \*= ([\s\S]*?);/g,
-    '_shadow0 = $1;\n directLight.color *= _shadow0;',
+    (_match, expr: string) => /* glsl */ `
+      float shadowTransition = linearstep(csmOptions.z, csmOptions.w, length(csmTarget - vWorldPos));
+      _shadow0 = shadowTransition < 0.999 && ${expr};
+      float _csmShadow0 = shadowTransition > 0.001
+        ? getShadow(csmMap, vec2(csmOptions.x), 1.0, ${CSM_BIAS}, csmOptions.y, vCsmShadowCoord)
+        : 1.0;
+      _shadow0 = smoothstep(0.1, 0.9, _shadow0);
+      _csmShadow0 = smoothstep(0.1, 1.0, _csmShadow0);
+      ${interior ? '' : '_shadow0 = mix(_shadow0, _csmShadow0, shadowTransition);'}
+      directLight.color *= _shadow0;`,
   )
   return fragmentShader.replace(
     '#include <lights_fragment_begin>',
     `float _shadow0 = 1.0;\n${patched}`,
   )
 }
+
+/** 공통 프래그먼트 헤더 — 램프·구름·그림자 uniform과 도우미 */
+const FRAGMENT_HEADER = /* glsl */ `
+  uniform sampler2D tRamp;
+  uniform sampler2D tCloudsTop;
+  uniform sampler2D csmMap;
+  uniform vec4 csmOptions;
+  uniform vec3 csmTarget;
+  uniform float time;
+  varying vec3 vWorldPos;
+  varying vec4 vCsmShadowCoord;
+  ${HELPERS}
+`
+
+/** 캐릭터가 아닌 면은 카메라에 1.5~2m까지 다가오면 가로줄로 솎아낸다 */
+const NEAR_FADE = /* glsl */ `
+  {
+    float camDist = length(vWorldPos - cameraPosition);
+    if (lineFade(vWorldPos, 0.015, linearstep(1.5, 2.0, camDist)) < 0.001) discard;
+  }
+`
 
 /** 램프가 라이팅을 대체하므로 그림자도 여기서 곱해야 화면에 나타난다 */
 const RAMP_X = /* glsl */ `
@@ -203,19 +292,19 @@ const RAMP_X = /* glsl */ `
   rampX *= _shadow0;
 `
 
-/** 구름 그림자를 곱하고 안개를 씌워 최종 색을 낸다 */
+/** 구름 그림자를 곱하고 안개를 씌워 최종 색을 낸다(원본은 변위 후 뷰 거리로 안개를 건다) */
 const FINISH = /* glsl */ `
   ${CLOUD_SHADOW}
   outColor *= fit(cloudsMult, 0.0, 1.0, 0.7, 1.0);
-  addFog(outColor, length(wPos - cameraPosition));
+  addFog(outColor, length(vViewPosition));
   gl_FragColor = vec4(outColor, 1.0);
 `
 
 /**
  * 캐릭터는 colorInfo.y로 분기가 갈린다 (원본 IS_CHARACTER).
  *   y < 0.01  고정 파츠 → 일반 팔레트
- *   y < 1.01  피부      → 79행 + seed
- *   그 외     의상      → seed 기반 HSV
+ *   y < 1.01  피부      → 79행 + seed 정수부(피부색 4종)
+ *   그 외     의상      → seed 소수부 기반 HSV
  */
 const CHARACTER_BRANCH = /* glsl */ `
   vec3 outColor;
@@ -228,14 +317,17 @@ const CHARACTER_BRANCH = /* glsl */ `
   }
 `
 
-const GENERIC_BRANCH = /* glsl */ `
+/** 원본 GOSSIP — map 마스크가 밝은 곳은 89행 팔레트로 화면을 그린다(오락기 화면) */
+const GOSSIP_BRANCH = /* glsl */ `
   vec3 outColor = texture2D(tRamp, vec2(rampX, getRamp(vColorInfo.x))).rgb;
+  if (vColorInfo.y < 0.01) {
+    float mask = texture2D(map, vMapUv).r;
+    outColor = mix(texture2D(tRamp, vec2(mask, getRamp(89.0))).rgb, outColor, fit(mask, 0.7, 0.68, 1.0, 0.0));
+  }
 `
 
-// 전선은 텍셀보다 가는 선이라 팔레트 램프를 쓰면 초목 위에서 붉게 번져
-// 깨져 보인다. 원본처럼 중립적인 어두운 색으로 고정하고 음영만 반영한다.
-const WIRES_BRANCH = /* glsl */ `
-  vec3 outColor = vec3(0.22, 0.21, 0.2) * fit(_shadow0, 0.0, 1.0, 0.55, 1.0);
+const GENERIC_BRANCH = /* glsl */ `
+  vec3 outColor = texture2D(tRamp, vec2(rampX, getRamp(vColorInfo.x))).rgb;
 `
 
 export interface RampOptions {
@@ -245,55 +337,66 @@ export interface RampOptions {
   shake?: boolean
   /** 전선 — 흔들림 공식이 다르다 */
   lightwires?: boolean
+  /** 원본 GOSSIP — 화면 마스크 텍스처. 주면 interior로 취급해 정적 그림자를 섞지 않는다 */
+  gossipMap?: THREE.Texture
+  /** 이 재질을 쓰는 오브젝트의 LOD 단계 — 같은 단계로 구운 정적 그림자맵을 쓴다 */
+  csmLevel?: number
+  side?: THREE.Side
+  /** 원본은 초목·바위·일부 건물·생물의 그림자맵에 앞면을 쓴다(shadowSide FrontSide) */
+  shadowSide?: THREE.Side | null
 }
 
 /** colorInfo(팔레트 행 번호)로 색을 정하는 소품·건물·캐릭터용 재질 */
 export function createRampMaterial(
   ramp: THREE.Texture,
   shared: SharedUniforms,
-  { isCharacter = false, seed = 0, shake = false, lightwires = false }: RampOptions = {},
+  {
+    isCharacter = false,
+    seed = 0,
+    shake = false,
+    lightwires = false,
+    gossipMap,
+    csmLevel = 0,
+    side = THREE.FrontSide,
+    shadowSide = null,
+  }: RampOptions = {},
 ): THREE.MeshLambertMaterial {
-  const material = new THREE.MeshLambertMaterial()
+  const material = new THREE.MeshLambertMaterial({ side, map: gossipMap ?? null })
+  material.shadowSide = shadowSide
+  const gossip = !!gossipMap
 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.tRamp = { value: ramp }
     shader.uniforms.uSeed = { value: seed }
     shader.uniforms.time = shared.time
     shader.uniforms.tCloudsTop = shared.tCloudsTop
+    shader.uniforms.csmMap = shared.csmMaps[csmLevel]
+    shader.uniforms.csmMatrix = shared.csmMatrix
+    shader.uniforms.csmOptions = shared.csmOptions
+    shader.uniforms.csmTarget = shared.csmTarget
 
-    shader.vertexShader = shader.vertexShader
+    shader.vertexShader = patchVertex(
+      shader.vertexShader,
+      `attribute vec2 colorInfo;
+       varying vec2 vColorInfo;`,
+      `vColorInfo = colorInfo;
+       ${projectVertex(lightwires ? LIGHTWIRES : shake ? SHAKE : '')}`,
+    )
+
+    shader.fragmentShader = captureShadowTerm(shader.fragmentShader, gossip)
       .replace(
         '#include <common>',
         `#include <common>
-         uniform float time;
-         attribute vec2 colorInfo;
-         varying vec2 vColorInfo;
-         varying vec3 vWorldPos;
-         ${NOISE}`,
-      )
-      .replace(
-        '#include <project_vertex>',
-        `vColorInfo = colorInfo;
-         ${projectVertex(lightwires ? LIGHTWIRES : shake ? SHAKE : '')}`,
-      )
-
-    shader.fragmentShader = captureShadowTerm(shader.fragmentShader)
-      .replace(
-        '#include <common>',
-        `#include <common>
-         uniform sampler2D tRamp;
-         uniform sampler2D tCloudsTop;
          uniform float uSeed;
-         uniform float time;
          varying vec2 vColorInfo;
-         varying vec3 vWorldPos;
-         ${HELPERS}`,
+         ${FRAGMENT_HEADER}`,
       )
+      .replace('void main() {', `void main() {\n${isCharacter ? '' : NEAR_FADE}`)
       .replace(
         '#include <opaque_fragment>',
         `${RAMP_X}
          vec3 wPos = vWorldPos;
-         ${lightwires ? WIRES_BRANCH : isCharacter ? CHARACTER_BRANCH : GENERIC_BRANCH}
+         ${isCharacter ? CHARACTER_BRANCH : gossip ? GOSSIP_BRANCH : GENERIC_BRANCH}
          ${FINISH}`,
       )
 
@@ -302,22 +405,21 @@ export function createRampMaterial(
   }
 
   // onBeforeCompile을 쓰는 재질은 캐시 키를 직접 구분해줘야 한다
-  material.customProgramCacheKey = () => `ramp:${isCharacter}:${shake}:${lightwires}`
+  material.customProgramCacheKey = () => `ramp:${isCharacter}:${shake}:${lightwires}:${gossip}`
   return material
 }
 
 /**
  * 잔디 — 인스턴스마다 random 속성을 받아 흔들림과 색이 갈린다.
  * 색은 rampX가 아니라 그림자 항으로 램프를 샘플링한다(원본 GRASS 분기).
+ * 원본처럼 반투명(알파 = 스프라이트 알파⁵)으로 섞고, 55~60m에서 알파로 사라진다.
  */
 export function createGrassMaterial(
   ramp: THREE.Texture,
   patches: THREE.Texture,
   shared: SharedUniforms,
 ): THREE.MeshLambertMaterial {
-  // 빌보드 수천 개를 투명 정렬에 태우면 순서 문제가 생기고 three가 그리지도
-  // 않는다. 알파 테스트(discard)로 처리하고 거리 페이드도 discard로 대체한다.
-  const material = new THREE.MeshLambertMaterial({ map: patches })
+  const material = new THREE.MeshLambertMaterial({ map: patches, transparent: true })
 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.tRamp = { value: ramp }
@@ -325,56 +427,46 @@ export function createGrassMaterial(
     shader.uniforms.time = shared.time
     shader.uniforms.charPos = shared.charPos
     shader.uniforms.charSpeed = shared.charSpeed
+    shader.uniforms.csmMap = shared.csmMaps[0]
+    shader.uniforms.csmMatrix = shared.csmMatrix
+    shader.uniforms.csmOptions = shared.csmOptions
+    shader.uniforms.csmTarget = shared.csmTarget
 
-    shader.vertexShader = shader.vertexShader
-      .replace(
-        '#include <common>',
-        `#include <common>
-         uniform float time;
-         uniform vec3 charPos;
-         uniform float charSpeed;
-         attribute vec4 random;
-         varying vec4 vRand;
-         varying vec3 vWorldPos;
-         ${NOISE}`,
-      )
-      .replace(
-        '#include <project_vertex>',
-        `vRand = random;
-         ${projectVertex(GRASS_SHAKE, true)}`,
-      )
+    shader.vertexShader = patchVertex(
+      shader.vertexShader,
+      `uniform vec3 charPos;
+       uniform float charSpeed;
+       attribute vec4 random;
+       varying vec4 vRand;`,
+      `vRand = random;
+       ${projectVertex(GRASS_SHAKE, true)}`,
+    )
 
     shader.fragmentShader = captureShadowTerm(shader.fragmentShader)
       .replace(
         '#include <common>',
         `#include <common>
-         uniform sampler2D tRamp;
-         uniform sampler2D tCloudsTop;
-         uniform float time;
          varying vec4 vRand;
-         varying vec3 vWorldPos;
-         ${HELPERS}`,
+         ${FRAGMENT_HEADER}`,
       )
+      .replace('void main() {', `void main() {\n${NEAR_FADE}`)
       .replace(
         '#include <opaque_fragment>',
-        `// grass-patches는 2048×256 = 256px 스프라이트 8칸 아틀라스다.
-         // 쿼드 UV(0~1)를 그대로 쓰면 8칸 전체를 훑어 대부분 알파 0 → 전부
-         // discard 됐다. 인스턴스 random으로 한 칸을 골라 그 칸만 샘플링한다.
-         float grassCell = floor(vRand.z * 8.0);
-         vec2 grassUv = vec2((grassCell + vMapUv.x) / 8.0, vMapUv.y);
-         if (texture2D(map, grassUv).a < 0.5) discard;
+        `// grass-patches는 256px 스프라이트 8칸 아틀라스다 — 인스턴스 random.w로 한 칸을 고른다
+         float grassCell = floor(vRand.w * 8.0);
+         vec2 grassUv = vec2(grassCell / 8.0 + vMapUv.x / 8.0, vMapUv.y + 0.015);
+         float grassAlpha = pow(texture2D(map, grassUv).a, 5.0);
+         if (grassAlpha < 0.01) discard;
          vec3 wPos = vWorldPos;
          float rampID = 58.0 + step(0.8, fract(vRand.x + vRand.y));
          vec3 outColor = texture2D(tRamp, vec2(_shadow0, getRamp(rampID))).rgb;
          outColor *= fit(vMapUv.y, 0.0, 0.75, 1.0, 1.25);
          ${CLOUD_SHADOW}
          outColor *= fit(cloudsMult, 0.0, 1.0, 0.7, 1.0);
-         float lenCam = length(wPos - cameraPosition);
-         // 원본 FADE_AWAY 60 — 하드 컷 대신 45~60m에서 디더링으로 서서히
-         // 사라지게 해 걸을 때 잔디가 뭉텅이로 팝핑하는 것을 없앤다
-         if (rand(gl_FragCoord.xy) < smoothstep(45.0, 60.0, lenCam)) discard;
+         float lenCam = length(vViewPosition);
          addFog(outColor, lenCam);
-         gl_FragColor = vec4(outColor, 1.0);`,
+         // 원본 FADE_AWAY 60 — 55~60m에서 알파로 사라진다
+         gl_FragColor = vec4(outColor, grassAlpha * smoothstep(60.0, 55.0, lenCam));`,
       )
   }
 
@@ -412,26 +504,25 @@ export function createTerrainMaterial(
     shader.uniforms.time = shared.time
     shader.uniforms.grassColor1 = { value: new THREE.Color('#558f6e') }
     shader.uniforms.grassColor2 = { value: new THREE.Color('#9bc2a4') }
+    shader.uniforms.csmMap = shared.csmMaps[0]
+    shader.uniforms.csmMatrix = shared.csmMatrix
+    shader.uniforms.csmOptions = shared.csmOptions
+    shader.uniforms.csmTarget = shared.csmTarget
 
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\n varying vec3 vWorldPos;`)
-      .replace('#include <project_vertex>', projectVertex(''))
+    shader.vertexShader = patchVertex(shader.vertexShader, '', projectVertex(''))
 
     shader.fragmentShader = captureShadowTerm(shader.fragmentShader)
       .replace(
         '#include <common>',
         `#include <common>
-         uniform sampler2D tRamp;
          uniform sampler2D tMasks;
          uniform sampler2D tTerrNoises;
          uniform sampler2D tTerrDetails;
-         uniform sampler2D tCloudsTop;
-         uniform float time;
          uniform vec3 grassColor1;
          uniform vec3 grassColor2;
-         varying vec3 vWorldPos;
-         ${HELPERS}`,
+         ${FRAGMENT_HEADER}`,
       )
+      .replace('void main() {', `void main() {\n${NEAR_FADE}`)
       .replace(
         '#include <opaque_fragment>',
         /* glsl */ `
@@ -458,9 +549,12 @@ export function createTerrainMaterial(
                * fit(_shadow0, 0.0, 1.0, 0.2, 1.0) * pow(maskGrass2, 2.0));
          }
 
-         vec3 colorPath = texture2D(tRamp, vec2(rampX, getRamp(50.0))).rgb;
-         colorPath += fit(texture2D(tTerrDetails, wPos.xz * 0.25).g, 0.0, 1.0, 0.0, 0.05)
-           * fit(_shadow0, 0.0, 1.0, 0.3, 1.0);
+         vec3 colorPath = vec3(0.0);
+         if (path > 0.0) {
+           colorPath = texture2D(tRamp, vec2(rampX, getRamp(50.0))).rgb;
+           colorPath += fit(texture2D(tTerrDetails, wPos.xz * 0.25).g, 0.0, 1.0, 0.0, 0.05)
+             * fit(_shadow0, 0.0, 1.0, 0.3, 1.0);
+         }
 
          vec3 outColor = mix(colorGrass, colorPath, path);
 
@@ -507,79 +601,6 @@ export function createTerrainMaterial(
 
   material.customProgramCacheKey = () => 'terrain'
   return material
-}
-
-/**
- * 바다 — sea1-normal 텍스처를 두 겹으로 흘려 잔물결을 만들고, 햇빛
- * 스페큘러와 수평선 프레넬로 오후 바다의 반짝임을 낸다. 지형이 해수면
- * (y≈-0.8) 위로 솟아 있어 이 평면은 실제 바다 영역에서만 드러난다.
- */
-export function createSeaMaterial(
-  normalTexture: THREE.Texture | null,
-  sunDir: THREE.Vector3,
-  shared: SharedUniforms,
-): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      tNormal: { value: normalTexture },
-      uUseNormal: { value: normalTexture ? 1 : 0 },
-      tCloudsTop: shared.tCloudsTop,
-      time: shared.time,
-      uSunDir: { value: sunDir.clone().normalize() },
-      uShallow: { value: new THREE.Color('#8fd0dc') },
-      uDeep: { value: new THREE.Color('#2f6f92') },
-    },
-    vertexShader: /* glsl */ `
-      varying vec3 vWorldPos;
-      void main() {
-        vec4 world = modelMatrix * vec4(position, 1.0);
-        vWorldPos = world.xyz;
-        gl_Position = projectionMatrix * viewMatrix * world;
-      }`,
-    fragmentShader: /* glsl */ `
-      uniform sampler2D tNormal;
-      uniform float uUseNormal;
-      uniform sampler2D tCloudsTop;
-      uniform float time;
-      uniform vec3 uSunDir;
-      uniform vec3 uShallow;
-      uniform vec3 uDeep;
-      varying vec3 vWorldPos;
-      ${HELPERS}
-      float rand(vec2 n) { return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453); }
-
-      void main() {
-        vec3 wPos = vWorldPos;
-        vec3 N = vec3(0.0, 1.0, 0.0);
-        if (uUseNormal > 0.5) {
-          vec2 uv1 = wPos.xz * 0.02 + time * vec2(0.010, 0.013);
-          vec2 uv2 = wPos.xz * 0.035 - time * vec2(0.017, 0.009);
-          vec2 n1 = texture2D(tNormal, uv1).rg * 2.0 - 1.0;
-          vec2 n2 = texture2D(tNormal, uv2).rg * 2.0 - 1.0;
-          N = normalize(vec3((n1 + n2) * 0.6, 4.0)).xzy;
-        }
-        vec3 viewDir = normalize(cameraPosition - wPos);
-        float ndl = max(dot(N, normalize(uSunDir)), 0.0);
-        vec3 col = mix(uDeep, uShallow, smoothstep(0.0, 1.0, ndl));
-
-        // 잔물결 위 햇빛 반짝임
-        vec3 h = normalize(normalize(uSunDir) + viewDir);
-        float spec = pow(max(dot(N, h), 0.0), 80.0);
-        col += vec3(1.0, 0.98, 0.9) * spec * 0.8;
-
-        // 수평선으로 갈수록 하늘빛으로 밝아진다(프레넬)
-        float fres = pow(1.0 - max(dot(vec3(0.0, 1.0, 0.0), viewDir), 0.0), 3.0);
-        col = mix(col, uShallow * 1.15, fres * 0.6);
-
-        // 지면과 같은 구름 그림자
-        vec2 cloudsUV = wPos.xz * 0.003 + vec2(time * 0.0139, time * 0.02789) * 0.25;
-        float cloudsMult = texture2D(tCloudsTop, cloudsUV).r;
-        col *= fit(smoothstep(0.2, 0.9, cloudsMult), 0.0, 1.0, 0.85, 1.0);
-
-        addFog(col, length(wPos - cameraPosition));
-        gl_FragColor = vec4(col, 1.0);
-      }`,
-  })
 }
 
 /**
@@ -630,7 +651,7 @@ export function createSkyMaterial(
       float quadInOut(float t) { return t < 0.5 ? 2.0 * t * t : -1.0 + (4.0 - 2.0 * t) * t; }
       float cubicOut(float t) { float f = t - 1.0; return f * f * f + 1.0; }
       float cubicInOut(float t) {
-        return t < 0.5 ? 4.0 * t * t * t : 0.5 * pow(2.0 * t - 2.0, 3.0) + 1.0;
+        return t < 0.5 ? 4.0 * t * t * t : 0.5 * -pow(2.0 - 2.0 * t, 3.0) + 1.0;
       }
 
       // 원본 applyFlowmap — 두 시점을 섞어 텍스처를 흐르게 한다
@@ -666,6 +687,7 @@ export function createSkyMaterial(
  *
  * 33³ RGBA32F 무압축이라 KTX2Loader/basis 트랜스코더가 필요 없다.
  * KTX2 레이아웃: 12B 식별자 + 36B 헤더 + 32B 인덱스 오프셋 + 레벨 인덱스(레벨당 24B).
+ * 원본은 사면체 보간(tetrahedral)으로 격자점을 직접 읽으므로 NEAREST로 둔다.
  */
 export async function loadKtx2Lut(url: string): Promise<THREE.Data3DTexture> {
   const buffer = await (await fetch(url)).arrayBuffer()
@@ -695,8 +717,8 @@ export async function loadKtx2Lut(url: string): Promise<THREE.Data3DTexture> {
   )
   texture.format = THREE.RGBAFormat
   texture.type = THREE.FloatType
-  texture.minFilter = THREE.LinearFilter
-  texture.magFilter = THREE.LinearFilter
+  texture.minFilter = THREE.NearestFilter
+  texture.magFilter = THREE.NearestFilter
   texture.wrapS = THREE.ClampToEdgeWrapping
   texture.wrapT = THREE.ClampToEdgeWrapping
   texture.wrapR = THREE.ClampToEdgeWrapping
@@ -706,8 +728,7 @@ export async function loadKtx2Lut(url: string): Promise<THREE.Data3DTexture> {
 
 /**
  * 갈매기 — 본 없이 프레임 텍스처를 보간해 날갯짓한다(원본 vertexanimation).
- * 원본은 GPGPU로 25마리 위치를 계산하지만, 25개는 CPU로 곡선을 따라
- * instanceMatrix를 갱신하는 편이 훨씬 단순하고 결과는 같다.
+ * 위치·방향은 birds.ts의 비행 시뮬레이션이 instanceMatrix로 넣어준다.
  */
 export function createBirdMaterial(
   anim: {
