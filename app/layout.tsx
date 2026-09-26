@@ -16,8 +16,8 @@ const jetbrains = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: '오픈월드',
-  description: '쿼터뷰 오픈월드 소셜 서비스',
+  title: '어슬렁',
+  description: '느긋하게 걷다 누군가와 마주치는 3D 오픈월드',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
