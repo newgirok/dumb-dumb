@@ -11,7 +11,7 @@
 | 변수 | 필수 | 기본값 | 설명 |
 |---|---|---|---|
 | `API_URL` | 필수 | `http://localhost:9001` | NestJS API 서버 주소. 서버 라우트(BFF 프록시)에서만 사용하므로 `NEXT_PUBLIC_` 아님 |
-| `NEXT_PUBLIC_WS_URL` | 필수 | `http://localhost:9001` | 대시보드 월드가 브라우저에서 직접 붙는 월드 소켓(socket.io, `/world` 네임스페이스) 주소. Docker `app-prod` 빌드 인자에는 없어 프로덕션 이미지는 기본값을 쓴다 |
+| `NEXT_PUBLIC_WS_URL` | 필수 | `http://localhost:9001` | 브라우저가 직접 붙는 socket.io 주소 — 대시보드 월드 소켓(`/world`), 루트 3D 씬 익명 소켓(`/scene`), 내 동네 익명 소켓(`/neighborhood`). Docker `app-prod`는 빌드 인자로 받아 번들에 굽고, 없으면 `http://localhost:9001`로 굽는다. localhost로 구운 페이지를 localhost가 아닌 주소에서 열면 루트 3D 씬은 소켓에 접속하지 않고 혼자 돈다 |
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | 필수 | — | Mapbox GL JS 공개 토큰. 대시보드 월드 지도와 루트 3D 씬의 5시 미니맵이 함께 쓴다. 없으면 미니맵은 지도 없이 테두리만 남고 대시보드 월드 지도를 불러올 수 없다. 도메인 락 필수 (프로덕션) |
 | `NEXT_PUBLIC_LIVEKIT_URL` | 필수 | — | LiveKit 서버 WebSocket URL (`wss://...livekit.cloud`). 대시보드 월드 음성이 접속한다 |
 

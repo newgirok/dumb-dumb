@@ -139,7 +139,7 @@ npm run start:dev
 npm run dev
 ```
 
-브라우저 → Next.js Route Handler(BFF 프록시) → NestJS API 순으로 호출되며, 대시보드 월드의 실시간 소켓은 브라우저가 `NEXT_PUBLIC_WS_URL`(기본 `http://localhost:9001`)의 `/world` 네임스페이스로 직접 접속한다.
+브라우저 → Next.js Route Handler(BFF 프록시) → NestJS API 순으로 호출되며, 대시보드 월드의 실시간 소켓은 브라우저가 `NEXT_PUBLIC_WS_URL`(기본 `http://localhost:9001`)의 `/world` 네임스페이스로 직접 접속한다. 루트 3D 씬도 같은 주소의 `/scene`에 토큰 없이 붙어 같은 방 아이들을 받고, 내 동네 시험판은 `/neighborhood`에 붙어 반경 200m 사람들을 받는다. API 서버를 띄우지 않으면 씬은 혼자 돌고, 브라우저 콘솔에 재시도마다(최대 10초 간격) WebSocket 연결 실패가 남는다.
 
 ---
 
@@ -148,6 +148,7 @@ npm run dev
 | 주소 | 확인 내용 |
 |---|---|
 | http://localhost:3000 | 루트 3D 씬. 로딩 화면(타이틀 + 스피너) → 인트로 전환 → 3인칭 조작. 인트로가 끝나면 화면 5시에 GIS 미니맵이 뜬다(Mapbox 토큰이 없으면 지도 없이 테두리만 남는다) |
+| http://localhost:3000/neighborhood | 내 동네 시험판. 위치 권한을 주면 내 위치 주변 실제 길이 깔리고(첫 위치는 15초까지 기다리고, 못 받으면 서울시청), 걷는 만큼 앞쪽이 이어 깔린다. 길 데이터는 OpenFreeMap 타일을 브라우저가 직접 받는다(키 없음) |
 | http://localhost:3000/dashboard | 대시보드 월드. Mapbox 실지형 지도 위에 캐릭터가 뜨고 PC는 WASD·방향키로 움직인다. 위치 동기화·음성은 로그인 세션이 있어야 접속된다 |
 | http://localhost:9001/health | API 서버 헬스 → `{ "status": "ok" }` |
 
@@ -176,7 +177,7 @@ docker compose down
 docker compose --env-file .env.local --profile prod up -d --build app-prod
 ```
 
-`app-prod`는 `NEXT_PUBLIC_MAPBOX_TOKEN`·`NEXT_PUBLIC_LIVEKIT_URL`·`NEXT_PUBLIC_APP_URL`을 **빌드 인자**로 받아 번들에 굽는다. compose는 빌드 인자를 셸 환경변수에서 읽으므로 `--env-file .env.local`로 채워야 하며, 빠뜨리면 빈 값으로 빌드되어 미니맵·대시보드 지도가 뜨지 않는다. 코드를 바꾼 뒤에는 `--build`로 이미지를 다시 만들어야 반영된다. `NEXT_PUBLIC_WS_URL`은 빌드 인자에 없어 프로덕션 이미지는 기본값 `http://localhost:9001`로 소켓에 접속한다.
+`app-prod`는 `NEXT_PUBLIC_MAPBOX_TOKEN`·`NEXT_PUBLIC_LIVEKIT_URL`·`NEXT_PUBLIC_APP_URL`·`NEXT_PUBLIC_WS_URL`을 **빌드 인자**로 받아 번들에 굽는다. compose는 빌드 인자를 셸 환경변수에서 읽으므로 `--env-file .env.local`로 채워야 하며, 빠뜨리면 빈 값으로 빌드되어 미니맵·대시보드 지도가 뜨지 않는다. `NEXT_PUBLIC_WS_URL`만은 비어 있으면 `http://localhost:9001`로 굽는다 — 호스트에서 띄운 API 서버(9001)에 호스트 브라우저가 붙으므로 로컬 확인에는 그대로 쓰면 되고, 공개 도메인에 올릴 이미지는 API 서버 공개 주소를 넣어 빌드한다(localhost로 구운 페이지를 다른 주소에서 열면 루트 3D 씬·내 동네는 소켓에 접속하지 않고 혼자 돈다). 코드를 바꾼 뒤에는 `--build`로 이미지를 다시 만들어야 반영된다.
 
 ---
 

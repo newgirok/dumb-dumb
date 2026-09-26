@@ -15,7 +15,13 @@
 NEXT_PUBLIC_MAPBOX_TOKEN=pk.eyJ1...
 ```
 
-이 토큰 하나를 대시보드 월드 지도와 루트 3D 씬의 5시 미니맵이 함께 쓴다. 무료 티어: 월 50,000 Map loads 무료. Mapbox 대시보드에서 사용량 알림 3단계 설정 권장.
+이 토큰 하나를 대시보드 월드 지도와 5시 미니맵(루트 3D 씬·내 동네)이 함께 쓴다. 무료 티어: 월 50,000 Map loads 무료. Mapbox 대시보드에서 사용량 알림 3단계 설정 권장.
+
+---
+
+## OpenStreetMap 벡터 타일 (OpenFreeMap)
+
+내 동네 시험판의 길 데이터는 OpenFreeMap(`https://tiles.openfreemap.org/planet`)의 z14 벡터 타일을 브라우저가 직접 받는다. 키·가입이 필요 없고 설정할 환경변수도 없다. 대신 화면에 출처(© OpenStreetMap · OpenMapTiles · OpenFreeMap)를 표기해야 하며, `app/neighborhood/scene.tsx` 좌하단에 표기한다.
 
 ---
 

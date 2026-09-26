@@ -87,7 +87,7 @@ docker compose --env-file .env.local --profile prod up -d --build app-prod
 docker info
 ```
 
-`app-prod`는 `NEXT_PUBLIC_MAPBOX_TOKEN`·`NEXT_PUBLIC_LIVEKIT_URL`·`NEXT_PUBLIC_APP_URL`을 빌드 시점에 굽는다. `--env-file .env.local` 없이 빌드하면 빈 값으로 구워진다. 코드 변경은 `--build`로 이미지를 다시 만들어야 반영된다.
+`app-prod`는 `NEXT_PUBLIC_MAPBOX_TOKEN`·`NEXT_PUBLIC_LIVEKIT_URL`·`NEXT_PUBLIC_APP_URL`·`NEXT_PUBLIC_WS_URL`을 빌드 시점에 굽는다. `--env-file .env.local` 없이 빌드하면 빈 값으로 구워지고, `NEXT_PUBLIC_WS_URL`만은 비어 있으면 `http://localhost:9001`로 굽는다. 코드 변경은 `--build`로 이미지를 다시 만들어야 반영된다.
 
 ---
 
