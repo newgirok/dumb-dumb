@@ -4,7 +4,6 @@
 // 원본 코드에서 그대로 옮겼다. 원본: https://summer-afternoon.vlucendo.com/
 
 import {
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -114,18 +113,18 @@ const CREATURES = [
   },
 ]
 
-/**
- * 원본 5개 비밀 — 오브젝트가 화면에 그려지는 동안 캐릭터가 이 거리 안에 들어오면
- * 한 번 발견되고 하단 모달로 문구가 뜬다.
+/*
+ * NPC 상호작용(비활성) — 원본 5개 비밀. 오브젝트가 화면에 그려지는 동안 캐릭터가
+ * 이 거리 안에 들어오면 한 번 발동한다. 발동 결과를 보여 줄 UI는 없다.
+ *
+ * const SECRETS: Record<string, { distance: number; text: string }> = {
+ *   ufo: { distance: 10, text: "It's a big metallic object. You want to believe it's some kind of vehicle." },
+ *   alien: { distance: 3, text: "It's a very pale and strange looking man. He probably spends too much time on the computer." },
+ *   cats: { distance: 2, text: "If these two white cats weren't next to each other it would seem like they were the same one." },
+ *   sloth: { distance: 3, text: 'A sloth? That permanent smile it has is so creepy. What is it doing there?' },
+ *   gossip: { distance: 2, text: 'These things look as if they have been taken out of a video game.' },
+ * }
  */
-const SECRETS: Record<string, { distance: number; text: string }> = {
-  ufo: { distance: 10, text: "It's a big metallic object. You want to believe it's some kind of vehicle." },
-  alien: { distance: 3, text: "It's a very pale and strange looking man. He probably spends too much time on the computer." },
-  cats: { distance: 2, text: "If these two white cats weren't next to each other it would seem like they were the same one." },
-  sloth: { distance: 3, text: 'A sloth? That permanent smile it has is so creepy. What is it doing there?' },
-  gossip: { distance: 2, text: 'These things look as if they have been taken out of a video game.' },
-}
-const SECRET_TOTAL = Object.keys(SECRETS).length
 
 /** ufo·gossip은 코드로 배치된다(월드 좌표가 지오메트리에 없다) */
 const UFO_POSITION = [-56.9402, 2.6553, 22.7015] as const
@@ -142,15 +141,6 @@ const LOADER_HIDDEN_MS = 250
 const INTRO_REVEAL_MS = 4000
 /** 오디오는 인트로 시작 1.5초 뒤부터 소리를 낼 수 있다(원본 canPlaySound) */
 const AUDIO_DELAY_MS = 1500
-/** 정보 모달 — 열림 애니메이션(본문 1.5s+0.75s)이 끝나야 닫기를 받고, 닫힘은 0.25s */
-const INFO_READY_MS = 2250
-const INFO_CLOSE_MS = 250
-/** 정보 모달 오버레이(원본 uOverlayTransition 1s power2.inOut) */
-const OVERLAY_MS = 1000
-/** 비밀 모달 — 본문이 다 나타나면(2.25s) 발견 수가 오르고, 10초 뒤 저절로 닫힌다 */
-const SECRET_REVEAL_MS = 2250
-const SECRET_AUTOHIDE_MS = 10_000
-const SECRET_CLOSE_MS = 500
 
 /** 원본 AdaptiveDPR — 2초 뒤부터 4초마다 평균 FPS로 해상도 배수를 0.7~1 사이에서 0.1씩 옮긴다 */
 const DPR_WAIT_MS = 2000
@@ -174,17 +164,10 @@ function hueToCss(hue: number): string {
   return `#${new THREE.Color().setHSL(hue, 0.4, 0.3).getHexString()}`
 }
 
-/** gsap power2.inOut(=cubic) */
-function easeCubicInOut(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
-}
-
 /** 원본 userData.a — 공중이면 1, 심심하면 2 */
 function motionOf(controller: ThirdPerson): SceneMotion {
   return controller.airborne ? 1 : controller.bored ? 2 : 0
 }
-
-type SecretModal = { text: string; key: number; closing: boolean }
 
 export default function SummerAfternoonPage() {
   const mountRef = useRef<HTMLDivElement>(null)
@@ -198,33 +181,14 @@ export default function SummerAfternoonPage() {
   const [error, setError] = useState<string | null>(null)
   // 원본처럼 소리 꺼짐으로 시작하고, 첫 입력 때 켜진다
   const [muted, setMuted] = useState(true)
-  // 정보 모달 — 'closing'은 닫힘 페이드가 끝날 때까지 DOM을 유지하는 단계
-  const [info, setInfo] = useState<'closed' | 'open' | 'closing'>('closed')
-  const [infoKind, setInfoKind] = useState<'about' | 'congrats'>('about')
-  // 열림 애니메이션이 끝나야 닫기를 받는다(원본 toggle 진행 중 무시)
-  const [infoReady, setInfoReady] = useState(false)
-  // 정보 모달을 한 번이라도 열었으면 nav 재진입은 인트로가 아닌 복귀 애니메이션을 쓴다
-  const [navReturn, setNavReturn] = useState(false)
-  const [secretModal, setSecretModal] = useState<SecretModal | null>(null)
-  // 발견한 비밀 수 — 원본처럼 버튼 아래 "n/5"로 표시한다
-  const [secretsFound, setSecretsFound] = useState(0)
   // 캐릭터 옷 색(원본 color-square 버튼) — 첫 색은 로드 때 무작위로 정한다
   const [charColor, setCharColor] = useState('#F0EADE')
 
   const audioRef = useRef<SceneAudio | null>(null)
-  const controllerRef = useRef<ThirdPerson | null>(null)
   const mutedRef = useRef(true)
-  const infoRef = useRef(info)
-  const secretsFoundRef = useRef(0)
   // useEffect 안에서 만든 함수를 React 버튼과 잇는 다리
   const cycleColorRef = useRef<() => void>(() => {})
-  const overlayRef = useRef<(open: boolean) => void>(() => {})
-  const secretRef = useRef<(text: string) => void>(() => {})
   const startAudioRef = useRef<(event?: Event) => boolean>(() => false)
-
-  useEffect(() => {
-    infoRef.current = info
-  }, [info])
 
   useEffect(() => {
     let cancelled = false
@@ -332,19 +296,12 @@ export default function SummerAfternoonPage() {
     let frameDt = 0
     const materials: THREE.Material[] = []
     const disposables: { dispose(): void }[] = [circles]
-    const found = new Set<string>()
+    // NPC 상호작용(비활성) — 발동한 비밀 이름
+    // const found = new Set<string>()
 
-    // 인트로·오버레이 진행
+    // 인트로 진행
     let introStartTime = -1
     let introDone = false
-    let overlayFrom = 0
-    let overlayTo = 0
-    let overlayStart = -Infinity
-    overlayRef.current = (open) => {
-      overlayFrom = finalPass.uniforms.uOverlayTransition.value
-      overlayTo = open ? 1 : 0
-      overlayStart = performance.now()
-    }
 
     // 원본 AdaptiveDPR 상태
     const adaptive = {
@@ -363,13 +320,14 @@ export default function SummerAfternoonPage() {
       .setTranscoderPath('/ref-assets/libs/basis/')
       .detectSupport(renderer)
 
-    /** 비밀 판정 — 오브젝트가 그려질 때 캐릭터가 가까우면 한 번 발견된다 */
-    const checkSecret = (name: string, object: THREE.Object3D) => {
-      if (found.has(name) || !kidMesh) return
-      if (object.position.distanceTo(kidMesh.position) >= SECRETS[name].distance) return
-      found.add(name)
-      secretRef.current(SECRETS[name].text)
-    }
+    // NPC 상호작용(비활성) — 오브젝트가 그려질 때 캐릭터가 가까우면 한 번 발동한다.
+    // 발동 결과를 받을 UI(secretRef 자리)는 없다.
+    // const checkSecret = (name: string, object: THREE.Object3D) => {
+    //   if (found.has(name) || !kidMesh) return
+    //   if (object.position.distanceTo(kidMesh.position) >= SECRETS[name].distance) return
+    //   found.add(name)
+    //   secretRef.current(SECRETS[name].text)
+    // }
 
     ;(async () => {
       const [rampTex, roadTex, masksTex, noisesTex, detailsTex, skyTex, cloudsTex] =
@@ -503,7 +461,8 @@ export default function SummerAfternoonPage() {
       ufo.position.set(UFO_POSITION[0], UFO_POSITION[1], UFO_POSITION[2])
       ufo.castShadow = true
       ufo.receiveShadow = true
-      ufo.onBeforeRender = () => checkSecret('ufo', ufo)
+      // NPC 상호작용(비활성)
+      // ufo.onBeforeRender = () => checkSecret('ufo', ufo)
       scene.add(ufo)
 
       // gossip — 오락기(화면 마스크 텍스처). 원본은 그림자를 드리우지도 받지도 않는다
@@ -516,7 +475,8 @@ export default function SummerAfternoonPage() {
       gossip.name = 'gossip'
       gossip.position.set(GOSSIP_POSITION[0], GOSSIP_POSITION[1], GOSSIP_POSITION[2])
       gossip.rotation.y = GOSSIP_ROTATION_Y
-      gossip.onBeforeRender = () => checkSecret('gossip', gossip)
+      // NPC 상호작용(비활성)
+      // gossip.onBeforeRender = () => checkSecret('gossip', gossip)
       scene.add(gossip)
 
       // LOD 인스턴스 소품 — 단계마다 같은 단계로 구운 정적 그림자맵을 쓰는 재질을 붙인다
@@ -642,7 +602,8 @@ export default function SummerAfternoonPage() {
           if (!kidMesh || skin.position.distanceTo(kidMesh.position) > c.activeRange) return
           m.update(frameDt)
           skin.updateMatrixWorld()
-          checkSecret(c.mesh, skin)
+          // NPC 상호작용(비활성)
+          // checkSecret(c.mesh, skin)
         }
       }
 
@@ -673,7 +634,6 @@ export default function SummerAfternoonPage() {
         mobile,
         onTouchJump: (ndc) => circles.jump(ndc),
       })
-      controllerRef.current = controller
 
       // 카메라를 캐릭터 뒤에 미리 세워 인트로 리빌이 캐릭터를 화면 중앙에 잡게 한다
       controller.update(0)
@@ -754,7 +714,6 @@ export default function SummerAfternoonPage() {
         wait()
       })
       const audio = createSceneAudio({ muted: false, canPlay })
-      audio.setOverlay(infoRef.current === 'open')
       audioRef.current = audio
       return true
     }
@@ -796,7 +755,7 @@ export default function SummerAfternoonPage() {
       birds?.update(dt, ratio)
       sky?.position.copy(camera.position)
 
-      // 인트로 리빌 진행(4초 선형). 끝나면 오버레이 모드로 바꾸고 미니맵을 노출한다.
+      // 인트로 리빌 진행(4초 선형). 끝나면 인트로를 끄고 미니맵을 노출한다.
       if (introStartTime >= 0 && !introDone) {
         const tr = Math.min(1, (now - introStartTime) / INTRO_REVEAL_MS)
         finalPass.uniforms.uTransition.value = tr
@@ -806,10 +765,6 @@ export default function SummerAfternoonPage() {
           setRevealed(true)
         }
       }
-      // 정보 모달 오버레이 — 1초 power2.inOut
-      const overlayT = THREE.MathUtils.clamp((now - overlayStart) / OVERLAY_MS, 0, 1)
-      finalPass.uniforms.uOverlayTransition.value =
-        overlayFrom + (overlayTo - overlayFrom) * easeCubicInOut(overlayT)
 
       // 원본 AdaptiveDPR — 0.5초마다 평균 FPS를 모아 4초마다 해상도 배수를 조정한다
       if (adaptive.active) {
@@ -851,7 +806,6 @@ export default function SummerAfternoonPage() {
       canvas.removeEventListener('pointerup', startAudio)
       window.removeEventListener('keydown', startAudio)
       controller?.dispose()
-      controllerRef.current = null
       connection?.dispose()
       remotes?.dispose()
       audioRef.current?.dispose()
@@ -872,119 +826,8 @@ export default function SummerAfternoonPage() {
     audioRef.current?.setMuted(muted)
   }, [muted])
 
-  // 정보 모달이 떠 있는 동안은 캐릭터 조작을 끈다(원본 — 닫히기 시작하면 다시 켠다).
-  // 배경음은 0.4배로, 화면은 크림색으로 덮는다.
-  useEffect(() => {
-    const open = info === 'open'
-    controllerRef.current?.setEnabled(!open)
-    audioRef.current?.setOverlay(open)
-    if (info !== 'closed') overlayRef.current(open)
-  }, [info])
-
-  const openInfo = useCallback((kind: 'about' | 'congrats') => {
-    if (infoRef.current !== 'closed') return
-    setInfoKind(kind)
-    setInfoReady(false)
-    setNavReturn(true)
-    setInfo('open')
-  }, [])
-  const closeInfo = () => {
-    if (info !== 'open' || !infoReady) return
-    setInfo('closing')
-  }
-  // 열림 애니메이션(≈2.25s)이 끝나면 닫기를 허용하고, 닫힘 페이드(0.25s) 뒤 DOM을 뺀다
-  useEffect(() => {
-    if (info === 'closed') return
-    const t =
-      info === 'open'
-        ? setTimeout(() => setInfoReady(true), INFO_READY_MS)
-        : setTimeout(() => setInfo('closed'), INFO_CLOSE_MS)
-    return () => clearTimeout(t)
-  }, [info])
-  // ESC로도 닫힌다(원본은 keyup)
-  useEffect(() => {
-    if (info !== 'open' || !infoReady) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.code === 'Escape') setInfo('closing')
-    }
-    window.addEventListener('keyup', onKey)
-    return () => window.removeEventListener('keyup', onKey)
-  }, [info, infoReady])
-
-  // 비밀 모달 — 하나씩 띄운다. 떠 있는 중에 새 비밀을 찾으면 지금 것을 닫고 이어서 띄운다.
-  const secretTimers = useRef<ReturnType<typeof setTimeout>[]>([])
-  const secretQueue = useRef<string[]>([])
-  const secretState = useRef<SecretModal | null>(null)
-  const secretKey = useRef(0)
-  const showSecretRef = useRef<(text: string) => void>(() => {})
-  const clearSecretTimers = () => {
-    secretTimers.current.forEach(clearTimeout)
-    secretTimers.current = []
-  }
-  const hideSecret = useCallback(() => {
-    const current = secretState.current
-    if (!current || current.closing) return
-    clearSecretTimers()
-    const closing = { ...current, closing: true }
-    secretState.current = closing
-    setSecretModal(closing)
-    secretTimers.current.push(
-      setTimeout(() => {
-        secretState.current = null
-        setSecretModal(null)
-        const next = secretQueue.current.shift()
-        if (next) showSecretRef.current(next)
-        // 원본 checkEastersDiscovered — 다 찾았으면 축하 모달을 띄운다
-        else if (secretsFoundRef.current >= SECRET_TOTAL) openInfo('congrats')
-      }, SECRET_CLOSE_MS),
-    )
-  }, [openInfo])
-  showSecretRef.current = (text: string) => {
-    if (secretState.current) {
-      secretQueue.current.push(text)
-      hideSecret()
-      return
-    }
-    secretKey.current++
-    const modal = { text, key: secretKey.current, closing: false }
-    secretState.current = modal
-    setSecretModal(modal)
-    secretTimers.current.push(
-      setTimeout(() => {
-        // 원본 increaseEastersDiscovered — 본문이 다 나타난 뒤 센다
-        secretsFoundRef.current = Math.min(SECRET_TOTAL, secretsFoundRef.current + 1)
-        setSecretsFound(secretsFoundRef.current)
-        secretTimers.current.push(setTimeout(hideSecret, SECRET_AUTOHIDE_MS))
-      }, SECRET_REVEAL_MS),
-    )
-  }
-  useEffect(() => {
-    secretRef.current = (text) => showSecretRef.current(text)
-  }, [])
-  // 정보 모달을 열면 비밀 모달은 닫는다(원본)
-  useEffect(() => {
-    if (info === 'open') hideSecret()
-  }, [info, hideSecret])
-  useEffect(() => () => clearSecretTimers(), [])
-
   /** 원본 버튼 — 누르는 순간 클릭음(키보드로 누르면 클릭 때) */
   const pressSound = () => audioRef.current?.click()
-
-  // 문구는 제품(어슬렁) 것으로 쓰고, null 자리에 원작 출처를 남긴다
-  const infoContent =
-    infoKind === 'about'
-      ? {
-          title: '어슬렁',
-          paragraphs: [
-            '여름 오후의 바닷가 마을을 느긋하게 어슬렁거려 보세요. 같은 때 들른 사람이 있다면 길에서 마주칠지도 몰라요.',
-            '마을 곳곳에 비밀 5개가 숨어 있어요. 모두 찾을 수 있을까요?',
-            null,
-          ],
-        }
-      : {
-          title: '비밀 5개를 모두 찾았어요!',
-          paragraphs: ['마을 구석구석을 어슬렁거려 줘서 고마워요.', '오늘도 느긋한 여름 오후 보내세요 ☀️'],
-        }
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#FFFDF8] select-none">
@@ -1014,83 +857,24 @@ export default function SummerAfternoonPage() {
         .sa-spinner svg { display: block; width: 100%; height: 100%; animation: sa-rotator 2.5s linear infinite; }
         .sa-spinner .path { stroke: #BDBCB8; stroke-dasharray: 187; stroke-dashoffset: 0; transform-origin: center; animation: sa-dash 2.5s ease-in-out infinite; }
 
-        /* 우상단 nav — 원본 UI. 인트로 시작 2.5s 뒤 오른쪽 80px에서 1.5s power2.out으로
-           들어오고, 정보 모달이 열리면 0.75s inOut1로 빠졌다가 닫히면 0.5s 뒤 1.5s에 걸쳐 돌아온다. */
+        /* 우상단 nav — 원본 UI. 인트로 시작 2.5s 뒤 오른쪽 80px에서 1.5s power2.out으로 들어온다. */
         @keyframes sa-nav-in { from { transform: translateX(80px); } to { transform: translateX(0); } }
-        @keyframes sa-nav-out { from { transform: translateX(0); } to { transform: translateX(80px); } }
         .sa-nav { position: absolute; top: 35px; right: 35px; display: flex; flex-direction: column; align-items: center; touch-action: none; -webkit-tap-highlight-color: transparent; animation: sa-nav-in 1.5s cubic-bezier(0.33, 1, 0.68, 1) 2.5s both; }
-        .sa-nav.hidden { pointer-events: none; animation: sa-nav-out 0.75s cubic-bezier(0.5, 0, 0.1, 1) both; }
-        .sa-nav.return { animation: sa-nav-in 1.5s cubic-bezier(0.33, 1, 0.68, 1) 0.5s both; }
-        .sa-btn, .sa-close { position: relative; display: block; width: 32px; height: 32px; border-radius: 5px; transform: rotate(10deg); cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; transition: transform 0.15s cubic-bezier(0.33, 1, 0.68, 1), box-shadow 0.15s cubic-bezier(0.33, 1, 0.68, 1); }
+        .sa-btn { position: relative; display: block; width: 32px; height: 32px; border-radius: 5px; transform: rotate(10deg); cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; transition: transform 0.15s cubic-bezier(0.33, 1, 0.68, 1), box-shadow 0.15s cubic-bezier(0.33, 1, 0.68, 1); }
         .sa-btn { margin-bottom: 16px; background-color: #f9efdc; box-shadow: 2px 2px 0 0 #716c66; }
-        .sa-btn:focus-visible, .sa-close:focus-visible { outline: 3px solid #5d5a57; outline-offset: 4px; }
+        .sa-btn:focus-visible { outline: 3px solid #5d5a57; outline-offset: 4px; }
         /* 원본은 마우스일 때만 호버로 커진다 — 터치 기기에서 확대가 남지 않게 한다 */
-        @media (hover: hover) { .sa-btn:hover, .sa-close:hover { transform: rotate(10deg) scale(1.1); } }
-        .sa-btn:active, .sa-close:active { transform: translate(2px, 2px) rotate(10deg) scale(1.1); box-shadow: 0 0 0 0 transparent; }
-        .sa-btn > *, .sa-close > * { pointer-events: none; }
+        @media (hover: hover) { .sa-btn:hover { transform: rotate(10deg) scale(1.1); } }
+        .sa-btn:active { transform: translate(2px, 2px) rotate(10deg) scale(1.1); box-shadow: 0 0 0 0 transparent; }
+        .sa-btn > * { pointer-events: none; }
         .sa-sound { display: block; position: absolute; top: 4px; left: 4px; width: 25px; height: 25px; transform: rotate(-10deg); }
         .sa-sound2 { left: 8px; }
         .sa-color { position: relative; width: 18px; height: 18px; margin: 7px; border-radius: 2px; transform: rotate(-16deg); }
-        .sa-info { display: block; position: absolute; top: 6px; left: 5px; width: 22px; height: 22px; transform: rotate(-10deg); }
-        .sa-cnt { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); white-space: nowrap; pointer-events: none; font-family: Stylish, sans-serif; font-weight: 400; font-size: 33px; letter-spacing: -0.05em; line-height: 1em; text-align: center; color: #f9efdc; text-shadow: 2px 2px 0 #716c66; }
-        /* 미니맵(이 제품 전용 HUD)도 정보 모달 동안 nav와 함께 빠진다 */
-        .sa-minimap { transition: opacity 0.75s cubic-bezier(0.5, 0, 0.1, 1); }
-        .sa-minimap.hidden { opacity: 0; pointer-events: none; }
-        .sa-minimap.hidden * { pointer-events: none !important; }
-
-        /* 카드 등장 — 원본 gsap: 그림자 카드가 -40°에서 돌며 커지고, 밝은 카드·닫기 버튼이
-           차례로 커진 뒤 1.5s부터 본문이 나타난다(ease "inOut3" = cubic-bezier(0.6, 0, 0, 1)) */
-        @keyframes sa-fade-in { from { opacity: 0.001; } to { opacity: 1; } }
-        @keyframes sa-fade-out { from { opacity: 1; } to { opacity: 0.001; } }
-        @keyframes sa-scale-in { from { transform: scale(0); } to { transform: scale(1); } }
-        @keyframes sa-close-in { from { transform: rotate(10deg) scale(0); } to { transform: rotate(10deg) scale(1); } }
-        @keyframes sa-info-dark-in { from { transform: translate(10px, 10px) rotate(-40deg) scale(0); } to { transform: translate(10px, 10px) rotate(1deg) scale(1); } }
-        @keyframes sa-modal-dark-in { from { transform: translate(8px, 8px) rotate(-40deg) scale(0); } to { transform: translate(8px, 8px) rotate(0.5deg) scale(1); } }
-
-        /* 정보 모달 — 원본 #info. 배경은 DOM이 아니라 화면 셰이더 오버레이로 덮는다 */
-        .sa-info-root { position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: Stylish, sans-serif; font-weight: 400; text-align: left; -webkit-tap-highlight-color: transparent; }
-        .sa-info-hit { position: absolute; inset: 0; }
-        .sa-info-cnt { position: relative; padding: 50px 60px; margin: 30px; }
-        .sa-info-root.closing .sa-info-cnt { animation: sa-fade-out 0.25s cubic-bezier(0.645, 0.045, 0.355, 1) both; }
-        .sa-info-dark, .sa-info-light { position: absolute; inset: 0; border-radius: 5px; }
-        .sa-info-dark { background-color: #bab3a5; animation: sa-info-dark-in 2s cubic-bezier(0.6, 0, 0, 1) 0.2s both; }
-        .sa-info-light { background-color: #f9f2e4; animation: sa-scale-in 2s cubic-bezier(0.6, 0, 0, 1) 0.35s both; }
-        .sa-info-cnt article { position: relative; max-width: 600px; word-break: keep-all; animation: sa-fade-in 0.75s cubic-bezier(0.645, 0.045, 0.355, 1) 1.5s both; }
-        .sa-info-cnt h1 { font-size: 45px; line-height: 1em; font-weight: 400; letter-spacing: -0.03em; color: #8d8981; margin: 0 0 1.3em; }
-        .sa-info-cnt p { font-size: 30px; line-height: 1em; letter-spacing: -0.03em; color: #989389; margin: 0 0 1.3em; }
-        .sa-info-cnt p:last-of-type { margin: 0; }
-        .sa-link2 { display: inline-block; position: relative; padding-left: 18px; color: #989389; text-decoration: none; }
-        .sa-link2::before { content: ""; display: block; position: absolute; top: 50%; left: 0; width: 13px; height: 3px; border-radius: 3px; background-color: #a19c92; transform-origin: 0 50%; transition: transform 0.4s cubic-bezier(0.5, 0, 0.1, 1); }
-        .sa-link2:hover::before { transform: scaleX(0.65); }
-        .sa-info-cnt .sa-close { position: absolute; top: 30px; right: 30px; background-color: #f5eede; box-shadow: 2px 2px 0 0 #989389; animation: sa-close-in 2s cubic-bezier(0.6, 0, 0, 1) 0.95s backwards; }
-        .sa-close.inactive { pointer-events: none; }
-        .sa-close svg { display: block; position: absolute; top: 9px; left: 8px; width: 18px; height: 18px; transform: rotate(-10deg); }
-
-        /* 비밀 모달 — 원본 #modal. 화면 하단 가운데 카드이고 캔버스 조작을 막지 않는다 */
-        .sa-modal { position: absolute; bottom: 15px; left: 0; width: 100%; z-index: 25; display: flex; flex-direction: row; justify-content: center; align-items: flex-end; pointer-events: none; font-family: Stylish, sans-serif; font-weight: 400; text-align: left; -webkit-tap-highlight-color: transparent; }
-        .sa-modal-cnt { position: relative; padding: 33px 90px 33px 40px; margin: 30px; }
-        .sa-modal-cnt.closing { animation: sa-fade-out 0.5s cubic-bezier(0.645, 0.045, 0.355, 1) both; }
-        .sa-modal-dark, .sa-modal-light { position: absolute; inset: 0; border-radius: 5px; }
-        .sa-modal-dark { background-color: #b5a997; animation: sa-modal-dark-in 2s cubic-bezier(0.6, 0, 0, 1) 0.2s both; }
-        .sa-modal-light { background-color: #fff6e3; animation: sa-scale-in 2s cubic-bezier(0.6, 0, 0, 1) 0.35s both; }
-        .sa-modal-cnt article { position: relative; max-width: 600px; animation: sa-fade-in 0.75s cubic-bezier(0.645, 0.045, 0.355, 1) 1.5s both; }
-        .sa-modal-cnt p { font-size: 30px; letter-spacing: -0.03em; line-height: 1em; color: #989389; margin: 0; }
-        .sa-modal-cnt .sa-close { position: absolute; top: 22px; right: 22px; pointer-events: initial; background-color: #faf2e2; box-shadow: 2px 2px 0 0 #989389; animation: sa-close-in 2s cubic-bezier(0.6, 0, 0, 1) 0.95s backwards; }
 
         /* 원본 max-width: 1200px 분기 */
         @media (max-width: 1200px) {
           .sa-nav { top: 20px; right: 20px; }
           .sa-btn { margin-bottom: 12px; }
-          .sa-cnt { font-size: 27px; }
-          .sa-info-cnt { padding: 64px 26px 40px; margin: 20px; }
-          .sa-info-cnt h1 { font-size: 32px; }
-          .sa-info-cnt p { font-size: 25px; }
-          .sa-link2::before { height: 2px; }
-          .sa-info-cnt .sa-close { top: 24px; right: 24px; }
-          .sa-modal { bottom: 0; }
-          .sa-modal-cnt { padding: 28px 65px 28px 30px; }
-          .sa-modal-cnt p { font-size: 23px; }
-          .sa-modal-cnt .sa-close { top: 15px; right: 15px; }
         }
       `}</style>
       <div className="sa-root absolute inset-0">
@@ -1105,11 +889,7 @@ export default function SummerAfternoonPage() {
         )}
 
         {/* 화면 5시 나침반형 GIS 미니맵 — 인트로 소용돌이 리빌이 끝난 뒤 노출 */}
-        {revealed && (
-          <div className={`sa-minimap${info === 'open' ? ' hidden' : ''}`}>
-            <MiniMap />
-          </div>
-        )}
+        {revealed && <MiniMap />}
 
         {/* 로딩 화면 — 원본 레이아웃: 제품 이름 + SVG 스피너 (버튼 없음, 자동 진입) */}
         {phase !== 'playing' && (
@@ -1135,9 +915,9 @@ export default function SummerAfternoonPage() {
           </div>
         )}
 
-        {/* 우상단 버튼 — 원본과 동일: 사운드 / 옷 색 / 정보 + 비밀 카운터 */}
+        {/* 우상단 버튼 — 원본과 동일: 사운드 / 옷 색 */}
         {phase === 'playing' && !unsupported && (
-          <nav className={`sa-nav${info === 'open' ? ' hidden' : navReturn ? ' return' : ''}`}>
+          <nav className="sa-nav">
             <ToolButton
               onPress={pressSound}
               onClick={(e) => {
@@ -1172,73 +952,7 @@ export default function SummerAfternoonPage() {
             <ToolButton onPress={pressSound} onClick={() => cycleColorRef.current()}>
               <div className="sa-color" style={{ backgroundColor: charColor }} />
             </ToolButton>
-
-            <ToolButton onPress={pressSound} onClick={() => openInfo('about')}>
-              <svg className="sa-info" width="4" height="17" viewBox="0 0 4 17" fill="none">
-                <path
-                  d="M4 2C4 3.10457 3.10457 4 2 4C0.89543 4 0 3.10457 0 2C0 0.89543 0.89543 0 2 0C3.10457 0 4 0.89543 4 2Z"
-                  fill="#716C66"
-                />
-                <path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M2 6C3.10457 6 4 6.89543 4 8L4 14.8182C4 15.9228 3.10457 16.8182 2 16.8182C0.895431 16.8182 0 15.9228 0 14.8182L0 8C0 6.89543 0.895431 6 2 6Z"
-                  fill="#716C66"
-                />
-              </svg>
-            </ToolButton>
-
-            {/* 비밀 카운터 — 원본 .cnt(버튼 아래, 크림색+하드 그림자) */}
-            <div className="sa-cnt">
-              {secretsFound}/{SECRET_TOTAL}
-            </div>
           </nav>
-        )}
-
-        {/* 비밀 모달 — 원본 #modal(하단 가운데). 10초 뒤 저절로 닫힌다 */}
-        {secretModal && phase === 'playing' && (
-          <div className="sa-modal" key={secretModal.key}>
-            <div className={`sa-modal-cnt${secretModal.closing ? ' closing' : ''}`}>
-              <div className="sa-modal-dark" />
-              <div className="sa-modal-light" />
-              <article>
-                <p>{secretModal.text}</p>
-              </article>
-              <CloseButton inactive={secretModal.closing} onPress={pressSound} onClick={hideSecret} />
-            </div>
-          </div>
-        )}
-
-        {/* 정보 모달 — 원본 #info 레이아웃·애니메이션(문구는 제품 것, 마지막 줄은 원작 출처). 열림
-            애니메이션이 끝나기 전에는 닫기(X·바깥 클릭·ESC)를 받지 않는다(원본과 동일). */}
-        {info !== 'closed' && phase === 'playing' && (
-          <div className={`sa-info-root ${info}`}>
-            <div className="sa-info-hit" onClick={closeInfo} />
-            <div className="sa-info-cnt">
-              <div className="sa-info-dark" />
-              <div className="sa-info-light" />
-              <article>
-                <h1>{infoContent.title}</h1>
-                {infoContent.paragraphs.map((text, i) =>
-                  text === null ? (
-                    <p key={i}>
-                      <a
-                        href="https://summer-afternoon.vlucendo.com/"
-                        rel="noreferrer"
-                        target="_blank"
-                        className="sa-link2"
-                      >
-                        원작 Summer Afternoon · Vicente
-                      </a>
-                    </p>
-                  ) : (
-                    <p key={i}>{text}</p>
-                  ),
-                )}
-              </article>
-              <CloseButton inactive={!infoReady} onPress={pressSound} onClick={closeInfo} />
-            </div>
-          </div>
         )}
       </div>
     </div>
@@ -1270,41 +984,6 @@ function ToolButton({
       }}
     >
       {children}
-    </button>
-  )
-}
-
-/** 원본 모달 닫기 버튼 — 열림 애니메이션 중에는 비활성(원본 .inactive) */
-function CloseButton({
-  inactive,
-  onPress,
-  onClick,
-}: {
-  inactive: boolean
-  onPress: () => void
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-label="닫기"
-      className={`sa-close${inactive ? ' inactive' : ''}`}
-      onPointerDown={onPress}
-      onClick={(e) => {
-        if (e.detail === 0) onPress()
-        onClick()
-      }}
-    >
-      <svg width="14" height="13" viewBox="0 0 14 13" fill="none">
-        <path
-          d="M0.953544 1.39654C1.48018 0.757055 2.42551 0.665571 3.065 1.19221L12.2188 8.7306C12.8583 9.25724 12.9497 10.2026 12.4231 10.8421C11.8965 11.4815 10.9511 11.573 10.3116 11.0464L1.15788 3.508C0.51839 2.98136 0.426906 2.03603 0.953544 1.39654Z"
-          fill="#938D82"
-        />
-        <path
-          d="M12.0486 1.06065C12.6344 1.64643 12.6344 2.59618 12.0486 3.18197L3.66352 11.567C3.07774 12.1528 2.12799 12.1528 1.5422 11.567C0.956417 10.9812 0.956417 10.0315 1.5422 9.44572L9.92727 1.06065C10.5131 0.474861 11.4628 0.474861 12.0486 1.06065Z"
-          fill="#938D82"
-        />
-      </svg>
     </button>
   )
 }
