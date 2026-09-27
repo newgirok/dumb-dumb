@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { LocalFrame } from '@/lib/geo/localFrame'
-import { createTerrainMaterial, type SharedUniforms } from '../summer-afternoon/rampShader'
+import { createTerrainMaterial, type SharedUniforms } from '../village/rampShader'
 import type { GroundPixels } from './ground'
 import { CHUNK, createGroundSource, RESOLUTION, type GroundSource } from './groundSource'
 import type { GroundWorkerRequest, GroundWorkerResponse } from './ground.worker'

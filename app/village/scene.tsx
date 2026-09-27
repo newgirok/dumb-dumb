@@ -1,6 +1,6 @@
 'use client'
 
-// 원본(Summer Afternoon) 재현 — 루트(/) 3D 씬. 씬 구성·셰이딩·조작·UI·오디오를
+// 원본(Summer Afternoon) 재현 — /village 3D 씬. 씬 구성·셰이딩·조작·UI·오디오를
 // 원본 코드에서 그대로 옮겼다. 원본: https://summer-afternoon.vlucendo.com/
 
 import {

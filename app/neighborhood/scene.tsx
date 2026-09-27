@@ -13,17 +13,18 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js'
 import MiniMap, { type MiniMapTrack } from '@/components/world/MiniMap'
+import { SCENE_ROUTES } from '@/lib/routes'
 import { getCurrentPosition } from '@/lib/geo/currentPosition'
 import { watchPosition } from '@/lib/geo/watchPosition'
 import { createLocalFrame, type LocalFrame } from '@/lib/geo/localFrame'
 import { createSkin, createSkinAnimation, loadBinGeometry } from '@/lib/three/binLoader'
-import { createRampMaterial, createSharedUniforms, createSkyMaterial, loadKtx2Lut } from '../summer-afternoon/rampShader'
-import { createThirdPerson, type ThirdPerson } from '../summer-afternoon/thirdPerson'
-import { createSunLight } from '../summer-afternoon/shadows'
-import { createFinalPass } from '../summer-afternoon/postprocess'
-import { blendKidAnimation, createKidAnimation, type KidAnimation } from '../summer-afternoon/kidAnimation'
-import { createRemotes, type Remotes } from '../summer-afternoon/remotes'
-import { baseDevicePixelRatio, configure, isMobileDevice } from '../summer-afternoon/setup'
+import { createRampMaterial, createSharedUniforms, createSkyMaterial, loadKtx2Lut } from '../village/rampShader'
+import { createThirdPerson, type ThirdPerson } from '../village/thirdPerson'
+import { createSunLight } from '../village/shadows'
+import { createFinalPass } from '../village/postprocess'
+import { blendKidAnimation, createKidAnimation, type KidAnimation } from '../village/kidAnimation'
+import { createRemotes, type Remotes } from '../village/remotes'
+import { baseDevicePixelRatio, configure, isMobileDevice } from '../village/setup'
 import { connectScene, type SceneConnection } from '@/lib/realtime/scene'
 import { createGroundStream, type GroundStream } from './stream'
 
@@ -353,9 +354,11 @@ export default function NeighborhoodScene() {
         <span className="rounded-full bg-[#f9efdc]/90 px-3 py-1 font-bold shadow-[2px_2px_0_0_#716c66]">
           어슬렁 · 내 동네 <span className="font-normal">시험판</span>
         </span>
-        <Link href="/" className="rounded-full bg-[#f9efdc]/90 px-3 py-1 shadow-[2px_2px_0_0_#716c66]">
-          여름 마을로
-        </Link>
+        {SCENE_ROUTES.map((href) => (
+          <Link key={href} href={href} className="rounded-full bg-[#f9efdc]/90 px-3 py-1 shadow-[2px_2px_0_0_#716c66]">
+            {href}
+          </Link>
+        ))}
       </div>
 
       {fallback && phase === 'playing' && (
