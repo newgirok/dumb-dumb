@@ -8,15 +8,12 @@ import * as THREE from 'three'
  * 루프를 볼륨 0으로 튼 뒤 인트로 1.5초가 지나면 전체 볼륨을 0.25까지 1초 시상수로 올린다.
  * 소리는 모두 위치와 무관한 전역 음원이다 — 숲·해변 환경음은 캐릭터 x좌표(35~65m)로
  * 서로 교차하고, 발소리는 수평 속도에 맞춰 커지며(power2.in) 루프 위상을 전역
- * 시계에 맞춰 둔다. 탭이 가려지면 조용히 줄고, 정보 모달이 열리면 배경음이 0.4배로 준다.
+ * 시계에 맞춰 둔다. 탭이 가려지면 조용히 준다.
  */
 
 const PATH = '/ref-assets/audio/'
 /** 전체 볼륨(원본 audioController(scene, .25)) */
 const MASTER_VOLUME = 0.25
-/** 정보 모달이 열려 있을 때 배경음 배수와 전환 시간(원본 overlayVolume .4, 1.35s) */
-const OVERLAY_VOLUME = 0.4
-const OVERLAY_DURATION = 1.35
 /** 발소리 루프 위상 오프셋(원본 loopOffset .125) */
 const STEPS_OFFSET = 0.125
 /** 파일 준비 후 소리를 내기까지 원본이 더 기다리는 시간(miscutils.wait .5) */
@@ -28,18 +25,11 @@ export interface SceneAudio {
   /** UI 버튼 클릭음(누르는 순간 처음부터 다시 재생) */
   click(): void
   setMuted(muted: boolean): void
-  /** 정보 모달이 열렸는가 — 배경음을 0.4배로 줄인다 */
-  setOverlay(open: boolean): void
   dispose(): void
 }
 
 function fit(v: number, a: number, b: number, c: number, d: number): number {
   return THREE.MathUtils.mapLinear(THREE.MathUtils.clamp(v, Math.min(a, b), Math.max(a, b)), a, b, c, d)
-}
-
-/** gsap power2.inOut(=cubic) */
-function easePower2InOut(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 }
 
 /** three Audio의 재생 위치(비공개 필드) — 원본도 이 값을 직접 맞춰 루프 위상을 동기화한다 */
@@ -69,10 +59,6 @@ export function createSceneAudio({
   let muted = initialMuted
   let visible = document.visibilityState === 'visible'
   let syncOffset = 0
-  // 배경음 배수 트윈(원본 gsap.to(_multiplierVolume, 1.35s))
-  let overlayFrom = 1
-  let overlayTo = 1
-  let overlayStart = -Infinity
 
   const fadeTo = (value: number, timeConstant: number) => gain.setTargetAtTime(value, ctx.currentTime, timeConstant)
 
@@ -121,11 +107,6 @@ export function createSceneAudio({
     if (visible && !muted) fadeTo(MASTER_VOLUME, 1)
   })().catch(() => {})
 
-  const multiplier = () => {
-    const t = THREE.MathUtils.clamp((performance.now() / 1000 - overlayStart) / OVERLAY_DURATION, 0, 1)
-    return overlayFrom + (overlayTo - overlayFrom) * easePower2InOut(t)
-  }
-
   return {
     update(x, velocityHorizontal, grounded) {
       if (!loaded || !visible) return
@@ -141,14 +122,13 @@ export function createSceneAudio({
         syncOffset = offset
       }
 
-      const mult = multiplier()
-      loops.get('song')?.setVolume(0.5 * mult)
+      loops.get('song')?.setVolume(0.5)
       const beachAmount = fit(x, 35, 65, 0, 1)
       ;(['forest', 'beach'] as const).forEach((name, i) => {
         const audio = loops.get(name)
         if (!audio) return
         const volume = i === 0 ? 1 - beachAmount : beachAmount
-        audio.setVolume(volume * mult)
+        audio.setVolume(volume)
         if (volume === 0) {
           if (audio.isPlaying) audio.pause()
         } else if (!audio.isPlaying) {
@@ -169,11 +149,6 @@ export function createSceneAudio({
       if (!loaded) return
       if (muted) fadeTo(0, 0.25)
       else if (visible) fadeTo(MASTER_VOLUME, 0.5)
-    },
-    setOverlay(open) {
-      overlayFrom = multiplier()
-      overlayTo = open ? OVERLAY_VOLUME : 1
-      overlayStart = performance.now() / 1000
     },
     dispose() {
       disposed = true

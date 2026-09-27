@@ -7,7 +7,6 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
  *
  * - LUT: 선형 색을 sRGB로 바꿔 3D LUT를 사면체 보간으로 읽고 다시 선형으로 돌린다.
  * - 인트로(uIntro 1): #FFFDF8 커버를 소용돌이 마스크로 중앙부터 벗긴다(4초 선형).
- * - 이후(uIntro 0): 정보 모달이 열리면 화면을 #FFF9EE 쪽으로 90%까지 덮는다(1초 power2.inOut).
  */
 export function createFinalPass(): ShaderPass {
   const placeholder = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1)
@@ -23,8 +22,6 @@ export function createFinalPass(): ShaderPass {
       uInitialColor: { value: new THREE.Color('#FFFDF8') },
       uTransition: { value: 0 },
       uIntro: { value: 1 },
-      uOverlayColor: { value: new THREE.Color('#FFF9EE') },
-      uOverlayTransition: { value: 0 },
       uResolution: { value: new THREE.Vector2(1, 1) },
     },
     vertexShader: /* glsl */ `
@@ -45,8 +42,6 @@ export function createFinalPass(): ShaderPass {
       uniform vec3 uInitialColor;
       uniform float uTransition;
       uniform float uIntro;
-      uniform vec3 uOverlayColor;
-      uniform float uOverlayTransition;
       uniform vec2 uResolution;
       varying vec2 vUv;
 
@@ -108,8 +103,6 @@ export function createFinalPass(): ShaderPass {
           uvIntro = scaleUV(uvIntro, 1.0 + uTransition);
           float t = 1.0 - texture2D(tIntro, uvIntro).r;
           color = mix(uInitialColor, color, falloffsmooth(t, 0.001, uTransition));
-        } else {
-          color = mix(color, uOverlayColor, uOverlayTransition * 0.9);
         }
         gl_FragColor = vec4(color, 1.0);
       }
