@@ -144,7 +144,7 @@ Next.js 앱과 `apps/api` NestJS를 한 저장소에 코로케이션한 형태�
 | 파일 | 역할 |
 |---|---|
 | `app/page.tsx` | 제품 진입점 — 루트(`/`)에서 `app/summer-afternoon/scene.tsx`를 그대로 렌더한다(씬 전용 URL 없음) |
-| `app/summer-afternoon/scene.tsx` | 루트 3D 씬 — ref-assets 로드·씬 조립·렌더 루프, 우상단 HUD·정보(축하) 모달·비밀 모달, 5시 미니맵 마운트 |
+| `app/summer-afternoon/scene.tsx` | 루트 3D 씬 — ref-assets 로드·씬 조립·렌더 루프, 우상단 HUD, 5시 미니맵 마운트 |
 | `app/summer-afternoon/thirdPerson.ts` | 루트 3D 씬 3인칭 조작(키보드·마우스·터치·게임패드)·캡슐 충돌·카메라 리그 ([ADR 007](../adr/007-quarter-view-camera-lock.md)) |
 | `app/summer-afternoon/shadows.ts` | 동적 그림자(시선 앞 ±12m) + 정적 그림자(CSM) 굽기 |
 | `app/summer-afternoon/sea.ts` · `birds.ts` · `postprocess.ts` · `touchCircles.ts` | 하늘을 비추는 바다, 갈매기 무리 비행, 최종 화면 패스(LUT·인트로·오버레이), 터치 원 UI |
