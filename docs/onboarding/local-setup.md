@@ -2,7 +2,7 @@
 
 프론트엔드(Next.js)와 API 서버(NestJS), 그리고 자체 PostgreSQL을 로컬에서 함께 띄우는 절차다.
 
-루트 3D 씬(`/`)만 볼 때는 서버가 필요 없다. 의존성 설치 후 프론트엔드만 띄우면 되고, 5시 미니맵을 보려면 `.env.local`에 `NEXT_PUBLIC_MAPBOX_TOKEN`만 넣으면 된다. API 서버와 PostgreSQL은 로그인·상점·대시보드 월드(위치 동기화·음성)에 필요하다.
+마을 씬(`/village`)·내 동네(`/neighborhood`)·에셋 뷰어(`/dev/assets`)만 볼 때는 서버가 필요 없다(씬은 혼자 돈다). 의존성 설치 후 프론트엔드만 띄우면 되고, 5시 미니맵을 보려면 `.env.local`에 `NEXT_PUBLIC_MAPBOX_TOKEN`만 넣으면 된다. 같은 방·같은 동네의 다른 방문자를 보려면 API 서버를 띄운다. PostgreSQL은 API 서버의 인증·결제·발급 API에 필요하다(이 API를 쓰는 로그인·상점·대시보드 월드 화면은 다시 만들 예정이다).
 
 ---
 
@@ -112,7 +112,7 @@ cp .env.example .env.local
 cp apps/api/.env.example apps/api/.env.local
 ```
 
-`apps/api/.env.local`의 `DATABASE_URL`은 반드시 `app_api` 롤을 사용한다. 대시보드 월드의 음성 룸 접속을 쓰려면 `apps/api/.env.example`에 없는 `LIVEKIT_API_KEY`·`LIVEKIT_API_SECRET`을 `apps/api/.env.local`에 직접 추가한다(음성 토큰은 API 서버가 발급한다. 마이크 송출 UI는 아직 없어 룸 접속·구독까지만 동작한다).
+`apps/api/.env.local`의 `DATABASE_URL`은 반드시 `app_api` 롤을 사용한다. 음성 룸 토큰 발급(`POST /voice/token`)을 쓰려면 `apps/api/.env.example`에 없는 `LIVEKIT_API_KEY`·`LIVEKIT_API_SECRET`을 `apps/api/.env.local`에 직접 추가한다(룸에 붙는 대시보드 월드 화면은 다시 만들 예정이다).
 
 ```env
 DATABASE_URL=postgresql://app_api:<비밀번호>@localhost:5432/postgres
@@ -139,7 +139,7 @@ npm run start:dev
 npm run dev
 ```
 
-브라우저 → Next.js Route Handler(BFF 프록시) → NestJS API 순으로 호출되며, 대시보드 월드의 실시간 소켓은 브라우저가 `NEXT_PUBLIC_WS_URL`(기본 `http://localhost:9001`)의 `/world` 네임스페이스로 직접 접속한다. 루트 3D 씬도 같은 주소의 `/scene`에 토큰 없이 붙어 같은 방 아이들을 받고, 내 동네 시험판은 `/neighborhood`에 붙어 반경 200m 사람들을 받는다. API 서버를 띄우지 않으면 씬은 혼자 돌고, 브라우저 콘솔에 재시도마다(최대 10초 간격) WebSocket 연결 실패가 남는다.
+브라우저는 `NEXT_PUBLIC_WS_URL`(기본 `http://localhost:9001`)의 NestJS 소켓에 직접 붙는다. 마을 씬은 `/scene`에 토큰 없이 붙어 같은 방 아이들을 받고, 내 동네 시험판은 `/neighborhood`에 붙어 반경 200m 사람들을 받는다. API 서버를 띄우지 않으면 씬은 혼자 돌고, 브라우저 콘솔에 재시도마다(최대 10초 간격) WebSocket 연결 실패가 남는다. API 서버의 REST 엔드포인트는 지금 브라우저가 부르지 않으므로 `curl`로 확인한다.
 
 ---
 
@@ -147,12 +147,13 @@ npm run dev
 
 | 주소 | 확인 내용 |
 |---|---|
-| http://localhost:3000 | 루트 3D 씬. 로딩 화면(타이틀 + 스피너) → 인트로 전환 → 3인칭 조작. 인트로가 끝나면 화면 5시에 GIS 미니맵이 뜬다(Mapbox 토큰이 없으면 지도 없이 테두리만 남는다) |
+| http://localhost:3000 | 선택 페이지. `/village`·`/neighborhood`·`/dev/assets` 링크 세 개만 있다 |
+| http://localhost:3000/village | 마을 씬. 로딩 화면(타이틀 + 스피너) → 인트로 전환 → 3인칭 조작. 인트로가 끝나면 화면 5시에 GIS 미니맵이 뜬다(Mapbox 토큰이 없으면 지도 없이 테두리만 남는다) |
 | http://localhost:3000/neighborhood | 내 동네 시험판. 위치 권한을 주면 내 위치 주변 실제 길이 깔리고(첫 위치는 15초까지 기다리고, 못 받으면 서울시청), 걷는 만큼 앞쪽이 이어 깔린다. 길 데이터는 OpenFreeMap 타일을 브라우저가 직접 받는다(키 없음) |
-| http://localhost:3000/dashboard | 대시보드 월드. Mapbox 실지형 지도 위에 캐릭터가 뜨고 PC는 WASD·방향키로 움직인다. 위치 동기화·음성은 로그인 세션이 있어야 접속된다 |
+| http://localhost:3000/dev/assets | 에셋 뷰어(개발용). ref-assets의 캐릭터·소품을 띄워 크기·본·애니메이션·인스턴스 규격을 확인한다 |
 | http://localhost:9001/health | API 서버 헬스 → `{ "status": "ok" }` |
 
-`middleware.ts`의 `matcher`가 비어 있어 모든 페이지 라우트는 로그인 없이 열린다. http://localhost:3000/api/health 는 Next 서버 자체의 응답이라 API 서버 상태를 반영하지 않는다.
+인증 게이팅이 없어 모든 페이지는 로그인 없이 열린다(`middleware.ts`의 `matcher`가 비어 있다). http://localhost:3000/api/health 는 Next 서버 자체의 응답이라 API 서버 상태를 반영하지 않는다.
 
 첫 번째 페이지 요청 시 Turbopack이 해당 라우트를 컴파일한다(수 초~수십 초, 이후 캐시됨).
 
@@ -177,7 +178,7 @@ docker compose down
 docker compose --env-file .env.local --profile prod up -d --build app-prod
 ```
 
-`app-prod`는 `NEXT_PUBLIC_MAPBOX_TOKEN`·`NEXT_PUBLIC_LIVEKIT_URL`·`NEXT_PUBLIC_APP_URL`·`NEXT_PUBLIC_WS_URL`을 **빌드 인자**로 받아 번들에 굽는다. compose는 빌드 인자를 셸 환경변수에서 읽으므로 `--env-file .env.local`로 채워야 하며, 빠뜨리면 빈 값으로 빌드되어 미니맵·대시보드 지도가 뜨지 않는다. `NEXT_PUBLIC_WS_URL`만은 비어 있으면 `http://localhost:9001`로 굽는다 — 호스트에서 띄운 API 서버(9001)에 호스트 브라우저가 붙으므로 로컬 확인에는 그대로 쓰면 되고, 공개 도메인에 올릴 이미지는 API 서버 공개 주소를 넣어 빌드한다(localhost로 구운 페이지를 다른 주소에서 열면 루트 3D 씬·내 동네는 소켓에 접속하지 않고 혼자 돈다). 코드를 바꾼 뒤에는 `--build`로 이미지를 다시 만들어야 반영된다.
+`app-prod`는 `NEXT_PUBLIC_MAPBOX_TOKEN`·`NEXT_PUBLIC_LIVEKIT_URL`·`NEXT_PUBLIC_APP_URL`·`NEXT_PUBLIC_WS_URL`을 **빌드 인자**로 받아 번들에 굽는다. compose는 빌드 인자를 셸 환경변수에서 읽으므로 `--env-file .env.local`로 채워야 하며, 빠뜨리면 빈 값으로 빌드되어 미니맵 지도가 뜨지 않는다. `NEXT_PUBLIC_WS_URL`만은 비어 있으면 `http://localhost:9001`로 굽는다 — 호스트에서 띄운 API 서버(9001)에 호스트 브라우저가 붙으므로 로컬 확인에는 그대로 쓰면 되고, 공개 도메인에 올릴 이미지는 API 서버 공개 주소를 넣어 빌드한다(localhost로 구운 페이지를 다른 주소에서 열면 마을 씬·내 동네는 소켓에 접속하지 않고 혼자 돈다). 코드를 바꾼 뒤에는 `--build`로 이미지를 다시 만들어야 반영된다.
 
 ---
 

@@ -10,19 +10,26 @@
 
 | 변수 | 필수 | 기본값 | 설명 |
 |---|---|---|---|
-| `API_URL` | 필수 | `http://localhost:9001` | NestJS API 서버 주소. 서버 라우트(BFF 프록시)에서만 사용하므로 `NEXT_PUBLIC_` 아님 |
-| `NEXT_PUBLIC_WS_URL` | 필수 | `http://localhost:9001` | 브라우저가 직접 붙는 socket.io 주소 — 대시보드 월드 소켓(`/world`), 루트 3D 씬 익명 소켓(`/scene`), 내 동네 익명 소켓(`/neighborhood`). Docker `app-prod`는 빌드 인자로 받아 번들에 굽고, 없으면 `http://localhost:9001`로 굽는다. localhost로 구운 페이지를 localhost가 아닌 주소에서 열면 루트 3D 씬은 소켓에 접속하지 않고 혼자 돈다 |
-| `NEXT_PUBLIC_MAPBOX_TOKEN` | 필수 | — | Mapbox GL JS 공개 토큰. 대시보드 월드 지도와 루트 3D 씬의 5시 미니맵이 함께 쓴다. 없으면 미니맵은 지도 없이 테두리만 남고 대시보드 월드 지도를 불러올 수 없다. 도메인 락 필수 (프로덕션) |
-| `NEXT_PUBLIC_LIVEKIT_URL` | 필수 | — | LiveKit 서버 WebSocket URL (`wss://...livekit.cloud`). 대시보드 월드 음성이 접속한다 |
+| `NEXT_PUBLIC_WS_URL` | 필수 | `http://localhost:9001` | 브라우저가 직접 붙는 socket.io 주소 — 마을 씬 익명 소켓(`/scene`), 내 동네 익명 소켓(`/neighborhood`). Docker `app-prod`는 빌드 인자로 받아 번들에 굽고, 없으면 `http://localhost:9001`로 굽는다. localhost로 구운 페이지를 localhost가 아닌 주소에서 열면 마을 씬·내 동네는 소켓에 접속하지 않고 혼자 돈다 |
+| `NEXT_PUBLIC_MAPBOX_TOKEN` | 필수 | — | Mapbox GL JS 공개 토큰. 마을 씬·내 동네의 5시 미니맵이 쓴다. 없으면 미니맵은 지도 없이 테두리만 남는다. 도메인 락 필수 (프로덕션) |
 
 `NEXT_PUBLIC_*` 값은 빌드 시점에 번들에 구워진다. 값을 바꾸면 프론트엔드를 다시 빌드해야 한다.
+
+### 다시 만들 화면이 쓸 변수
+
+로그인·대시보드 월드·상점 화면과 BFF 라우트를 다시 만들면 필요하다. 지금은 어느 코드도 읽지 않는다.
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `API_URL` | `http://localhost:9001` | NestJS API 서버 주소. BFF 라우트(Next Route Handler)에서만 쓰므로 `NEXT_PUBLIC_` 아님 |
+| `NEXT_PUBLIC_LIVEKIT_URL` | — | LiveKit 서버 WebSocket URL (`wss://...livekit.cloud`). 대시보드 월드 음성이 접속한다. 같은 `NEXT_PUBLIC_WS_URL`의 `/world` 소켓과 Mapbox 토큰도 대시보드 월드가 함께 쓴다 |
 
 ### `.env.example`에 있으나 프론트엔드 코드가 읽지 않는 항목
 
 | 변수 | 비고 |
 |---|---|
 | `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | 음성 룸 토큰은 API 서버가 발급하므로 **API 서버 환경변수**로 넣는다(아래 API 서버 절) |
-| `TOSS_CLIENT_KEY`, `TOSS_SECRET_KEY`, `KAKAO_PAY_CID`, `KAKAO_PAY_SECRET` | PG 결제창 연동용 키. 결제창 호출 코드가 없어 현재 어느 코드도 읽지 않는다(결제 완료는 PG 웹훅으로만 반영) |
+| `TOSS_CLIENT_KEY`, `TOSS_SECRET_KEY`, `KAKAO_PAY_CID`, `KAKAO_PAY_SECRET` | 상점 화면과 함께 붙일 PG 결제창 연동용 키(결제 완료는 PG 웹훅으로만 반영) |
 | `AI_API_KEY`, `AI_API_URL` | 생성형 AI 아바타 외형 생성용. 외형은 API 서버가 팔레트 조합 + 난수 시드로 만든다 |
 | `NEXT_PUBLIC_APP_URL` | 서비스 도메인. Docker `app-prod` 빌드 인자로만 전달되고 코드는 읽지 않는다 |
 
@@ -78,12 +85,12 @@
 
 | 변수 | 필수 | 설명 |
 |---|---|---|
-| `KAKAO_CLIENT_ID` | 선택 | 카카오 REST API 키. 미설정이면 카카오 버튼이 `/login?error=oauth_unavailable`로 돌아온다 |
+| `KAKAO_CLIENT_ID` | 선택 | 카카오 REST API 키. 미설정이면 API 서버가 카카오 인가 URL 요청을 `400`("kakao 로그인이 설정되지 않았습니다.")으로 거절한다 |
 | `KAKAO_CLIENT_SECRET` | 선택 | 카카오는 client_secret이 선택 사항이라 비워도 됨 |
-| `GOOGLE_CLIENT_ID` | 선택 | 구글 OAuth Client ID. 미설정이면 구글 버튼이 `/login?error=oauth_unavailable`로 돌아온다 |
+| `GOOGLE_CLIENT_ID` | 선택 | 구글 OAuth Client ID. 미설정이면 API 서버가 구글 인가 URL 요청을 `400`으로 거절한다 |
 | `GOOGLE_CLIENT_SECRET` | 선택 | 구글 OAuth Client Secret |
 
-> 공급자 콘솔에 리다이렉트 URI를 등록해야 하며 등록값과 정확히 일치해야 한다:
+> 리다이렉트 URI는 로그인 화면과 함께 다시 만들 BFF 콜백 라우트다. 공급자 콘솔에 등록하고, 등록값과 정확히 일치해야 한다:
 > `http://localhost:3000/api/auth/oauth/kakao/callback`,
 > `http://localhost:3000/api/auth/oauth/google/callback`
 

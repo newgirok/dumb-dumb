@@ -43,7 +43,7 @@ NestJS API 서버(`apps/api`)를 호스팅한다.
    `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `HASH_ROUNDS`,
    `PG_WEBHOOK_SECRET`, `KAKAO_CLIENT_ID/SECRET`, `GOOGLE_CLIENT_ID/SECRET`,
    `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
-4. WebSocket(대시보드 월드 소켓 `/world`, 루트 3D 씬 익명 소켓 `/scene`, 내 동네 익명 소켓 `/neighborhood`)이 이 서버에서 함께 서빙되므로 브라우저가 붙을 공개 주소를 확보한다 → 프론트 `NEXT_PUBLIC_WS_URL`에 등록
+4. WebSocket(마을 씬 익명 소켓 `/scene`, 내 동네 익명 소켓 `/neighborhood`, 대시보드 월드 소켓 `/world`)이 이 서버에서 함께 서빙되므로 브라우저가 붙을 공개 주소를 확보한다 → 프론트 `NEXT_PUBLIC_WS_URL`에 등록
 5. `WEB_ORIGIN`을 프론트 도메인으로 설정 (HTTP CORS·소켓 CORS 허용 오리진). 소켓 CORS는 게이트웨이 데코레이터가 `.env.local`을 읽기 전에 평가되므로, 파일이 아닌 서버 프로세스 환경변수(호스트·컨테이너 환경)로 넣는다
 
 ---
@@ -54,16 +54,21 @@ NestJS API 서버(`apps/api`)를 호스팅한다.
 2. GitHub 저장소 Import
 3. Framework Preset: **Next.js** (자동 감지)
 4. Root Directory: `.` (루트)
-5. Environment Variables 등록 — 아래 `NEXT_PUBLIC_*` 공개 변수와 서버 전용 `API_URL`을 등록한다:
+5. Environment Variables 등록 — 아래 `NEXT_PUBLIC_*` 공개 변수를 등록한다:
 
 | 변수 | 값 출처 |
 |---|---|
-| `NEXT_PUBLIC_WS_URL` | API 서버 공개 주소 (대시보드 월드 소켓·루트 3D 씬 소켓) |
-| `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapbox account.mapbox.com → Tokens (대시보드 월드 지도 + 루트 3D 씬 미니맵) |
-| `NEXT_PUBLIC_LIVEKIT_URL` | LiveKit Settings → Keys |
-| `API_URL` | NestJS API 서버 주소 (BFF 프록시 대상, 서버 전용 — 비우면 `http://localhost:9001`로 프록시) |
+| `NEXT_PUBLIC_WS_URL` | API 서버 공개 주소 (마을 씬·내 동네 소켓) |
+| `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapbox account.mapbox.com → Tokens (마을 씬·내 동네 미니맵) |
 
-> `API_URL`은 서버 라우트(BFF 프록시)에서만 쓰는 비공개 값이라 `NEXT_PUBLIC_` 접두사를 붙이지 않는다. 브라우저에 노출되면 안 되는 값에는 절대 `NEXT_PUBLIC_` 접두사를 붙이지 않는다. `NEXT_PUBLIC_*` 값은 빌드 시점에 구워지므로 바꾼 뒤에는 재배포한다.
+로그인·대시보드 월드·상점 화면을 다시 만들면 다음도 등록한다:
+
+| 변수 | 값 출처 |
+|---|---|
+| `NEXT_PUBLIC_LIVEKIT_URL` | LiveKit Settings → Keys (대시보드 월드 음성) |
+| `API_URL` | NestJS API 서버 주소 (BFF 라우트의 프록시 대상, 서버 전용 — 비우면 `http://localhost:9001`로 프록시) |
+
+> `API_URL`은 BFF 라우트에서만 쓰는 비공개 값이라 `NEXT_PUBLIC_` 접두사를 붙이지 않는다. 브라우저에 노출되면 안 되는 값에는 절대 `NEXT_PUBLIC_` 접두사를 붙이지 않는다. `NEXT_PUBLIC_*` 값은 빌드 시점에 구워지므로 바꾼 뒤에는 재배포한다.
 
 6. "Deploy" → 첫 빌드 실행
 
@@ -77,13 +82,13 @@ NestJS API 서버(`apps/api`)를 호스팅한다.
 4. "Settings" → "Keys" → API Key + API Secret 발급
 5. WebSocket URL 확인: `wss://your-project.livekit.cloud`
 
-→ `NEXT_PUBLIC_LIVEKIT_URL`은 프론트에, `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`은 **API 서버 환경변수**에 등록한다(룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급).
+→ `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`은 **API 서버 환경변수**에 등록한다(룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급). `NEXT_PUBLIC_LIVEKIT_URL`은 대시보드 월드 화면을 다시 만들 때 프론트에 등록한다.
 
 ---
 
 ## 5. PG(결제) 콘솔
 
-결제 완료는 PG 웹훅으로만 반영된다. 웹훅 URL은 BFF를 거치지 않는 API 서버 주소 `POST https://<API 서버>/billing/webhook`이며, `x-pg-signature` 헤더에 raw body의 HMAC-SHA256 hex(키 `PG_WEBHOOK_SECRET`)를 실어 `{ orderId, approvalNumber, amountKrw }`를 보내야 한다. 결제창 호출 코드는 없어 아래 PG 키들은 현재 어느 코드도 읽지 않는다.
+결제 완료는 PG 웹훅으로만 반영된다. 웹훅 URL은 BFF를 거치지 않는 API 서버 주소 `POST https://<API 서버>/billing/webhook`이며, `x-pg-signature` 헤더에 raw body의 HMAC-SHA256 hex(키 `PG_WEBHOOK_SECRET`)를 실어 `{ orderId, approvalNumber, amountKrw }`를 보내야 한다. 결제창은 상점 화면과 함께 붙일 예정이라 아래 PG 키들은 지금 어느 코드도 읽지 않는다.
 
 ### 토스페이먼츠
 
@@ -117,7 +122,7 @@ NestJS API 서버(`apps/api`)를 호스팅한다.
 3. Client ID/Secret → `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
 4. **Authorized redirect URI 등록**: `http://localhost:3000/api/auth/oauth/google/callback` (프로덕션은 실제 도메인)
 
-> 리다이렉트 URI는 콘솔 등록값과 정확히 일치해야 한다. OAuth 관련 클라이언트 ID/시크릿은 모두 API 서버 환경변수로 관리한다.
+> 리다이렉트 URI는 로그인 화면과 함께 다시 만들 BFF 콜백 라우트이며, 콘솔 등록값과 정확히 일치해야 한다. OAuth 관련 클라이언트 ID/시크릿은 모두 API 서버 환경변수로 관리한다.
 
 ---
 

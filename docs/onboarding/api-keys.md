@@ -15,7 +15,7 @@
 NEXT_PUBLIC_MAPBOX_TOKEN=pk.eyJ1...
 ```
 
-이 토큰 하나를 대시보드 월드 지도와 5시 미니맵(루트 3D 씬·내 동네)이 함께 쓴다. 무료 티어: 월 50,000 Map loads 무료. Mapbox 대시보드에서 사용량 알림 3단계 설정 권장.
+이 토큰 하나를 5시 미니맵(마을 씬·내 동네)이 쓰고, 다시 만들 대시보드 월드 지도도 같은 토큰을 쓴다. 무료 티어: 월 50,000 Map loads 무료. Mapbox 대시보드에서 사용량 알림 3단계 설정 권장.
 
 ---
 
@@ -67,10 +67,10 @@ JWT_REFRESH_SECRET=<다른 32바이트 랜덤 hex>
 ```
 LIVEKIT_API_KEY=APIxxxx           ← 서버 전용 (API 서버 환경변수)
 LIVEKIT_API_SECRET=xxxx           ← 서버 전용 (API 서버 환경변수)
-NEXT_PUBLIC_LIVEKIT_URL=wss://your-project.livekit.cloud   ← 프론트 공개
+NEXT_PUBLIC_LIVEKIT_URL=wss://your-project.livekit.cloud   ← 프론트 공개 (대시보드 월드를 다시 만들 때)
 ```
 
-룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급한다(TTL 1시간). `LIVEKIT_API_KEY`·`LIVEKIT_API_SECRET`은 `apps/api/.env.example`에 없으므로 `apps/api/.env.local`에 직접 추가한다. 음성은 대시보드 월드에서만 쓰인다. 무료 티어: 월 일정 분(分) 무료. 대시보드 사용량 알림 3단계 설정 권장.
+룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급한다(TTL 1시간). `LIVEKIT_API_KEY`·`LIVEKIT_API_SECRET`은 `apps/api/.env.example`에 없으므로 `apps/api/.env.local`에 직접 추가한다. 음성은 대시보드 월드에서만 쓰이며, 화면을 다시 만들기 전에는 룸에 붙는 클라이언트가 없다. 무료 티어: 월 일정 분(分) 무료. 대시보드 사용량 알림 3단계 설정 권장.
 
 ---
 
@@ -86,7 +86,7 @@ NEXT_PUBLIC_LIVEKIT_URL=wss://your-project.livekit.cloud   ← 프론트 공개
 PG_WEBHOOK_SECRET=...          ← API 서버 전용
 ```
 
-아래 토스페이먼츠·카카오페이 키는 PG 결제창 연동용이다. 결제창 호출 코드가 없어 현재 어느 코드도 이 키를 읽지 않는다.
+아래 토스페이먼츠·카카오페이 키는 PG 결제창 연동용이다. 결제창은 상점 화면과 함께 붙일 예정이라 지금은 어느 코드도 이 키를 읽지 않는다.
 
 ## 토스페이먼츠
 
@@ -115,7 +115,7 @@ KAKAO_PAY_SECRET=...           ← 서버 전용
 
 ## 카카오 / 구글 OAuth (소셜 로그인)
 
-Authorization Code 흐름을 사용하며 코드 교환은 전부 서버에서 처리한다. 클라이언트 ID/시크릿은 API 서버 환경변수로 관리한다.
+Authorization Code 흐름을 사용하며 코드 교환은 전부 서버에서 처리한다. 클라이언트 ID/시크릿은 API 서버 환경변수로 관리한다. 아래 리다이렉트 URI는 로그인 화면과 함께 다시 만들 BFF 콜백 라우트다.
 
 ### 카카오
 
@@ -139,7 +139,7 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...   ← 서버 전용
 ```
 
-> 리다이렉트 URI는 공급자 콘솔 등록값과 정확히 일치해야 한다. 미설정 시 해당 공급자 로그인 버튼은 `/login?error=oauth_unavailable`로 돌아온다.
+> 리다이렉트 URI는 공급자 콘솔 등록값과 정확히 일치해야 한다. 클라이언트 ID가 미설정이면 API 서버가 그 공급자의 인가 URL 요청을 `400`으로 거절한다.
 
 ---
 
