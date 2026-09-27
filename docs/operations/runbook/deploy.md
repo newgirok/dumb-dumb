@@ -113,12 +113,13 @@ vercel --prod
 ```
 
 Vercel 대시보드 → "Environment Variables"에서 다음이 설정되었는지 확인한다:
-`API_URL`(서버 전용, NestJS 주소), `NEXT_PUBLIC_WS_URL`(대시보드 월드 소켓·루트 3D 씬 소켓·내 동네 소켓), `NEXT_PUBLIC_MAPBOX_TOKEN`,
-`NEXT_PUBLIC_LIVEKIT_URL`. `NEXT_PUBLIC_*` 값은 빌드 시점에 구워지므로 바꾼 뒤에는 재배포한다.
+`NEXT_PUBLIC_WS_URL`(마을 씬·내 동네 소켓), `NEXT_PUBLIC_MAPBOX_TOKEN`(5시 미니맵). `NEXT_PUBLIC_*` 값은 빌드 시점에 구워지므로
+바꾼 뒤에는 재배포한다. 로그인·대시보드 월드·상점 화면을 다시 만들면 `API_URL`(서버 전용, BFF가 부르는 NestJS 주소)과
+`NEXT_PUBLIC_LIVEKIT_URL`(대시보드 월드 음성)도 넣는다.
 
 컨테이너로 배포할 때는 `docker-compose.yml`의 `app-prod`(`profile: prod`)로 이미지를 만든다.
 `NEXT_PUBLIC_*`는 빌드 인자로 구워지므로 `--env-file`로 채운다. `NEXT_PUBLIC_WS_URL`에는 API 서버 공개 주소를
-넣는다. 비어 있으면 `http://localhost:9001`로 구워지고, 그 이미지를 공개 도메인에서 열면 루트 3D 씬·내 동네는
+넣는다. 비어 있으면 `http://localhost:9001`로 구워지고, 그 이미지를 공개 도메인에서 열면 마을 씬·내 동네는
 방문자 PC의 localhost로 붙지 않도록 소켓에 접속하지 않아 익명 멀티플레이가 꺼진 채(혼자) 돈다.
 
 ```bash
@@ -131,13 +132,14 @@ docker compose --env-file .env.local --profile prod up -d --build app-prod
 
 - [ ] DB 마이그레이션 `0001`~`0010` 전부 적용됨 (psql로 스키마 확인)
 - [ ] API 서버 헬스 정상 (API 서버 `GET /health` → `{ "status": "ok" }`)
-- [ ] 루트 3D 씬(`/`) 로딩·인트로 정상, 인트로 뒤 5시 미니맵 지도 표시
-- [ ] socket.io 월드 게이트웨이(`/world`) 접속 및 `positions` 수신 정상 (로그인한 두 클라이언트를 대시보드 월드의 같은 섹터에 두고 확인)
+- [ ] 선택 페이지(`/`)에 `/village`·`/neighborhood`·`/dev/assets` 링크가 보임
+- [ ] 마을 씬(`/village`) 로딩·인트로 정상, 인트로 뒤 5시 미니맵 지도 표시
+- [ ] socket.io 월드 게이트웨이(`/world`) 접속 및 `positions` 수신 정상 (액세스 토큰을 실은 두 socket.io 클라이언트를 같은 섹터 좌표로 붙여 확인)
 - [ ] socket.io 씬·내 동네 게이트웨이(`/scene`·`/neighborhood`) 정상 (토큰 없이 두 클라이언트를 붙여 서로의 상태가 `states`로 오는지 — 내 동네는 서로 200m 안의 실제 좌표로)
 - [ ] 내 동네(`/neighborhood`)에서 바닥이 깔리고 좌하단 출처 표기가 보임 (OpenFreeMap 타일을 브라우저가 직접 받는다)
 - [ ] Vercel 빌드 성공 (Vercel 대시보드 "Deployments")
 - [ ] Mapbox 토큰 도메인 락 설정 (프로덕션 도메인만 허용)
-- [ ] LiveKit API 키 유효성 확인 (대시보드 월드에서 음성 룸 토큰 발급·연결 테스트)
+- [ ] LiveKit API 키 유효성 확인 (액세스 토큰으로 API 서버 `POST /voice/token`을 불러 룸 토큰 발급 — 룸 연결 테스트는 대시보드 월드를 다시 만든 뒤)
 - [ ] 결제 웹훅 URL이 프로덕션 API 서버 `POST /billing/webhook`으로 등록됨 (PG사 대시보드)
 - [ ] API가 `app_api` 롤로 접속하여 `orders` 등 RLS 정책이 적용됨을 확인
 
