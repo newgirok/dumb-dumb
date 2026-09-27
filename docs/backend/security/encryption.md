@@ -4,16 +4,18 @@
 
 ## JWT 구조
 
+인증 API(NestJS `auth` 모듈)는 동작하고, 이를 쓰는 로그인 화면·대시보드 월드·상점과 BFF 라우트(`/api/auth/*`·`/api/me/*`·`/api/billing/*`)는 다시 만들 예정이다. 아래의 브라우저 쪽 규칙은 그 화면들이 따를 규격이다.
+
 ### 토큰 이중 구조
 
 | 토큰 | 수명 | 시크릿 | 저장 위치 | 용도 |
 |---|---|---|---|---|
 | Access Token | 15분 | `JWT_ACCESS_SECRET` | 브라우저 메모리 | API·월드 소켓 인증, DB 조회 없이 서명만 검증 |
-| Refresh Token | 30일 | `JWT_REFRESH_SECRET` | httpOnly 쿠키 `refresh_token` (Next 라우트 관리) | Access Token 만료 시 재발급 |
+| Refresh Token | 30일 | `JWT_REFRESH_SECRET` | httpOnly 쿠키 `refresh_token` (BFF 라우트 관리) | Access Token 만료 시 재발급 |
 
 - 액세스/리프레시 시크릿은 서로 다른 값으로 분리한다.
 - Access Token은 자가 검증(Self-Contained)으로, 전역 가드(`AccessTokenGuard`)가 DB를 거치지 않고 서명 검증만으로 인증을 끝낸다. 월드 소켓 접속에 필요해 JS가 읽어야 하므로 브라우저 메모리에 둔다.
-- Refresh Token은 httpOnly 쿠키(프로덕션 `secure`, `sameSite=lax`, 30일)로만 관리하며 Next.js Route Handler가 설정·갱신·삭제한다(JS 접근 불가).
+- Refresh Token은 httpOnly 쿠키(프로덕션 `secure`, `sameSite=lax`, 30일)로만 관리하며 BFF인 Next.js Route Handler가 설정·갱신·삭제한다(JS 접근 불가).
 - `users.token_version` 컬럼으로 해당 유저의 리프레시 토큰을 일괄 폐기한다. 로그아웃(`POST /auth/logout`)은 모든 기기 로그아웃으로 동작해 이 값을 올린다. 폐기 판정은 리프레시 시점에 토큰의 `ver`와 대조해 이뤄지므로, 이미 발급된 액세스 토큰은 만료(최대 15분)까지 유효하다.
 
 ### Payload
@@ -39,8 +41,8 @@
 가시거리 라이선스는 JWT에 담지 않고 DB로 관리한다.
 
 - `user_licenses.visibility_radius_m`: 가입 트랜잭션에서 기본 25m 행을 만들고, 가시거리 상품 지급 시 `GREATEST`로 올린다(낮은 등급을 나중에 사도 줄지 않는다).
-- 조회는 `GET /me/license`(BFF `/api/me/license`)이며 RLS로 본인 행만 읽는다. 행이 없으면 25를 돌려준다.
-- 상점 화면이 이 값을 표시한다. 두 월드(루트 3D 씬·대시보드 월드)는 이 값을 렌더링에 적용하지 않는다.
+- 조회는 `GET /me/license`이며 RLS로 본인 행만 읽는다. 행이 없으면 25를 돌려준다.
+- 상점 화면(다시 만들 예정)이 이 값을 표시한다. 월드 렌더링 반경 적용은 Phase 5다.
 
 ---
 
@@ -51,10 +53,10 @@
 - 로그인은 Basic(`이메일:비밀번호` base64), 이후 요청은 Bearer 액세스 토큰
 - 소셜 로그인(카카오/구글)은 OAuth 2.0 Authorization Code 흐름이며 코드 교환은 전부 서버에서 수행
 - 월드 소켓은 액세스 토큰을 socket.io 핸드셰이크 `auth.token`으로 보낸다. 쿼리스트링에 담지 않는다(접속 로그에 남는다). 토큰이 없거나 무효면 게이트웨이가 즉시 끊는다
-- 루트 3D 씬 소켓(`/scene`)은 토큰을 보내지 않는 익명 연결이다. 액세스 토큰이 메모리에 있어도 싣지 않으며, 오가는 값은 씬 로컬 좌표·방향·모션·색 시드뿐이다. 남용은 서버의 필드 검증·거리 예산·초당 60건 제한·방 정원(20명)·전체 정원(1,000명)으로 막는다
+- 마을 씬 소켓(`/scene`)은 토큰을 보내지 않는 익명 연결이다. 오가는 값은 씬 로컬 좌표·방향·모션·색 시드뿐이다. 남용은 서버의 필드 검증·거리 예산·초당 60건 제한·방 정원(20명)·전체 정원(1,000명)으로 막는다
 - 내 동네 소켓(`/neighborhood`)도 토큰 없는 익명 연결이지만 위치가 **실제 좌표**(경위도, 약 1cm)다. 반경 200m 안 가까운 19명에게 내 아이가 실제 자리에 보이며, 이것이 이 기능의 목적이다(로그인·이름·기기 정보는 싣지 않는다). 휴대폰은 GPS를 따라 걸으므로 실시간 위치가, PC는 첫 위치와 키보드로 걸어간 자리가 보인다. 서버는 좌표를 메모리에만 두고 저장·기록하지 않는다. 남용 방지는 `/scene`과 같고, 순간이동이 5초에 한 번이라 위치를 속여 여러 동네를 훑는 속도도 그만큼 느려진다
 - LiveKit 룸 토큰은 NestJS `voice` 모듈이 발급한다. `identity`는 클라이언트가 보내지 않고 서버가 액세스 토큰의 유저 id로 채우며(사칭 방지), 룸 이름은 `voice-sector-<gx>-<gy>` 형식만 허용하고, 토큰 TTL은 1시간이다
-- API가 401을 돌려주면 클라이언트는 `/api/auth/refresh`로 한 번 갱신한 뒤 재시도한다. 리프레시가 실패하면 메모리의 액세스 토큰을 비우고 리프레시 쿠키를 삭제한다. 페이지 라우트 게이팅이 꺼져 있어 로그인 화면으로 자동 이동하지는 않는다
+- API가 401을 돌려주면 클라이언트는 BFF 리프레시 라우트로 한 번 갱신한 뒤 재시도한다. 리프레시가 실패하면 메모리의 액세스 토큰을 비우고 리프레시 쿠키를 삭제한다
 
 ---
 
@@ -102,7 +104,7 @@ CREATE POLICY sponsor_owner_write ON sponsor_buildings
 
 - 캐릭터 GLB와 광고주 텍스처를 오브젝트 스토리지에 두는 경우, 클라이언트는 서버가 발급한 URL(`characters.glb_url`, `sponsor_buildings.texture_url`)로만 접근한다.
 - 업로드(쓰기)는 서버 경로에서만 수행하고, 클라이언트 직접 업로드는 허용하지 않는다.
-- 발급 캐릭터는 외형 데이터(`appearance_data`)와 해시(`appearance_hash`)만 저장하고 `glb_url`은 채우지 않는다. 두 월드는 `/ref-assets` 정적 에셋으로 캐릭터를 그린다. 스토리지 연동 코드는 아직 없다.
+- 발급 캐릭터는 외형 데이터(`appearance_data`)와 해시(`appearance_hash`)만 저장하고 `glb_url`은 채우지 않는다. 마을 씬과 내 동네는 `/ref-assets` 정적 에셋으로 캐릭터를 그린다. 스토리지 연동 코드는 아직 없다.
 
 ---
 
@@ -117,7 +119,7 @@ CREATE POLICY sponsor_owner_write ON sponsor_buildings
 
 ## Mapbox API 토큰 보안
 
-- `NEXT_PUBLIC_MAPBOX_TOKEN` 하나를 대시보드 월드 지도와 루트 3D 씬의 5시 미니맵이 함께 쓰며, 브라우저에 노출된다.
+- `NEXT_PUBLIC_MAPBOX_TOKEN` 하나를 마을 씬·내 동네의 5시 미니맵이 쓰고(다시 만들 대시보드 월드 지도도 같은 토큰을 쓴다), 브라우저에 노출된다.
 - 웹 토큰: 허가된 도메인(`https://*.서비스주소.com`)으로만 작동하도록 Allowed URLs 락
 - 토큰 노출 시: Mapbox 대시보드에서 즉시 Revoke 후 재발급
 
