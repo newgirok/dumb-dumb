@@ -6,7 +6,7 @@
 
 실좌표(위경도) 기반 공간 쿼리인 스폰서 랜드마크(`sponsor_buildings`) 반경 조회·거리 정렬에 **PostGIS + GiST(Generalized Search Tree) 공간 인덱스**를 사용한다. 별도의 Elasticsearch 지오쿼리나 Redis Geospatial을 도입하지 않는다.
 
-유저 위치는 DB에 저장하지 않으므로 PostGIS 대상이 아니다. 대시보드 월드의 섹터 판정과 서버 속도 검증은 게이트웨이 메모리에서 `shared/world/sector.ts`(haversine 거리)로 계산하고, 클라이언트의 거리·속도 사전 검증은 cheap-ruler(위도 37.5° 고정)로 따로 계산한다.
+유저 위치는 DB에 저장하지 않으므로 PostGIS 대상이 아니다. 대시보드 섹터 게이트웨이(`/world`)의 섹터 판정과 서버 속도 검증은 게이트웨이 메모리에서 `shared/world/sector.ts`(haversine 거리)로 계산한다.
 
 ## 배경
 

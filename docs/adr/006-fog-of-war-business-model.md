@@ -32,10 +32,10 @@
 |---|---|
 | 판매 | `license_100m`(4,900원)·`license_300m`(9,900원)을 원화 정가로 판매한다([ADR 004](./004-direct-krw-payment.md)) |
 | 저장 | `user_licenses.visibility_radius_m`(기본 25). 발급 워커가 보유값과 상품 반경 중 큰 값으로 올린다(`GREATEST`) |
-| 조회 | `GET /api/me/license`가 `visibilityRadiusM`을 돌려주고(행이 없으면 25), 상점(`/store`)이 표시한다. 가시거리는 JWT에 담지 않는다 |
-| 렌더링 | 두 월드 모두 가시거리 반경을 렌더링에 적용하지 않는다. `lib/three/fog.ts`(CSS radial-gradient 비네트, `--fog-radius`)는 마운트되는 곳이 없다 |
+| 조회 | NestJS `GET /me/license`가 `visibilityRadiusM`을 돌려준다(행이 없으면 25). 상점 화면(`/store`, 예정)이 이 값을 표시한다. 가시거리는 JWT에 담지 않는다 |
+| 렌더링 | 마을 씬·내 동네 모두 가시거리 반경을 렌더링에 적용하지 않는다. `lib/three/fog.ts`(CSS radial-gradient 비네트, `--fog-radius`)는 마운트되는 곳이 없다 |
 
-루트 3D 씬의 램프 셰이더에는 카메라 거리 40~300m에서 채도를 0.3 이하로 낮추고 명도를 0.6 쪽으로 모으는 고정 대기 원근 페이드가 있으나, 가시거리 라이선스와 무관하다.
+마을 씬의 램프 셰이더에는 카메라 거리 40~300m에서 채도를 0.3 이하로 낮추고 명도를 0.6 쪽으로 모으는 고정 대기 원근 페이드가 있으나, 가시거리 라이선스와 무관하다.
 
 ## 렌더링 적용 계획
 

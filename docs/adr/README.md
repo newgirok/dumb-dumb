@@ -4,7 +4,7 @@
 
 | ADR | 제목 | 상태 |
 |---|---|---|
-| [ADR 001](./001-webgl-context-sharing.md) | WebGL 컨텍스트 구성 — 루트 씬·미니맵 분리, 대시보드 월드 공유 | Accepted |
+| [ADR 001](./001-webgl-context-sharing.md) | WebGL 컨텍스트 구성 — 마을 씬·미니맵 분리, 대시보드 월드 공유 | Accepted |
 | [ADR 002](./002-self-hosted-backend.md) | 자체 백엔드 (NestJS + 공유 Postgres) | Accepted |
 | [ADR 003](./003-livekit-cloud-sfu.md) | LiveKit Cloud 매니지드 SFU 선택 | Accepted |
 | [ADR 004](./004-direct-krw-payment.md) | 원화 직행 결제 — 가상 화폐 없는 구조 | Accepted |

@@ -4,7 +4,7 @@
 
 ## 결정
 
-공간 음성(Spatial Voice)을 위해 자체 TURN 서버나 WebRTC Mesh P2P를 구축하지 않고, **LiveKit Cloud 매니지드 SFU**를 채택한다. 음성은 대시보드 월드(`/dashboard`) 전용이며, 루트 3D 씬에는 음성이 없다.
+공간 음성(Spatial Voice)을 위해 자체 TURN 서버나 WebRTC Mesh P2P를 구축하지 않고, **LiveKit Cloud 매니지드 SFU**를 채택한다. 음성은 대시보드 월드(`/dashboard`, 예정) 전용이며, 마을 씬·내 동네에는 음성이 없다.
 
 ## 배경
 
@@ -27,11 +27,13 @@ LiveKit Cloud는 매월 일정량의 무료 분(分)을 제공하며, MVP 단계
 
 ## 적용 규칙
 
-- **룸 = 섹터**: 500m 섹터마다 룸 하나(`voice-{sectorId}`, 형식 `voice-sector-{gx}-{gy}`). 대시보드 월드에서 캐릭터가 섹터를 옮기면 이전 룸을 나가고 새 섹터 룸에 접속한다(`lib/voice/livekit.ts` `VoiceManager`)
-- **토큰 발급**: 클라이언트가 액세스 토큰으로 `POST /api/voice/token`을 호출하면 NestJS `voice` 모듈이 룸 이름 형식을 검증하고, `livekit-server-sdk`로 identity = 사용자 ID, 유효 1시간 토큰을 발급한다(`roomJoin`·`canPublish`·`canSubscribe`). identity는 클라이언트가 보내지 않는다
+토큰 발급은 NestJS `voice` 모듈이 맡고, 섹터 룸 접속·구독·공간 음성은 대시보드 월드 화면(예정)의 음성 클라이언트가 맡는다.
+
+- **룸 = 섹터**: 500m 섹터마다 룸 하나(`voice-{sectorId}`, 형식 `voice-sector-{gx}-{gy}`). 대시보드 월드에서 캐릭터가 섹터를 옮기면 이전 룸을 나가고 새 섹터 룸에 접속한다
+- **토큰 발급**: 대시보드 월드 화면이 액세스 토큰으로 BFF `POST /api/voice/token`(예정)을 부르면 NestJS `voice` 모듈(`POST /voice/token`)이 룸 이름 형식을 검증하고, `livekit-server-sdk`로 identity = 사용자 ID, 유효 1시간 토큰을 발급한다(`roomJoin`·`canPublish`·`canSubscribe`). identity는 클라이언트가 보내지 않는다
 - **Top-8 구독**: `autoSubscribe: false`로 접속하고, 위치를 실제로 전송한 틱(200ms 주기 중 0.3m 이상 이동하고 속도 검증을 통과한 틱)마다 피어를 위경도 거리순으로 정렬해 40m 이내의 가장 가까운 8명만 `setSubscribed(true)`한다. 나머지는 구독을 끊는다. 제자리에 서 있는 동안에는 구독을 갱신하지 않는다
-- **공간 음성**: Web Audio `PannerNode`(HRTF)에 피어 방위를 반영하고, 볼륨은 30m까지 최대, 40m에서 0이 되도록 선형 감쇠한다(`lib/voice/spatial-audio.ts`)
-- **마이크**: 송출은 `enableMic()`로 켜는 옵트인이며, 권한을 거부하면 수신 전용으로 남는다. 마이크 켜기와 오디오 재개(`resumeAudio`)를 호출하는 UI는 아직 없다
+- **공간 음성**: Web Audio `PannerNode`(HRTF)에 피어 방위를 반영하고, 볼륨은 30m까지 최대, 40m에서 0이 되도록 선형 감쇠한다
+- **마이크**: 송출은 유저가 켜는 옵트인이며, 권한을 거부하면 수신 전용으로 남는다
 
 ## LiveKit Cloud 과금 방어
 
