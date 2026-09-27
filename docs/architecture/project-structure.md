@@ -3,78 +3,42 @@
 ```
 project/
 ├── app/                          ← Next.js App Router
-│   ├── (auth)/                   ← 인증 라우트 그룹
-│   │   ├── login/page.tsx        ← 이메일+비밀번호 + 카카오/구글 소셜 로그인 (58/42 스플릿 레이아웃)
-│   │   ├── verify/page.tsx       ← 본인인증 자리표시 화면 (Phase 5 예정)
-│   │   └── layout.tsx
-│   ├── (game)/                   ← 대시보드·상점 라우트 그룹
-│   │   ├── dashboard/page.tsx    ← 대시보드 월드 (WorldCanvas + Hud)
-│   │   ├── store/page.tsx        ← 아바타·라이선스 상점 (결제 플로우)
-│   │   └── layout.tsx            ← Sidebar(PC) + BottomNav(모바일) 셸
-│   ├── api/                      ← Next.js Route Handler = BFF 프록시 (NestJS로 전달)
-│   │   ├── auth/                 ← login, logout, register, refresh,
-│   │   │                            oauth/[provider], oauth/[provider]/callback
-│   │   ├── billing/              ← orders, products
-│   │   ├── me/                   ← characters, license
-│   │   ├── voice/                ← token
-│   │   └── health/
-│   ├── summer-afternoon/         ← 루트 3D 씬 (scene, thirdPerson, rampShader, shadows, sea, birds, postprocess, touchCircles, audio, remotes, kidAnimation, setup, noise)
-│   ├── neighborhood/             ← 내 동네 시험판 (page, scene, stream, ground, groundSource, ground.worker — 실제 길을 여름 마을 화풍으로, 걷는 만큼 이어 깔기)
-│   ├── preview/                  ← ref-assets 에셋 뷰어 (개발용)
+│   ├── village/                  ← 마을 씬 (page, scene, thirdPerson, rampShader, shadows, sea, birds, postprocess, touchCircles, audio, remotes, kidAnimation, setup, noise)
+│   ├── neighborhood/             ← 내 동네 시험판 (page, scene, stream, ground, groundSource, ground.worker — 실제 길을 마을 씬 화풍으로, 걷는 만큼 이어 깔기)
+│   ├── dev/assets/page.tsx       ← 에셋 뷰어 (ref-assets 캐릭터·소품, 개발용)
+│   ├── api/health/route.ts       ← 헬스 체크 (Next.js 자체 응답)
 │   ├── globals.css
 │   ├── icon.svg
 │   ├── layout.tsx                ← 루트 레이아웃 (Nunito·JetBrains Mono 폰트, PageTransition)
-│   └── page.tsx                  ← 제품 진입점 (루트에서 summer-afternoon 씬 렌더)
+│   └── page.tsx                  ← 선택 페이지 (SCENE_ROUTES 링크 세 개)
 │
 ├── components/                   ← 공유 React 컴포넌트
-│   ├── hud/                      ← 대시보드 HUD
-│   │   ├── index.tsx             ← Hud — 화면 UI 없이 이동·채팅 연결 인터페이스만 제공
-│   │   ├── DirectionPad.tsx      ← 방향키 UI (Hud에서 렌더하지 않음)
-│   │   ├── Joystick.tsx          ← 가상 조이스틱 UI (Hud에서 렌더하지 않음)
-│   │   └── ChatInput.tsx         ← 채팅 입력 UI (Hud에서 렌더하지 않음)
-│   ├── layout/                   ← (game) 레이아웃 셸
-│   │   ├── Sidebar.tsx           ← PC 좌측 사이드바 (대시보드·상점·내 위치로·로그아웃)
-│   │   └── BottomNav.tsx         ← 모바일 하단 내비게이션
 │   ├── world/
-│   │   ├── WorldCanvas.tsx       ← 대시보드 월드 (Mapbox 지도 + Three.js 커스텀 레이어)
-│   │   └── MiniMap.tsx           ← 5시 GIS 미니맵 (루트 3D 씬 전용, 독립 Mapbox GL 캔버스)
+│   │   └── MiniMap.tsx           ← 5시 GIS 미니맵 (마을 씬·내 동네, 독립 Mapbox GL 캔버스)
+│   ├── transition/               ← 페이지 전환 연출
+│   │   ├── PageTransition.tsx    ← 링크 이동 때 전체 화면 로더
+│   │   └── CuteLoader.tsx
+│   ├── hud/                      ← 이동·채팅 입력 UI 부품 (어느 화면에도 연결하지 않음)
+│   │   ├── DirectionPad.tsx      ← 방향키 UI
+│   │   ├── Joystick.tsx          ← 가상 조이스틱 UI
+│   │   └── ChatInput.tsx         ← 채팅 입력 UI
 │   ├── avatar/
 │   │   └── AvatarCard.tsx        ← 아바타 미리보기 카드 (페이지에 연결되지 않음)
-│   ├── transition/               ← 페이지 전환 연출
-│   │   ├── PageTransition.tsx
-│   │   └── CuteLoader.tsx
 │   └── ui/                       ← 공통 UI (Button, Card, Spinner, Toast)
 │
 ├── lib/                          ← 클라이언트 공유 로직
-│   ├── api/                      ← NestJS 프록시 계층
-│   │   ├── client.ts             ← 브라우저 fetch 래퍼 (Bearer 액세스 토큰)
-│   │   ├── config.ts             ← API 주소(`API_URL`)·쿠키 이름·쿠키 옵션
-│   │   └── proxy.ts              ← Route Handler에서 NestJS로 전달 (Authorization 헤더 패스스루)
-│   ├── auth/
-│   │   ├── session.ts            ← 액세스 토큰 메모리 보관·리프레시, 로그인·가입·로그아웃
-│   │   └── middleware.ts         ← 라우트 보호 로직 (전역 미들웨어에 연결하지 않음)
+│   ├── routes.ts                 ← SCENE_ROUTES — 선택 페이지·내 동네 이동 버튼이 함께 쓰는 경로 목록
 │   ├── geo/
-│   │   ├── currentPosition.ts    ← 단발 GPS 좌표 조회 (대시보드 월드 시작 위치·내 위치로, 내 동네 첫 위치 — 대기 시간 인자)
-│   │   ├── watchPosition.ts      ← GPS 실시간 추적 (미니맵 위치 표시, 대시보드 월드 모바일 이동)
-│   │   ├── validator.ts          ← 클라이언트 속도 검증 (위경도 기준 30km/h 드롭)
+│   │   ├── currentPosition.ts    ← 단발 GPS 좌표 조회 (내 동네 첫 위치 — 대기 시간 인자)
+│   │   ├── watchPosition.ts      ← GPS 실시간 추적 (미니맵 위치 표시, 내 동네 휴대폰 걷기)
 │   │   ├── localFrame.ts         ← 위경도 ↔ 원점 기준 로컬 미터 (내 동네 시험판)
-│   │   ├── vectorTiles.ts        ← OpenStreetMap 벡터 타일(OpenFreeMap)에서 길 읽기
-│   │   └── sector.ts             ← 섹터 계산 재노출 배럴 (shared/world/sector)
-│   ├── map/                      ← 대시보드 월드 지도 계층
-│   │   ├── context.ts            ← Mapbox 지도 + Three.js 커스텀 레이어 초기화 (WebGL 컨텍스트 공유)
-│   │   ├── camera.ts             ← 지도 카메라 잠금 (pitch·bearing 고정, 줌 14~20) + 캐릭터 추적
-│   │   └── snap.ts               ← 이동 좌표를 15m 이내 도로 선분으로 스냅
+│   │   └── vectorTiles.ts        ← OpenStreetMap 벡터 타일(OpenFreeMap)에서 길 읽기
 │   ├── three/
 │   │   ├── binLoader.ts          ← ref-assets .bin(Draco) 로더 + 스킨·애니메이션·인스턴스 LOD 헬퍼
-│   │   ├── character.ts          ← kid 스킨드 캐릭터(idle/run) + 절차적 폴백 메시
-│   │   ├── fog.ts                ← Fog of War CSS 비네트 반경 헬퍼 (어느 월드에도 연결하지 않음)
-│   │   └── prune.ts              ← 반경 450m 외곽 dispose() 배치
+│   │   ├── character.ts          ← kid 스킨드 캐릭터(idle/run) + 절차적 폴백 메시 (에셋 뷰어)
+│   │   └── fog.ts                ← Fog of War CSS 비네트 반경 헬퍼 (어느 화면에도 연결하지 않음)
 │   ├── realtime/
-│   │   ├── world.ts              ← socket.io 월드 연결 (위치·채팅 브로드캐스트)
-│   │   └── scene.ts              ← socket.io 루트 3D 씬 익명 연결 (같은 방 아이 상태 중계)
-│   ├── voice/
-│   │   ├── livekit.ts            ← LiveKit 섹터 룸 조인·파기 + Top-8 구독
-│   │   └── spatial-audio.ts      ← 볼륨 감쇠 + 3D 패닝
+│   │   └── scene.ts              ← socket.io 익명 연결 (마을 씬 `/scene`·내 동네 `/neighborhood`)
 │   └── utils.ts                  ← `cn()` — clsx + 커스텀 토큰을 아는 tailwind-merge
 │
 ├── apps/api/src/                 ← NestJS API 서버
@@ -84,30 +48,29 @@ project/
 │   ├── database/                 ← pg Pool + RLS 컨텍스트 (module, service)
 │   ├── users/                    ← me.controller, user.entity, users.service, module
 │   ├── auth/                     ← controller, service, types, module (decorator/ dto/ guard/ oauth/)
-│   ├── world/                    ← world.gateway (socket.io), sector.ts, module
-│   ├── scene/                    ← scene.gateway (섬 익명 방 중계) · neighborhood.gateway (내 동네 가까운 사람 중계) · relay (함께 쓰는 검증), module
+│   ├── world/                    ← world.gateway (대시보드 월드 섹터 중계, socket.io), sector.ts, module
+│   ├── scene/                    ← scene.gateway (마을 씬 익명 방 중계) · neighborhood.gateway (내 동네 가까운 사람 중계) · relay (함께 쓰는 검증), module
 │   ├── voice/                    ← voice.controller, module (LiveKit 토큰 발급)
 │   ├── billing/                  ← controller, service, fulfillment.service, fulfillment.worker, module
 │   └── avatars/                  ← service, module (외형 조합 · 고유 시리얼 발급)
 │
-├── shared/world/                 ← 프론트·백엔드 공유 단일 소스(SSOT)
+├── shared/world/                 ← 프론트·백엔드 공유 단일 소스(SSOT) — 대시보드 월드
 │   ├── contract.ts               ← 월드 소켓 이벤트 계약 (socket.io 제네릭 타입)
 │   └── sector.ts                 ← 섹터 격자(500m)·거리·이동 검증 계산
 ├── shared/scene/
-│   └── contract.ts               ← 익명 멀티플레이 소켓 이벤트 계약 (섬·내 동네, socket.io 제네릭 타입)
+│   └── contract.ts               ← 익명 멀티플레이 소켓 이벤트 계약 (마을 씬·내 동네, socket.io 제네릭 타입)
 │
 ├── supabase/migrations/          ← PostgreSQL 마이그레이션 SQL 0001~0010
 │                                    (PostGIS, pg_cron, pgcrypto, citext)
 ├── supabase/functions/           ← Supabase Edge Function (livekit-token, spatial-query) — 앱에서 호출하지 않음
 │
 ├── public/
-│   ├── illustration-login.png    ← 로그인 화면 좌측 패널 일러스트
 │   ├── landing/                  ← 랜딩 배경 이미지 (앱 코드에서 참조하지 않음)
 │   │   ├── hero.jpg
 │   │   ├── explore.jpg
 │   │   ├── voice.jpg
 │   │   └── social.jpg
-│   └── ref-assets/               ← 루트 3D 씬 에셋 + 두 월드 공용 kid 캐릭터
+│   └── ref-assets/               ← 마을 씬·내 동네·에셋 뷰어가 쓰는 에셋 (kid 캐릭터 포함)
 │       ├── geometries/           ← .bin 지오메트리·본·애니메이션·인스턴스·충돌 메시
 │       ├── images/               ← 텍스처(PNG·KTX2), LUT, 인트로 전환 이미지
 │       ├── audio/                ← 배경음·효과음 (mp3)
@@ -125,17 +88,21 @@ project/
 └── package.json
 ```
 
-제품 진입은 루트 3D 씬(`/`)이다. `app/page.tsx`가 `app/summer-afternoon/scene.tsx`를 그대로 렌더하며, 이 씬은
-로그인 없이 동작한다. 같은 방 다른 방문자는 익명 소켓(`/scene`)으로 받아 그리고, API 서버에 닿지 못하면
-혼자인 채로 돈다. 내 동네 시험판(`/neighborhood`)은 같은 계약으로 `/neighborhood`에 붙어 반경 200m 사람을 받는다. `app/(game)`의 라우트는 `/dashboard`와 `/store`이고, 대시보드 월드는
-`components/world/WorldCanvas.tsx`가 `/dashboard`에서 마운트한다. 페이지 라우트 게이팅은 꺼져 있어
-(`middleware.ts`의 `matcher`가 비어 있음) 모든 페이지가 공개이며, 인증 재도입 시 연결할 보호 로직은
-`lib/auth/middleware.ts`에 둔다. 랜딩/마케팅 웹은 추후 별도 앱으로 분리한다(로드맵 참고). 현재 구조는 루트
-Next.js 앱과 `apps/api` NestJS를 한 저장소에 코로케이션한 형태다. 섹터 계산과 소켓 이벤트 계약은
-`shared/world/`에 단일 소스로 두고, 프론트(`lib/geo/sector.ts`, `lib/realtime/world.ts`)와
-백엔드(`apps/api/src/world/sector.ts`)가 이를 재노출해 같은 구현을 참조한다. 루트 3D 씬 소켓 계약은
-`shared/scene/contract.ts` 하나를 프론트(`lib/realtime/scene.ts`)와 백엔드(`apps/api/src/scene/`의 두 게이트웨이)가
-직접 import한다.
+제품 진입은 선택 페이지(`/`)다. `app/page.tsx`가 `lib/routes.ts`의 `SCENE_ROUTES`(`/village`, `/neighborhood`,
+`/dev/assets`)를 링크로 보여 주고, 세 페이지 모두 로그인 없이 동작한다. 마을 씬(`/village`)은 같은 방 다른
+방문자를 익명 소켓(`/scene`)으로 받아 그리고, API 서버에 닿지 못하면 혼자인 채로 돈다. 내 동네 시험판
+(`/neighborhood`)은 마을 씬 모듈(`app/village/`의 셰이더·조작·그림자·후처리·원격 아이)을 가져다 쓰고, 같은 계약으로
+`/neighborhood`에 붙어 반경 200m 사람을 받는다. 페이지 라우트 게이팅은 없어(`middleware.ts`의 `matcher`가 비어
+있음) 모든 페이지가 공개다.
+
+로그인·본인인증·대시보드 월드·상점 화면과 NestJS로 넘기는 BFF 라우트(`/api/auth/*`, `/api/billing/*`, `/api/me/*`,
+`/api/voice/token`)는 로드맵에 따라 만든다(예정). 이 화면들이 쓰는 서버 쪽(`auth`·`billing`·`users`·`voice` 모듈,
+`world` 게이트웨이)은 API 서버에 있다. 랜딩/마케팅 웹은 추후 별도 앱으로 분리한다(로드맵 참고).
+
+현재 구조는 루트 Next.js 앱과 `apps/api` NestJS를 한 저장소에 코로케이션한 형태다. 대시보드 월드의 섹터 계산과
+소켓 이벤트 계약은 `shared/world/`에 단일 소스로 두고, 백엔드(`apps/api/src/world/`)가 이를 재노출해 쓴다.
+익명 멀티플레이 소켓 계약은 `shared/scene/contract.ts` 하나를 프론트(`lib/realtime/scene.ts`)와
+백엔드(`apps/api/src/scene/`의 두 게이트웨이)가 직접 import한다.
 
 ---
 
@@ -143,37 +110,28 @@ Next.js 앱과 `apps/api` NestJS를 한 저장소에 코로케이션한 형태�
 
 | 파일 | 역할 |
 |---|---|
-| `app/page.tsx` | 제품 진입점 — 루트(`/`)에서 `app/summer-afternoon/scene.tsx`를 그대로 렌더한다(씬 전용 URL 없음) |
-| `app/summer-afternoon/scene.tsx` | 루트 3D 씬 — ref-assets 로드·씬 조립·렌더 루프, 우상단 HUD, 5시 미니맵 마운트 |
-| `app/summer-afternoon/thirdPerson.ts` | 루트 3D 씬 3인칭 조작(키보드·마우스·터치·게임패드)·캡슐 충돌·카메라 리그 ([ADR 007](../adr/007-quarter-view-camera-lock.md)) |
-| `app/summer-afternoon/shadows.ts` | 동적 그림자(시선 앞 ±12m) + 정적 그림자(CSM) 굽기 |
-| `app/summer-afternoon/sea.ts` · `birds.ts` · `postprocess.ts` · `touchCircles.ts` | 하늘을 비추는 바다, 갈매기 무리 비행, 최종 화면 패스(LUT·인트로·오버레이), 터치 원 UI |
+| `app/page.tsx` | 선택 페이지 — `SCENE_ROUTES` 경로를 링크로만 보여 준다 |
+| `lib/routes.ts` | `SCENE_ROUTES`(`/village`, `/neighborhood`, `/dev/assets`) — 선택 페이지와 내 동네 이동 버튼의 단일 소스 |
+| `app/village/scene.tsx` | 마을 씬 — ref-assets 로드·씬 조립·렌더 루프, 우상단 HUD(사운드·옷 색), 5시 미니맵 마운트 |
+| `app/village/thirdPerson.ts` | 마을 씬 3인칭 조작(키보드·마우스·터치·게임패드)·캡슐 충돌·카메라 리그 ([ADR 007](../adr/007-quarter-view-camera-lock.md)) |
+| `app/village/shadows.ts` | 동적 그림자(시선 앞 ±12m) + 정적 그림자(CSM) 굽기 |
+| `app/village/sea.ts` · `birds.ts` · `postprocess.ts` · `touchCircles.ts` | 하늘을 비추는 바다, 갈매기 무리 비행, 최종 화면 패스(LUT·인트로), 터치 원 UI |
+| `app/village/remotes.ts` · `kidAnimation.ts` | 같은 방 다른 아이들 — 받은 상태를 2단 보간해 그리고 등장·퇴장 크기 연출. 로컬·원격 아이가 함께 쓰는 idle·run·air·bored 가중치 규칙 |
 | `app/neighborhood/stream.ts` | 걷는 만큼 이어지는 바닥 — 256m 구역을 캐릭터 둘레 3×3으로 깔고 멀어진 구역은 치운다, 워커가 그린 마스크로 텍스처·메시 생성, 잔디 받침 바닥 |
 | `app/neighborhood/ground.worker.ts` · `groundSource.ts` | 워커에서 z14 타일 받기·해석(12장 캐시)과 구역 마스크 그리기(OffscreenCanvas) — 워커가 없으면 같은 코드를 메인 스레드에서 |
-| `app/neighborhood/scene.tsx` · `ground.ts` | 내 동네 시험판 — 내 위치 주변 실제 길(OpenStreetMap)을 원작 지형 셰이더 마스크로 그려 1m = 1m로 걷고, 미니맵이 캐릭터를 따라 돈다. 휴대폰은 GPS를 따라 걷는다. 반경 200m 사람이 실제 자리에 보인다. `ground.ts`는 도로 폭 규칙·타일 경계에 맞춘 점선 박자·마스크 그리기 |
+| `app/neighborhood/scene.tsx` · `ground.ts` | 내 동네 시험판 — 내 위치 주변 실제 길(OpenStreetMap)을 마을 씬 지형 셰이더 마스크로 그려 1m = 1m로 걷고, 미니맵이 캐릭터를 따라 돈다. 휴대폰은 GPS를 따라 걷는다. 반경 200m 사람이 실제 자리에 보인다. 좌상단에 `SCENE_ROUTES` 이동 버튼을 둔다. `ground.ts`는 도로 폭 규칙·타일 경계에 맞춘 점선 박자·마스크 그리기 |
+| `app/dev/assets/page.tsx` | 에셋 뷰어 — ref-assets 캐릭터·소품을 지도 없이 띄워 크기·본·애니메이션·인스턴스 규격을 확인한다(개발용) |
 | `lib/geo/vectorTiles.ts` · `localFrame.ts` | OpenFreeMap z14 타일의 `transportation` 레이어 읽기(땅 위의 길만) · 위경도 ↔ 로컬 미터 변환 |
-| `app/summer-afternoon/remotes.ts` · `kidAnimation.ts` | 같은 방 다른 아이들 — 받은 상태를 2단 보간해 그리고 등장·퇴장 크기 연출. 로컬·원격 아이가 함께 쓰는 idle·run·air·bored 가중치 규칙 |
-| `app/(game)/store/page.tsx` | 아바타·라이선스 상점 — 상품·주문·내 아바타·가시거리 조회, 주문서(`PENDING`) 발행 후 다시 조회 |
-| `components/world/WorldCanvas.tsx` | 대시보드 월드 — Mapbox 지도 + Three.js 커스텀 레이어, 이동·도로 스냅·위치 동기화·섹터 음성·프루닝 루프 |
 | `components/world/MiniMap.tsx` | 5시 GIS 미니맵 — 독립 Mapbox GL 캔버스에 유저 실제 GPS 위치 표시. `track`을 주면 캐릭터를 따라 화면 방향으로 돈다(작은 이동·회전은 CSS로만, 내 동네) |
-| `lib/api/proxy.ts` | Route Handler에서 NestJS로 요청 전달, `Authorization` 헤더 패스스루 |
-| `lib/realtime/world.ts` | socket.io 월드 연결 — 섹터 채널 위치·채팅 송수신 (위경도) |
-| `lib/realtime/scene.ts` | socket.io 익명 멀티플레이 연결(섬 `/scene`·내 동네 `/neighborhood`) — 35ms마다 바뀐 필드만 전송, 탭 숨김·5분 무변화 시 끊기, 재접속 때 전에 있던 방 요청 |
-| `lib/map/context.ts` | 대시보드 월드 초기화 진입점 — Mapbox 지도에 Three.js 커스텀 레이어를 올린다 ([ADR 001](../adr/001-webgl-context-sharing.md)) |
-| `lib/map/camera.ts` | 대시보드 월드 지도 카메라 잠금 — pitch·bearing 고정, 줌 14~20, 이동 시 지도 중심을 캐릭터로 맞춤(`followPlayer`) ([ADR 007](../adr/007-quarter-view-camera-lock.md)) |
-| `lib/map/snap.ts` | 이동 좌표를 15m 이내 Mapbox 도로 선분의 최근접점으로 보정 |
-| `lib/three/fog.ts` | Fog of War CSS 비네트 반경 헬퍼 — 어느 월드에도 연결되어 있지 않다 ([ADR 006](../adr/006-fog-of-war-business-model.md)) |
-| `lib/three/prune.ts` | 50m 이동마다 반경 450m 밖 피어 오브젝트를 씬에서 빼고, 공유되지 않는 지오메트리·재질 해제 (대시보드 월드) |
-| `lib/geo/validator.ts` | 직전 좌표 대비 이동 속도 계산 → 30km/h 초과 시 전송 드롭 (위경도) |
-| `lib/auth/session.ts` | 액세스 토큰 메모리 보관·리프레시, 로그인·가입·로그아웃, JWT에서 유저 ID·이메일·역할 파싱 |
-| `lib/auth/middleware.ts` | `/dashboard`·`/store`·`/admin` 세션 쿠키 검사 → `/login` 리다이렉트 (전역 미들웨어에 연결하지 않음) |
-| `apps/api/src/world/world.gateway.ts` | socket.io 게이트웨이 — 섹터 판정·속도 검증·5Hz 묶음 브로드캐스트 (`shared/world/contract` 제네릭 타입) |
-| `shared/world/contract.ts` | 월드 소켓 이벤트 이름·페이로드 계약 — 프론트·백엔드 socket.io 제네릭 단일 소스 |
-| `shared/world/sector.ts` | 섹터 격자(500m)·거리·이동 속도 검증 계산 — 프론트·백엔드 단일 소스 |
-| `apps/api/src/scene/scene.gateway.ts` | 루트 3D 씬 익명 socket.io 게이트웨이(`/scene`) — 방 배정(20명)·35ms 방 단위 변경분 방송 |
+| `lib/realtime/scene.ts` | socket.io 익명 멀티플레이 연결(마을 씬 `/scene`·내 동네 `/neighborhood`) — 35ms마다 바뀐 필드만 전송, 탭 숨김·5분 무변화 시 끊기, 재접속 때 전에 있던 방 요청 |
+| `lib/three/fog.ts` | Fog of War CSS 비네트 반경 헬퍼 — 어느 화면에도 연결되어 있지 않다 ([ADR 006](../adr/006-fog-of-war-business-model.md)) |
+| `apps/api/src/scene/scene.gateway.ts` | 마을 씬 익명 socket.io 게이트웨이(`/scene`) — 방 배정(20명)·35ms 방 단위 변경분 방송 |
 | `apps/api/src/scene/neighborhood.gateway.ts` | 내 동네 익명 socket.io 게이트웨이(`/neighborhood`) — 실제 좌표, 사람마다 반경 200m 가까운 19명 선택·입장 전체 상태·퇴장 `leave` |
 | `apps/api/src/scene/relay.ts` | 두 익명 게이트웨이가 함께 쓰는 상태 보관·필드 검증·거리 예산·순간이동·빈도 제한 |
 | `shared/scene/contract.ts` | 익명 멀티플레이 소켓 이벤트 이름·페이로드 계약(위치·방향·모션·색 시드)과 월드별 네임스페이스·위치 자리수(`SCENE_WORLDS`) — 프론트·백엔드 socket.io 제네릭 단일 소스 |
+| `apps/api/src/world/world.gateway.ts` | 대시보드 월드 socket.io 게이트웨이(`/world`) — 섹터 판정·속도 검증·5Hz 묶음 브로드캐스트 (`shared/world/contract` 제네릭 타입). 붙는 화면은 대시보드 월드와 함께 예정 |
+| `shared/world/contract.ts` | 월드 소켓 이벤트 이름·페이로드 계약 — socket.io 제네릭 단일 소스 |
+| `shared/world/sector.ts` | 섹터 격자(500m)·거리·이동 속도 검증 계산 — 단일 소스 |
 | `apps/api/src/billing/fulfillment.worker.ts` | 결제 완료 주문을 폴링해 아바타·라이선스 발급 |
 | `apps/api/src/voice/voice.controller.ts` | LiveKit Cloud 섹터 룸 접속 JWT 토큰 발급 |
 | `apps/api/src/database/database.service.ts` | pg Pool + 트랜잭션별 `app.user_id`/`app.user_role` RLS 컨텍스트 주입 |

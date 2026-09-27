@@ -9,25 +9,27 @@
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                         유저 브라우저 (PC / 모바일)                         │
-│  루트 3D 씬 (/)                          대시보드 월드 (/dashboard)          │
+│  선택 페이지 (/) — /village · /neighborhood · /dev/assets 링크              │
+│  마을 씬 (/village)                       대시보드 월드 (/dashboard, 예정)   │
 │  - 로그인 없는 공개 씬 + 익명 방 멀티플레이   - Mapbox 실지형 지도 기반 멀티플레이 │
 │  - PC: WASD·방향키·마우스 가상 조이스틱      - PC: WASD·방향키                 │
 │  - 모바일: 터치 가상 조이스틱               - 모바일: 실제 GPS 이동             │
 │  내 동네 (/neighborhood) — 같은 화풍의 실제 길 + 반경 200m 가까운 사람         │
+│  에셋 뷰어 (/dev/assets) — ref-assets 캐릭터·소품 확인 (개발용)               │
 └───────┬─────────────────────────┬─────────────────────────┬──────────────┘
         │ HTTPS                   │ socket.io               │ LiveKit SDK
-        │ (BFF 프록시)            │ (세 화면 → 직접)         │ (대시보드 월드 → 직접)
+        │ (페이지·정적 파일)        │ (씬 → 직접)              │ (예정)
 ┌───────▼─────────────────────────┼─────────────────────────┼──────────────┐
 │             Next.js 15 (App Router, CSR)                   │              │
-│  [루트 3D 씬] Three.js 자체 WebGL 캔버스 (ref-assets 씬)     │              │
+│  [마을 씬] Three.js 자체 WebGL 캔버스 (ref-assets 씬)        │              │
 │      + 5시 GIS 미니맵 — 독립 Mapbox GL 캔버스 (실제 GPS)     │              │
 │  [내 동네] 같은 캔버스 구조 + 바닥 워커(OffscreenCanvas)     │              │
-│  [대시보드 월드] Mapbox GL 캔버스 + Three.js 커스텀 레이어    │              │
+│  [대시보드 월드 — 예정] Mapbox GL + Three.js 커스텀 레이어     │              │
 │      (Mapbox의 WebGL 컨텍스트 공유)                         │              │
-│  app/api/* = 얇은 BFF 프록시 (Authorization 헤더 전달)       │              │
+│  app/api/health = 헬스 체크 · BFF 프록시는 예정              │              │
 │  배포: Vercel Edge Network                                  │              │
 └───────┬─────────────────────────┼─────────────────────────┼──────────────┘
-        │ (프록시 → NestJS)        │                         │
+        │ (BFF → NestJS, 예정)    │                         │
 ┌───────▼─────────────────────────▼──────────┐  ┌───────────▼────────┐
 │        NestJS 11 API 서버 (apps/api)        │  │   LiveKit Cloud    │
 │        자체 호스팅                           │  │   (매니지드 SFU)    │
@@ -55,27 +57,31 @@
 └──────────────────────┘
 ```
 
-화면은 두 월드로 나뉘고, 내 동네 시험판이 루트 3D 씬의 렌더링을 함께 쓴다.
+화면은 선택 페이지(`/`)에서 고르는 세 곳이고, 내 동네 시험판이 마을 씬의 렌더링을 함께 쓴다. 로그인 유저용 대시보드 월드는
+서버 쪽이 API 서버에 있고, 화면은 로그인·상점 화면과 함께 만든다(예정).
 
-- **루트 3D 씬**(`/`, `app/summer-afternoon/`)은 씬이 직접 만든 Three.js WebGL 캔버스에 ref-assets 기반
-  로우폴리 씬(여름 오후 해변 마을)을 렌더링하는 공개 씬이다. 로그인 없이 열리고, 같은 방(최대 20명)에 든 다른
-  방문자의 아이가 익명 소켓(`/scene`)으로 함께 보인다(원본 멀티플레이). 채팅·음성은 없고, 서버에 닿지 못하면
-  혼자인 채로 돈다. 좌표는 씬 로컬 미터 좌표다. 화면 5시(우하단)의 나침반형 GIS 미니맵은 씬 렌더러와 분리된
-  독립 Mapbox GL 캔버스로 유저의 실제 GPS 위치를 실지형 지도 위에 표시한다.
+- **선택 페이지**(`/`, `app/page.tsx`)는 `lib/routes.ts`의 `SCENE_ROUTES`(`/village`, `/neighborhood`, `/dev/assets`) 링크만 둔다.
+- **마을 씬**(`/village`, `app/village/`)은 씬이 직접 만든 Three.js WebGL 캔버스에 ref-assets 기반 로우폴리 해변 마을을
+  렌더링하는 공개 씬이다. 로그인 없이 열리고, 같은 방(최대 20명)에 든 다른 방문자의 아이가 익명 소켓(`/scene`)으로
+  함께 보인다. 채팅·음성은 없고, 서버에 닿지 못하면 혼자인 채로 돈다. 좌표는 씬 로컬 미터 좌표다. 화면 5시(우하단)의
+  나침반형 GIS 미니맵은 씬 렌더러와 분리된 독립 Mapbox GL 캔버스로 유저의 실제 GPS 위치를 실지형 지도 위에 표시한다.
   같은 렌더링을 쓰는 **내 동네 시험판**(`/neighborhood`, `app/neighborhood/`)은 내 위치 주변 실제 길을 깔고 걷는
   만큼 이어 깔며, 반경 200m 사람의 아이가 익명 소켓(`/neighborhood`)으로 실제 자리에 보인다.
-- **대시보드 월드**(`/dashboard`, `components/world/WorldCanvas.tsx`)는 Mapbox GL 실지형 지도를 베이스로 하고,
-  캐릭터를 Three.js 커스텀 레이어로 지도 위에 그리는 멀티플레이 월드다. Three.js 렌더러는 Mapbox 캔버스의
-  WebGL 컨텍스트를 공유한다. 좌표는 위경도(EPSG:4326)이며, 위치 브로드캐스트·섹터 판정·속도 검증·근접 음성이
-  모두 위경도 기준으로 동작한다.
+- **에셋 뷰어**(`/dev/assets`, `app/dev/assets/`)는 ref-assets 캐릭터·소품을 띄워 크기·본·애니메이션·인스턴스 규격을
+  확인하는 개발용 페이지다.
+- **대시보드 월드**(`/dashboard`, 예정)는 Mapbox GL 실지형 지도를 베이스로 하고, 캐릭터를 Three.js 커스텀 레이어로
+  지도 위에 그리는 멀티플레이 월드다. Three.js 렌더러는 Mapbox 캔버스의 WebGL 컨텍스트를 공유한다. 좌표는
+  위경도(EPSG:4326)이며, 위치 브로드캐스트·섹터 판정·속도 검증·근접 음성이 모두 위경도 기준으로 동작한다.
+  서버 쪽 월드 게이트웨이(`/world`)와 음성 룸 토큰 발급은 API 서버에 있다.
 
-브라우저는 NestJS API를 직접 호출하지 않는다. 모든 REST 호출은 Next.js Route Handler(`app/api/*`)를
-얇은 BFF 프록시로 거쳐 NestJS로 전달되며, 프록시가 `Authorization` 헤더를 그대로 넘긴다. 대시보드 월드의
-위치·채팅은 브라우저가 `NEXT_PUBLIC_WS_URL`로 socket.io 게이트웨이에 직접 접속하고, 공간 음성은 LiveKit Cloud에
-직접 조인한다(룸 토큰만 NestJS `voice` 모듈이 발급). 월드 소켓·음성 접속에는 액세스 토큰이 필요하다. 루트 3D 씬은
-같은 주소의 `/scene` 네임스페이스에, 내 동네 시험판은 `/neighborhood`에 토큰 없이 익명으로 붙는다.
+브라우저가 지금 API 서버에 붙는 길은 씬 소켓뿐이다. 마을 씬은 `NEXT_PUBLIC_WS_URL` 주소의 `/scene` 네임스페이스에,
+내 동네 시험판은 `/neighborhood`에 토큰 없이 익명으로 붙는다. Next.js API 라우트는 헬스 체크(`/api/health`)뿐이다.
+로그인·상점·대시보드 화면을 만들 때 REST 호출은 Next.js Route Handler(`/api/auth/*`, `/api/billing/*`, `/api/me/*`,
+`/api/voice/token`)를 얇은 BFF 프록시로 거쳐 NestJS로 전달하고, 프록시가 `Authorization` 헤더를 그대로 넘기며,
+리프레시 토큰은 이 라우트가 httpOnly 쿠키로 관리한다(예정). 대시보드 월드의 위치·채팅 소켓(`/world`)과 공간
+음성(LiveKit Cloud 직접 조인, 룸 토큰은 NestJS `voice` 모듈이 발급)에는 액세스 토큰이 필요하다.
 
-페이지 라우트 게이팅은 꺼져 있어 모든 페이지가 공개다(`middleware.ts`의 `matcher`가 비어 있다). 실제 인가는
+페이지 라우트 게이팅은 없어 모든 페이지가 공개다(`middleware.ts`의 `matcher`가 비어 있다). 실제 인가는
 NestJS 가드와 PostgreSQL RLS가 담당한다.
 
 ---
@@ -86,18 +92,18 @@ NestJS 가드와 PostgreSQL RLS가 담당한다.
 |---|---|---|
 | **코어 프레임워크** | Next.js 15 (App Router, CSR) | 개발 서버 Turbopack |
 | **3D 엔진** | Three.js (0.169) | ref-assets `.bin`(Draco) 지오메트리·스킨 애니메이션·인스턴스 LOD, 램프 팔레트 셰이더 |
-| **루트 3D 씬·내 동네 렌더링** | Three.js 자체 WebGL 캔버스 + EffectComposer | 5시 미니맵과 WebGL 컨텍스트 분리 ([ADR 001](../adr/001-webgl-context-sharing.md)). 내 동네 바닥 마스크는 워커의 OffscreenCanvas가 그린다 |
-| **대시보드 월드 렌더링** | Mapbox GL JS v3 + Three.js 커스텀 레이어 | Mapbox 캔버스의 WebGL 컨텍스트 공유 ([ADR 001](../adr/001-webgl-context-sharing.md)) |
-| **지도 엔진** | Mapbox GL JS v3 (Standard 스타일) | 대시보드 월드 베이스 지도, 5시 미니맵(루트 3D 씬·내 동네). 무료 티어 20만 건/월 |
+| **마을 씬·내 동네 렌더링** | Three.js 자체 WebGL 캔버스 + EffectComposer | 5시 미니맵과 WebGL 컨텍스트 분리 ([ADR 001](../adr/001-webgl-context-sharing.md)). 내 동네 바닥 마스크는 워커의 OffscreenCanvas가 그린다 |
+| **대시보드 월드 렌더링 (예정)** | Mapbox GL JS v3 + Three.js 커스텀 레이어 | Mapbox 캔버스의 WebGL 컨텍스트 공유 ([ADR 001](../adr/001-webgl-context-sharing.md)) |
+| **지도 엔진** | Mapbox GL JS v3 (Standard 스타일) | 5시 미니맵(마을 씬·내 동네), 대시보드 월드 베이스 지도(예정). 무료 티어 20만 건/월 |
 | **길 데이터** | OpenStreetMap 벡터 타일 (OpenFreeMap, OpenMapTiles 스키마) | 내 동네 바닥. z14 타일을 브라우저 워커가 직접 받아 `@mapbox/vector-tile`·`pbf`로 해석 |
-| **UI 스타일** | Tailwind CSS v4 + oklch 디자인 시스템 | 앱 셸(로그인·상점·대시보드)은 Nunito 폰트. 루트 3D 씬 HUD는 `sa-*` 스타일·Stylish 폰트 |
-| **프론트 배포** | Vercel Edge Network | Next.js 서버(Route Handler 포함, `output: 'standalone'`) + ref-assets 정적 파일 |
+| **UI 스타일** | Tailwind CSS v4 + oklch 디자인 시스템 | 루트 레이아웃 기본 글꼴 Nunito. 마을 씬 HUD는 `sa-*` 스타일·Stylish 폰트 |
+| **프론트 배포** | Vercel Edge Network | Next.js 서버(`output: 'standalone'`, Route Handler `/api/health`) + ref-assets 정적 파일 |
 | **API 서버** | NestJS 11 (`apps/api`) | 자체 호스팅 |
 | **데이터베이스** | PostgreSQL + PostGIS (자체 호스팅, 단일 공유 DB) | 공간 연산 내장 ([ADR 002](../adr/002-self-hosted-backend.md)) |
-| **실시간 소켓** | socket.io 4 (NestJS WebSocket 게이트웨이) | 대시보드 월드 섹터 단위 묶음 브로드캐스트(`/world`), 루트 3D 씬 익명 방 단위 변경분 중계(`/scene`), 내 동네 익명 가까운 사람 중계(`/neighborhood`) |
-| **인증** | 자체 JWT + bcrypt, 카카오/구글 OAuth | 액세스 15분 / 리프레시 30일 |
-| **공간 음성** | LiveKit Cloud SFU (`livekit-client`, `livekit-server-sdk`) | 대시보드 월드 섹터별 룸 ([ADR 003](../adr/003-livekit-cloud-sfu.md)) |
-| **PG 결제** | 토스페이먼츠 / 카카오페이 | 원화 직행 ([ADR 004](../adr/004-direct-krw-payment.md)) |
+| **실시간 소켓** | socket.io 4 (NestJS WebSocket 게이트웨이) | 마을 씬 익명 방 단위 변경분 중계(`/scene`), 내 동네 익명 가까운 사람 중계(`/neighborhood`), 대시보드 월드 섹터 단위 묶음 브로드캐스트(`/world`, 붙는 화면은 예정) |
+| **인증** | 자체 JWT + bcrypt, 카카오/구글 OAuth | NestJS `auth` 모듈. 액세스 15분 / 리프레시 30일. 로그인 화면은 예정 |
+| **공간 음성** | LiveKit Cloud SFU (`livekit-server-sdk`) | 대시보드 월드 섹터별 룸. 서버는 룸 토큰을 발급하고, 룸에 붙는 화면은 대시보드 월드와 함께 예정 ([ADR 003](../adr/003-livekit-cloud-sfu.md)) |
+| **PG 결제** | 토스페이먼츠 / 카카오페이 | 원화 직행 ([ADR 004](../adr/004-direct-krw-payment.md)). 승인 웹훅은 API 서버가 받고, 결제창은 상점 화면과 함께 예정 |
 | **아바타 외형** | 서버 팔레트 조합 + 난수 시드 | `appearance_hash`(SHA-256) UNIQUE로 중복 차단. 생성형 AI로 교체 예정 |
 
 ---
@@ -106,11 +112,11 @@ NestJS 가드와 PostgreSQL RLS가 담당한다.
 
 | 서비스 | 용도 | 제한 / 비용 |
 |---|---|---|
-| **Mapbox** | 대시보드 월드 베이스 지도 타일, 5시 GIS 미니맵 타일(루트 3D 씬·내 동네) | 무료 20만 건/월, 초과 종량 |
+| **Mapbox** | 5시 GIS 미니맵 타일(마을 씬·내 동네), 대시보드 월드 베이스 지도 타일(예정) | 무료 20만 건/월, 초과 종량 |
 | **OpenFreeMap** | 내 동네 길 데이터(OpenStreetMap z14 벡터 타일, 브라우저가 직접 호출) | 무료·키 없음. 화면에 출처(OpenStreetMap·OpenMapTiles·OpenFreeMap) 표기 필수 |
-| **LiveKit Cloud** | 대시보드 월드 공간 음성 SFU | 무료 티어 내 소진, 초과분 종량 |
+| **LiveKit Cloud** | 대시보드 월드 공간 음성 SFU (예정) | 무료 티어 내 소진, 초과분 종량 |
 | **토스페이먼츠 / 카카오페이** | 원화 결제 PG | 건당 수수료 |
-| **카카오 / 구글 OAuth** | 소셜 로그인 (Authorization Code 흐름) | 무료 |
+| **카카오 / 구글 OAuth** | 소셜 로그인 (Authorization Code 흐름, 코드 교환은 API 서버) | 무료 |
 | **Vercel** | 프론트엔드 배포·CDN | 소규모 무료~소액 |
 | **생성형 AI API** | 아바타 외형 생성 (예정) | 사용량 기반 |
 
@@ -124,32 +130,32 @@ DB(PostgreSQL + PostGIS)와 NestJS API 서버는 자체 호스팅으로 운영�
 |---|---|---|
 | 라이선스 가시거리 기본값 | 25m | 가입 시 생성되는 `user_licenses` 기본 반경 |
 | 라이선스 가시거리 상품 | 100m / 300m | `license_100m`(4,900원) / `license_300m`(9,900원). 발급 시 더 큰 값으로만 갱신 |
-| 도보 이동 속도 | 약 3.75m/s / 3m/s | 루트 3D 씬은 관성 물리로 모든 방향 최고 약 3.75m/s(원본 수치). 대시보드 월드는 같은 도/초를 경도·위도에 더해 남북 3m/s·동서 약 2.4m/s·대각선 약 3.8m/s |
-| 캐릭터 최대 이동 속도 | 시속 30km | 대시보드 월드 클라이언트·서버 이중 검증, 초과 좌표 드롭 |
-| 도로 스냅 반경 | 15m | 대시보드 월드 이동 좌표를 가장 가까운 도로 선분으로 보정 |
-| 위치 전송 주기 | 200ms (5Hz) | 클라이언트 전송 + 서버 섹터 묶음 방송 (위경도) |
-| 최소 전송 이동 거리 | 0.3m | 이보다 덜 움직이면 전송 생략 |
+| 도보 이동 속도 | 약 3.75m/s / 3m/s | 마을 씬은 관성 물리로 모든 방향 최고 약 3.75m/s. 대시보드 월드(예정)는 같은 도/초를 경도·위도에 더해 남북 3m/s·동서 약 2.4m/s·대각선 약 3.8m/s |
+| 캐릭터 최대 이동 속도 | 시속 30km | 월드 게이트웨이가 초과 좌표를 드롭한다. 대시보드 월드 화면(예정)도 보내기 전에 같은 기준으로 거른다 |
+| 도로 스냅 반경 | 15m | 대시보드 월드(예정) 이동 좌표를 가장 가까운 도로 선분으로 보정 |
+| 위치 전송 주기 | 200ms (5Hz) | 서버 섹터 묶음 방송(위경도). 대시보드 월드 화면(예정)도 같은 주기로 보낸다 |
+| 최소 전송 이동 거리 | 0.3m | 대시보드 월드(예정) — 이보다 덜 움직이면 전송 생략 |
 | 섹터 크기 | 500m × 500m | 경계 50m 이내면 인접 섹터도 함께 구독 |
 | 무갱신 위치 정리 | 30초 | `move`가 30초 없으면 게이트웨이 메모리의 위치 상태를 지운다(소켓은 유지). 제자리 유저는 전송을 생략하므로 위치 방송·채팅 대상에서 빠졌다가 다시 움직이면 복귀 |
-| 루트 3D 씬 방 정원 | 20명 (전체 1,000명) | 익명 소켓 방 단위. 먼저 연 방부터 채우고, 다시 붙으면 전에 있던 방을 청한다 |
-| 루트 3D 씬 상태 전송 | 35ms | 바뀐 필드(위치·방향은 소수 둘째 자리)만 클라이언트가 올리고, 서버가 방마다 묶어 내린다(원본 updateRate) |
-| 루트 3D 씬 이동 검증 | 초당 10m 거리 예산 (최대 2m) | 넘는 이동은 버리고 순간이동(낙하 복귀)은 5초에 한 번 받는다. 초당 60건을 넘게 보내면 서버가 끊는다 |
-| 내 동네 보이는 사람 | 반경 200m, 가까운 19명 | 방 없이 사람마다 고른다. 보이던 사람은 230m까지 남고 순위를 30m 앞당겨 받는다. 위치는 실제 좌표(경위도, 약 1cm), 검증은 루트 3D 씬과 같다 |
-| 루트 3D 씬 무변화 끊기 | 5분 | 바뀐 게 없으면 클라이언트가 스스로 끊고, 다시 움직이면 붙는다. 탭을 숨기면 바로 끊는다(원본 inactiveDisconnect) |
-| Three.js Prune 임계값 | 반경 450m 외곽 | 대시보드 월드 피어 오브젝트 메모리 해제 기준 |
-| Prune 트리거 | 50m 이동마다 | 비동기 배치 실행 |
+| 마을 씬 방 정원 | 20명 (전체 1,000명) | 익명 소켓 방 단위. 먼저 연 방부터 채우고, 다시 붙으면 전에 있던 방을 청한다 |
+| 마을 씬 상태 전송 | 35ms | 바뀐 필드(위치·방향은 소수 둘째 자리)만 클라이언트가 올리고, 서버가 방마다 묶어 내린다 |
+| 마을 씬 이동 검증 | 초당 10m 거리 예산 (최대 2m) | 넘는 이동은 버리고 순간이동(낙하 복귀)은 5초에 한 번 받는다. 초당 60건을 넘게 보내면 서버가 끊는다 |
+| 내 동네 보이는 사람 | 반경 200m, 가까운 19명 | 방 없이 사람마다 고른다. 보이던 사람은 230m까지 남고 순위를 30m 앞당겨 받는다. 위치는 실제 좌표(경위도, 약 1cm), 검증은 마을 씬과 같다 |
+| 마을 씬 무변화 끊기 | 5분 | 바뀐 게 없으면 클라이언트가 스스로 끊고, 다시 움직이면 붙는다. 탭을 숨기면 바로 끊는다 |
+| Three.js Prune 임계값 | 반경 450m 외곽 | 대시보드 월드(예정) 피어 오브젝트 메모리 해제 기준 |
+| Prune 트리거 | 50m 이동마다 | 대시보드 월드(예정), 비동기 배치 실행 |
 | 음성 룸 단위 | 섹터당 1개 | 룸 이름 `voice-{sectorId}` |
-| 음성 구독 반경 | 40m | 이 안에서 가까운 순으로 구독 |
-| 동시 구독 Capping | Top-8 | 클라이언트 CPU 방어 |
-| 공간 음성 감쇠 | 30m까지 최대 → 40m 무음 | 30~40m 구간 선형 감쇠 |
+| 음성 구독 반경 | 40m | 이 안에서 가까운 순으로 구독 (대시보드 월드, 예정) |
+| 동시 구독 Capping | Top-8 | 클라이언트 CPU 방어 (대시보드 월드, 예정) |
+| 공간 음성 감쇠 | 30m까지 최대 → 40m 무음 | 30~40m 구간 선형 감쇠 (대시보드 월드, 예정) |
 | 에셋 프리로드 바운더리 | 전방 350~400m | 스폰서 텍스처 사전 다운로드 (Phase 5 예정) |
-| 루트 3D 씬 카메라 | 3인칭 구면 리그 | 시선 목표점 기준 반경 5.836m·앙각 9.866° ([ADR 007](../adr/007-quarter-view-camera-lock.md)) |
-| 대시보드 월드 카메라 | pitch 45°·bearing 45° 고정 | 드래그·회전 잠금, 줌 14~20만 허용, 이동할 때마다 캐릭터 중심으로 맞춤 |
+| 마을 씬 카메라 | 3인칭 구면 리그 | 시선 목표점 기준 반경 5.836m·앙각 9.866° ([ADR 007](../adr/007-quarter-view-camera-lock.md)) |
+| 대시보드 월드 카메라 | pitch 45°·bearing 45° 고정 | 드래그·회전 잠금, 줌 14~20만 허용, 이동할 때마다 캐릭터 중심으로 맞춤 (예정) |
 | GIS 미니맵 카메라 | 유저 추적 고정 | `interactive: false`, 줌 16, 실제 위치 중심 고정 |
 | 액세스 토큰 만료 | 15분 | 브라우저 메모리 보관 |
 | 리프레시 토큰 만료 | 30일 | httpOnly 쿠키 보관 |
 
-라이선스 가시거리는 DB에 저장되고 상점에 표시되며, 두 월드의 렌더링에는 아직 적용하지 않는다
+라이선스 가시거리는 DB에 저장되고 NestJS `GET /me/license`로 조회하며, 월드 렌더링에는 아직 적용하지 않는다
 ([ADR 006](../adr/006-fog-of-war-business-model.md)).
 
 ---
@@ -175,10 +181,10 @@ MVP 규모에서는 대부분 무료 티어~소액 수준에서 운영 가능하
 
 | ADR | 주제 |
 |---|---|
-| [ADR 001](../adr/001-webgl-context-sharing.md) | WebGL 컨텍스트 구성 — 루트 3D 씬·미니맵 분리, 대시보드 월드 Mapbox 공유 |
+| [ADR 001](../adr/001-webgl-context-sharing.md) | WebGL 컨텍스트 구성 — 마을 씬·미니맵 분리, 대시보드 월드(예정) Mapbox 공유 |
 | [ADR 002](../adr/002-self-hosted-backend.md) | 자체 백엔드(NestJS + 공유 Postgres) |
 | [ADR 003](../adr/003-livekit-cloud-sfu.md) | LiveKit Cloud 매니지드 SFU |
 | [ADR 004](../adr/004-direct-krw-payment.md) | 원화 직행 결제 구조 |
 | [ADR 005](../adr/005-postgis-gist-index.md) | PostGIS + GiST 공간 인덱스 |
 | [ADR 006](../adr/006-fog-of-war-business-model.md) | 가시거리 라이선스 BM |
-| [ADR 007](../adr/007-quarter-view-camera-lock.md) | 루트 3D 씬 3인칭 카메라 + 대시보드 월드·미니맵 카메라 잠금 |
+| [ADR 007](../adr/007-quarter-view-camera-lock.md) | 마을 씬 3인칭 카메라 + 대시보드 월드(예정)·미니맵 카메라 잠금 |
