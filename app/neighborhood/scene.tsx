@@ -48,8 +48,6 @@ export default function NeighborhoodScene() {
   const mountRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<MapTrack | null>(null)
   const [phase, setPhase] = useState<Phase>('locating')
-  // 흐린 위치(±50m 밖)로 시작해 아직 제자리로 옮기지 못했다 — 정확한 위치가 오면 옮기고 알림을 내린다
-  const [roughStart, setRoughStart] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [gps, setGps] = useState<GpsTracker | null>(null)
   const gpsView = useGpsSnapshot(gps)
@@ -151,8 +149,6 @@ export default function NeighborhoodScene() {
     ;(async () => {
       const fix = await wait.promise
       if (destroyed) return
-      const rough = !isWalkableFix(fix)
-      setRoughStart(rough)
       const local = createLocalFrame(Math.round(fix.lng / ORIGIN_GRID) * ORIGIN_GRID, Math.round(fix.lat / ORIGIN_GRID) * ORIGIN_GRID)
       const start = local.toLocal(fix.lng, fix.lat)
       setPhase('loading')
@@ -248,18 +244,11 @@ export default function NeighborhoodScene() {
       controller.setEnabled(!mapOpenRef.current)
       const me = kid
       const walker = controller
-      // 휴대폰은 늘 GPS를 따라 걷는다. PC는 흐린 위치로 시작했을 때만 첫 정확한 위치로 한 번 옮기고
-      // 그 뒤로는 키보드로 걷는다. ±50m 밖 위치(건물 사이·와이파이·IP 추정)로는 걷지도 옮기지도 않는다
-      let needsSnap = rough
+      // 휴대폰은 늘 GPS를 따라 걷고, PC는 시작한 자리에서 키보드로 걷는다(흐린 위치로 시작했어도 나중에 옮기지 않는다).
+      // ±50m 밖 위치(건물 사이·와이파이·IP 추정)로는 걷지도 옮기지도 않는다
       unwatch = gps.subscribe(({ fix: next }) => {
-        if (!next || !isWalkableFix(next)) return
+        if (!mobile || !next || !isWalkableFix(next)) return
         const target = local.toLocal(next.lng, next.lat)
-        if (needsSnap) {
-          needsSnap = false
-          walker.snap(target.x, target.z)
-          setRoughStart(false)
-        }
-        if (!mobile) return
         gpsTarget = target
         // 지하철·차로 멀리 옮겨 갔으면 걸어가지 않고 그 자리로 옮긴다(앞쪽 구역은 다음 프레임부터 깔린다)
         if (Math.hypot(target.x - me.position.x, target.z - me.position.z) > GPS_TELEPORT_M) {
@@ -385,7 +374,7 @@ export default function NeighborhoodScene() {
   }, [])
 
   const waiting = phase === 'locating' && gpsView && env ? startWaitNote(gpsView, env) : null
-  const notice = phase === 'playing' && gpsView ? walkNote(gpsView, { roughStart, mobile }) : null
+  const notice = phase === 'playing' && gpsView ? walkNote(gpsView, { mobile }) : null
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#FFFDF8] select-none">

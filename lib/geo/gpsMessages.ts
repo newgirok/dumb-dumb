@@ -183,17 +183,12 @@ export function startWaitNote(snapshot: GpsSnapshot, env: GpsEnv): GpsNote | nul
 }
 
 /**
- * 내 주변에서 걷는 중 위쪽 알림 — 흐린 위치로 시작했거나(아직 제자리로 못 옮김) 휴대폰에서
- * GPS가 걸음을 따라가지 못할 때만 한 줄로 알린다. 자세한 안내는 지도(M)에 있다.
+ * 내 주변에서 걷는 중 위쪽 알림 — 위치를 받을 수 없게 됐거나 휴대폰에서 GPS가 걸음을 따라가지 못할 때만
+ * 한 줄로 알린다. 자세한 안내는 지도(M)에 있다.
  */
-export function walkNote(snapshot: GpsSnapshot, { roughStart, mobile }: { roughStart: boolean; mobile: boolean }): string | null {
+export function walkNote(snapshot: GpsSnapshot, { mobile }: { mobile: boolean }): string | null {
   const { status, fix } = snapshot
   if (status === 'denied' || status === 'insecure' || status === 'unsupported') return '위치를 받을 수 없어 캐릭터가 GPS를 따라가지 않아요'
-  if (roughStart && fix && !isWalkableFix(fix)) {
-    return fix.accuracy <= 150
-      ? `위치가 ${formatAccuracy(fix.accuracy)} 흔들려 근처에서 시작했어요 · 또렷해지면 제자리로 옮겨 드려요`
-      : `대략적인 위치(${formatAccuracy(fix.accuracy)})에서 시작했어요 · 정확해지면 옮겨 드려요`
-  }
   if (!mobile) return null
   if (status === 'stale') return '걸음 신호가 잠시 멈췄어요 · 걸으면 다시 따라가요'
   if (fix && !isWalkableFix(fix)) return `GPS 신호가 약해(${formatAccuracy(fix.accuracy)}) 캐릭터를 잠깐 멈춰 뒀어요`
