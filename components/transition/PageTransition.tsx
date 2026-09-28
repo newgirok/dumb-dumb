@@ -51,7 +51,7 @@ export function useStartPageLoading() {
 }
 
 /**
- * 전체 화면 라우트 전환 오버레이 — 링크 클릭/뒤로가기 시점에 즉시 스피너를
+ * 전체 화면 라우트 전환 오버레이 — 링크 클릭 시점에 즉시 스피너를
  * 띄우고, 목적지 페이지가 실제로 준비됐다고 알려올 때까지(useTransitionReady)
  * 기다렸다가 부드럽게 페이드아웃한다. app/layout.tsx에서 children을 감싸
  * 사이트 전체에 적용.
@@ -131,7 +131,13 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       startLoading(url.pathname)
     }
 
-    const onPopState = () => startLoading(window.location.pathname)
+    // 뒤로·앞으로 가기에는 전환 로더를 띄우지 않는다 — 도착한 곳은 라우터 캐시로 바로 뜨거나 제 로더를 띄우므로,
+    // 떠나는 씬의 로더 위에 로더가 한 번 더 겹치지 않는다. 링크를 누른 직후라 전환 로더가 떠 있었다면 바로 걷는다
+    const onPopState = () => {
+      if (!loadingRef.current) return
+      loadingRef.current = false
+      setVisible(false)
+    }
 
     document.addEventListener('click', onClick, true)
     window.addEventListener('popstate', onPopState)
@@ -147,7 +153,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (isFirstPathRef.current) {
       isFirstPathRef.current = false
-      // 새로고침(하드 리로드)처럼 링크 클릭/뒤로가기 없이 처음부터 이
+      // 새로고침(하드 리로드)처럼 링크 클릭 없이 처음부터 이
       // 페이지로 들어온 경우 — 자식(useTransitionReady)이 effect 실행
       // 순서상 이미 pageReadyRef를 false로 세팅해뒀을 수 있음. 그 경우엔
       // startLoading 없이도 로더를 바로 띄워야 새로고침 시에도 보임
