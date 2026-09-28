@@ -916,7 +916,7 @@ export default function SummerAfternoonPage() {
           <PaperMap open={mapOpen} onClose={() => setMapOpen(false)} gps={gps} title="지도" accent={charColor} />
         )}
 
-        {/* 로딩 화면 — 원본 로더(제품 이름 + SVG 스피너, 버튼 없이 자동 진입)에 안내 한 줄 */}
+        {/* 로딩 화면 — 로더(스피너 + 안내 한 줄, 버튼 없이 자동 진입) */}
         {phase !== 'playing' &&
           (error ? (
             <Loader spinning={false} message="마을을 불러오지 못했어요" hint="잠시 후 새로고침해 주세요">
