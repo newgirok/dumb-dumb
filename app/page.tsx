@@ -23,7 +23,8 @@ const CSS = `
   .home-land { position: absolute; left: 0; bottom: 0; width: 100%; height: 44vh; min-height: 250px; }
   .home-cloud { position: absolute; left: 0; animation: home-drift linear infinite; will-change: transform; }
   @keyframes home-drift { from { transform: translateX(-35vw); } to { transform: translateX(125vw); } }
-  .home-title { font-family: Stylish, Pretendard, sans-serif; font-weight: 400; font-size: clamp(64px, min(17vw, 22vh), 156px); line-height: 1;
+  /* 하한은 좁은 휴대폰(폭 320px)에서도 제목이 한 줄에 들 만큼 — 제목 폭은 글자 크기의 5배쯤이다 */
+  .home-title { font-family: Stylish, Pretendard, sans-serif; font-weight: 400; font-size: clamp(44px, min(17vw, 22vh), 156px); line-height: 1;
     color: #fffdf8; text-shadow: 4px 4px 0 #716c66; letter-spacing: 0.02em; }
   /* 버튼 크기는 화면 폭을 따라 늘고 준다 — 가장 긴 이름(에셋 미리보기 + 배지)이 좁은 휴대폰에서도 한 줄에 든다 */
   .home-card { position: relative; display: flex; gap: clamp(12px, 3vw, 18px); align-items: center; width: min(420px, 86vw);
@@ -70,7 +71,7 @@ export default function Home() {
 
       <div className="relative z-10 flex w-full flex-1 flex-col items-center px-4">
         <div className="home-hero">
-          <h1 className="home-title">어슬렁</h1>
+          <h1 className="home-title">Dumb Dumb</h1>
 
           <nav aria-label="갈 곳" className="home-places flex flex-col items-center gap-5">
             {SCENE_ROUTES.map((href) => {

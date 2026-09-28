@@ -43,7 +43,7 @@ const roadWidth = (extra = [0, 0, 0, 0]) =>
 
 export const PAPER_STYLE = {
   version: 8,
-  name: 'eoseulleong-paper',
+  name: 'dumb-dumb-paper',
   glyphs: 'mapbox://fonts/mapbox/{fontstack}/{range}.pbf',
   sources: {
     streets: { type: 'vector', url: 'mapbox://mapbox.mapbox-streets-v8' },

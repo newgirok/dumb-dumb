@@ -21,9 +21,9 @@ const jetbrains = JetBrains_Mono({
 const PRETENDARD_WOFF2 = 'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-Regular.woff2'
 
 export const metadata: Metadata = {
-  // 탭 제목 — 선택 페이지는 제품 이름만, 나머지는 페이지 이름을 앞에 둔다("마을 · 어슬렁").
+  // 탭 제목 — 선택 페이지는 제품 이름만, 나머지는 페이지 이름을 앞에 둔다("마을 · Dumb Dumb").
   // 제품 이름은 여기 한 곳에만 쓰고, 각 페이지는 선택 페이지 버튼 이름만 title로 적는다
-  title: { default: '어슬렁', template: '%s · 어슬렁' },
+  title: { default: 'Dumb Dumb', template: '%s · Dumb Dumb' },
   description: '느긋하게 걷다 누군가와 마주치는 3D 오픈월드',
 }
 
