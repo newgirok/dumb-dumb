@@ -33,17 +33,20 @@ const BIFOLD_MIN_PX = 440
  * 펼치는 데 걸리는 시간(ms) — 3단·반·바로 펼침. 종이가 떠오른 뒤 표지가 잠깐 머물고 날개가 천천히 펼쳐져,
  * 표지와 접힌 모양을 볼 수 있다. 접을 때는 FOLD_RATE 배속으로 거꾸로 돈다
  */
-const TRIFOLD_MS = 2600
+const TRIFOLD_MS = 3300
 const BIFOLD_MS = 2000
 const SPREAD_MS = 700
 const FOLD_RATE = 2
 /** 접힌 종이가 떠오르는 구간(전체 길이 대비) — 이 뒤로 날개가 펼쳐지기 전까지 표지가 머문다 */
 const LIFT_TO = 0.18
-/** 3단 — 한 장면 안의 순서(전체 길이 대비). 앞 날개(왼쪽)가 먼저, 뒤 날개(오른쪽)가 조금 겹쳐 펼쳐진다 */
-const A_FROM = 0.36
-const A_TO = 0.66
-const B_FROM = 0.56
-const B_TO = 0.86
+/**
+ * 3단 — 한 장면 안의 순서(전체 길이 대비). 앞 날개(왼쪽)가 먼저 펼쳐지고, 드러난 뒤 날개(오른쪽) 겉면의 범례를
+ * 1초쯤 읽을 수 있게 멈췄다가 뒤 날개가 펼쳐진다
+ */
+const A_FROM = 0.28
+const A_TO = 0.52
+const B_FROM = 0.64
+const B_TO = 0.88
 /** 반 접기 — 오른쪽 반이 펼쳐지는 구간 */
 const HALF_FROM = 0.4
 const HALF_TO = 0.82
