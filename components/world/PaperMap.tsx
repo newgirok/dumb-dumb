@@ -51,6 +51,14 @@ const B_TO = 0.88
 const HALF_FROM = 0.4
 const HALF_TO = 0.82
 const STEP = 0.0005
+/**
+ * 내려앉은 날개를 진짜 지도로 넘기는 구간(날개가 내려앉은 뒤부터, 전체 길이 대비) — 밑의 지도 면을 먼저 열어 두고
+ * 날개 안쪽 면을 이 사이에 흐리게 지운 뒤 뒤로 내린다. 날개는 3D로 합성돼 지도보다 조금 흐리게 그려지므로 한 번에
+ * 바꾸면 선·글자가 한 픽셀 튀어 깜빡여 보이고, 지도 면을 여는 것(메인 스레드)과 날개를 내리는 것(합성기)이 한 프레임
+ * 어긋나면 그 자리가 비어 보인다. 접을 때는 거꾸로 — 날개가 먼저 올라와 짙어진 뒤에 지도 면을 닫는다
+ */
+const HANDOFF_FROM = 0.01
+const HANDOFF_TO = 0.04
 const FLIP_EASE = 'cubic-bezier(0.65, 0, 0.35, 1)'
 /** 펼칠 때 대략적인 위치면 원 전체가 보이게 물러난다(짧은 변의 이 비율) */
 const COARSE_FIT = 0.8
@@ -102,6 +110,11 @@ const CSS = `
   .pm-cover-art small { font-family: Stylish, sans-serif; font-size: 15px; color: #8d8981; letter-spacing: 0.3em; }
   .pm-cover-band { position: absolute; left: 0; right: 0; top: 0; height: 22%; background: #a9d4a0; border-bottom: 2px solid rgba(113, 108, 102, 0.45); }
   .pm-flap.p3.b .pm-cover-art { border-style: dashed; }
+  /* 날개 안쪽 면의 종이 결·그을림은 펼친 종이의 것과 같은 자리에 온다 — 접는 선 쪽으로 종이 끝까지 늘여(면 밖은 잘린다)
+     결 무늬가 이어지고 접는 선에는 그을림이 없다. 내려앉아 진짜 지도로 넘어가도 결·그을림이 바뀌지 않는다 */
+  .pm-flap.p3.a .pm-inner .pm-grain { right: -200%; }
+  .pm-flap.p3.b .pm-inner .pm-grain { left: -200%; }
+  .pm-flap.p2.b .pm-inner .pm-grain { left: -100%; }
   .pm-legend { display: grid; grid-template-columns: auto auto; gap: 6px 10px; align-items: center; font-family: Stylish, sans-serif; font-size: 15px; color: #7a6d60; }
   .pm-legend i { display: block; width: 22px; height: 10px; border-radius: 2px; }
 
@@ -627,19 +640,26 @@ export default function PaperMap({
     if (count === 1) return anims
 
     anims.push(q('.pm-creases').animate([{ opacity: 1 }, { opacity: 1, offset: landed }, { opacity: 0.55 }], options))
-    const flat = 'inset(0% 0% 0% 0%)'
-    // 날개가 몸 쪽으로 들리며 펼쳐진다(왼쪽 날개는 +180°, 오른쪽 날개는 −180°에서 0°로)
+    // 다 펴진 면은 inset(0%)이 아닌 none — inset끼리만 오가면 크롬이 clip-path를 합성기에서 돌리는데, 도중 시각에서 새로
+    // 만든 장면의 첫 프레임을 가끔 처음 시각(접힌 모양)으로 그려 번쩍인다. none이 섞이면 메인 스레드에서 돌아 어긋나지 않는다
+    const flat = 'none'
+    // 날개가 몸 쪽으로 들리며 펼쳐진다(왼쪽 날개는 +180°, 오른쪽 날개는 −180°에서 0°로).
+    // 내려앉은 날개는 안쪽 면을 흐리게 지운 뒤(HANDOFF) 숨기지 않고 살아 있는 지도 면 뒤(−1px)로 내린다 — visibility로
+    // 숨겼다가 접을 때 다시 보이게 하면 크롬이 날개 속 애니메이션을 합성기에서 새로 시작하며 한두 프레임 틀린 음영을 그린다
     const flap = (el: Element, fold: number, from: number, to: number, lift: number) =>
       el.animate(
         [
           { transform: `translateZ(${lift}px) rotateY(${fold}deg)`, visibility: 'visible' },
           { transform: `translateZ(${lift}px) rotateY(${fold}deg)`, visibility: 'visible', offset: from, easing: FLIP_EASE },
           { transform: 'translateZ(0.5px) rotateY(0deg)', visibility: 'visible', offset: to },
-          { transform: 'translateZ(0.5px) rotateY(0deg)', visibility: 'hidden', offset: to + STEP },
-          { transform: 'translateZ(0.5px) rotateY(0deg)', visibility: 'hidden' },
+          { transform: 'translateZ(0.5px) rotateY(0deg)', visibility: 'visible', offset: to + HANDOFF_TO },
+          { transform: 'translateZ(-1px) rotateY(0deg)', visibility: 'visible', offset: to + HANDOFF_TO + STEP },
+          { transform: 'translateZ(-1px) rotateY(0deg)', visibility: 'visible' },
         ],
         options,
       )
+    const handoff = (el: Element, to: number) =>
+      el.animate([{ opacity: 1 }, { opacity: 1, offset: to + HANDOFF_FROM }, { opacity: 0, offset: to + HANDOFF_TO }, { opacity: 0 }], options)
     // 면이 옆으로 설수록(90°) 어두워진다 — 겉면은 들리며 어두워지고, 안쪽 면은 내려앉으며 밝아진다
     const shade = (el: Element, face: 'cover' | 'inner', from: number, to: number) => {
       const mid = (from + to) / 2
@@ -667,6 +687,8 @@ export default function PaperMap({
         q('.pm-shadow').animate(clip, options),
         flap(q('.pm-flap.a'), 180, A_FROM, A_TO, 2),
         flap(q('.pm-flap.b'), -180, B_FROM, B_TO, 1),
+        handoff(q('.pm-flap.a .pm-inner'), A_TO),
+        handoff(q('.pm-flap.b .pm-inner'), B_TO),
         shade(q('.pm-flap.a .pm-cover .pm-shade'), 'cover', A_FROM, A_TO),
         shade(q('.pm-flap.a .pm-inner .pm-shade'), 'inner', A_FROM, A_TO),
         shade(q('.pm-flap.b .pm-cover .pm-shade'), 'cover', B_FROM, B_TO),
@@ -692,6 +714,7 @@ export default function PaperMap({
         options,
       ),
       flap(q('.pm-flap.b'), -180, HALF_FROM, HALF_TO, 1),
+      handoff(q('.pm-flap.b .pm-inner'), HALF_TO),
       shade(q('.pm-flap.b .pm-cover .pm-shade'), 'cover', HALF_FROM, HALF_TO),
       shade(q('.pm-flap.b .pm-inner .pm-shade'), 'inner', HALF_FROM, HALF_TO),
     )
@@ -723,7 +746,7 @@ export default function PaperMap({
         placeMe()
         placeGps()
       }
-      startTimeline(false, 1)
+      startTimeline(0, 1)
       root.style.visibility = 'visible'
       changePhase('opening')
       map?.triggerRepaint()
@@ -731,22 +754,22 @@ export default function PaperMap({
     }
 
     // 펼치는 중에 다시 누르면 그 자리에서 거꾸로, 펼친 뒤면 끝에서부터 접는다.
+    // 도는 애니메이션의 재생 속도(playbackRate)만 바꾸면 크롬이 합성기 쪽을 처음 시각으로 다시 시작해, 몇 프레임 동안
+    // 종이·배경이 사라지거나 접힌 모양이 번쩍인다 — 지금 시각에서 장면을 새로 만들어 반대로 돌린다.
     // 펼친 채 창 크기가 바뀌어 접는 횟수가 달라졌으면 새 면 수로 끝 장면부터 다시 만든다
     map?.triggerRepaint()
     changePhase(open ? 'opening' : 'closing')
-    if (!open && current === 'open' && animPanelsRef.current !== panels) {
-      startTimeline(true, -FOLD_RATE)
-      return
-    }
-    animsRef.current.forEach((a) => {
-      a.playbackRate = open ? 1 : -FOLD_RATE
-      a.play()
-    })
+    const master = animsRef.current[0]
+    const end = Number(master?.effect?.getComputedTiming().endTime ?? 0)
+    const at = Number(master?.currentTime ?? 0)
+    if (!open && current === 'open' && animPanelsRef.current !== panels) startTimeline('end', -FOLD_RATE)
+    // 끝에 닿은 채 play()하면 반대쪽 끝으로 되감으므로(auto-rewind) 1ms 안쪽에서 시작한다
+    else startTimeline(open ? Math.min(at, end - 1) : Math.max(at, 1), open ? 1 : -FOLD_RATE)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  /** 펼치기 장면을 새로 만들어 처음(또는 끝)부터 rate 배속으로 돌린다 */
-  function startTimeline(fromEnd: boolean, rate: number) {
+  /** 펼치기 장면을 새로 만들어 from(ms — 'end'는 장면 끝)부터 rate 배속으로 돌린다 */
+  function startTimeline(from: number | 'end', rate: number) {
     const root = rootRef.current
     if (!root) return
     animsRef.current.forEach((a) => a.cancel())
@@ -754,7 +777,7 @@ export default function PaperMap({
     animsRef.current = anims
     animPanelsRef.current = panels
     anims.forEach((a) => {
-      a.currentTime = fromEnd ? Number(a.effect?.getComputedTiming().endTime ?? 0) : 0
+      a.currentTime = from === 'end' ? Number(a.effect?.getComputedTiming().endTime ?? 0) : from
       a.playbackRate = rate
       a.play()
     })
