@@ -10,7 +10,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { loadBinGeometry, createInstancedLOD } from '@/lib/three/binLoader'
 import { loadCharacter, type Character } from '@/lib/three/character'
 import { framingFor } from '@/app/village/thirdPerson'
-import Loader from '@/components/transition/Loader'
+import Loader, { waitSpinTurn } from '@/components/transition/Loader'
 
 // 원본 셰이더의 팔레트 규약 — ramps.png는 100행짜리 팔레트고,
 // colorInfo.r이 행 번호, x축은 음영 정도다.
@@ -74,6 +74,8 @@ export default function PreviewScene() {
   useEffect(() => {
     const mount = mountRef.current
     if (!mount) return
+    // 로더가 뜬 때 — 준비가 일찍 끝나도 스피너가 한 바퀴는 돈 뒤에 걷는다
+    const loaderSince = performance.now()
 
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0x1b1f27)
@@ -146,6 +148,8 @@ export default function PreviewScene() {
       charRef.current = char
       lines.unshift('kid: 22 bones · 24fps')
       setStatus(lines.join('\n'))
+      await waitSpinTurn(loaderSince)
+      if (destroyed) return
       setPhase('ready')
     })().catch((err) => {
       console.error(err)

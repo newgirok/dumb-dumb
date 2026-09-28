@@ -2,11 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import Loader from './Loader'
-
-// 스피너가 한 프레임 반짝이고 사라지면 오히려 더 조잡해 보여서, 아무리
-// 빨리 끝나는 전환이라도 최소 이만큼은 보여줘 "전환이 있었다"는 걸 인지시킴
-const MIN_VISIBLE_MS = 350
+import Loader, { SPIN_MS } from './Loader'
 
 /**
  * 가는 곳마다 로딩 안내 — 씬으로 갈 때는 도착한 씬 로더의 첫 문구와 같아, 씬 로더가 넘겨받아도 글이 바뀌지 않는다.
@@ -78,8 +74,9 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
 
   const reveal = useCallback(() => {
     if (!loadingRef.current || !pageReadyRef.current) return
+    // 아무리 빨리 끝나는 전환이라도 스피너가 한 바퀴는 돌고 사라진다 — 한 바퀴도 못 돌면 반짝인 것처럼 보인다
     const elapsed = performance.now() - startedAtRef.current
-    const wait = Math.max(0, MIN_VISIBLE_MS - elapsed)
+    const wait = Math.max(0, SPIN_MS - elapsed)
     window.setTimeout(() => {
       // 새 화면이 실제로 한 번 그려진 뒤에 사라지도록 두 프레임 대기
       requestAnimationFrame(() => requestAnimationFrame(() => {

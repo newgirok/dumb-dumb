@@ -44,7 +44,7 @@ import { baseDevicePixelRatio, configure, isMobileDevice } from './setup'
 import { connectScene, type SceneConnection } from '@/lib/realtime/scene'
 import type { SceneMotion } from '@/shared/scene/contract'
 import PaperMap, { GpsBadge, MapIcon, useMapHotkey } from '@/components/world/PaperMap'
-import Loader from '@/components/transition/Loader'
+import Loader, { SPIN_MS, waitSpinTurn } from '@/components/transition/Loader'
 import { createGpsTracker, useGpsSnapshot, type GpsTracker } from '@/lib/geo/gps'
 
 /**
@@ -198,13 +198,18 @@ export default function SummerAfternoonPage() {
   useEffect(() => {
     const mount = mountRef.current
     if (!mount) return
+    // 로더가 뜬 때 — 준비가 일찍 끝나도 스피너가 한 바퀴는 돈 뒤에 걷는다
+    const loaderSince = performance.now()
 
     // 원본처럼 WebGL2가 없으면 로더를 걷고 안내 문구만 띄운다
     if (!supportsWebGL2()) {
       setUnsupported(true)
-      setPhase('fading')
-      const t = setTimeout(() => setPhase('playing'), LOADER_FADE_MS + LOADER_HIDDEN_MS)
-      return () => clearTimeout(t)
+      const fade = setTimeout(() => setPhase('fading'), SPIN_MS)
+      const t = setTimeout(() => setPhase('playing'), SPIN_MS + LOADER_FADE_MS + LOADER_HIDDEN_MS)
+      return () => {
+        clearTimeout(fade)
+        clearTimeout(t)
+      }
     }
 
     const mobile = isMobileDevice()
@@ -672,7 +677,9 @@ export default function SummerAfternoonPage() {
         onLeave: (id) => peers.remove(id),
       })
 
-      // 로더를 걷고(0.75s 페이드 + 0.25s) 인트로를 시작한다
+      // 로더를 걷고(스피너 한 바퀴를 채운 뒤 0.75s 페이드 + 0.25s) 인트로를 시작한다
+      await waitSpinTurn(loaderSince)
+      if (destroyed) return
       setPhase('fading')
       await new Promise((resolve) => setTimeout(resolve, LOADER_FADE_MS + LOADER_HIDDEN_MS))
       if (destroyed) return

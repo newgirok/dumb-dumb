@@ -2,16 +2,25 @@
 
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 
-// 원본 로더(마을 씬)의 SVG 스피너(2.5s). 준비되면 0.75s(cubic in-out)에 걸쳐 사라진다.
+/**
+ * 스피너 한 바퀴(ms) — 고정된 호 하나가 이 시간에 한 바퀴 돈다. 로더는 아무리 빨리 끝나도 한 바퀴는 돌고 사라진다
+ * (한 바퀴도 못 돌고 사라지면 반짝인 것처럼 보인다)
+ */
+export const SPIN_MS = 1000
+
+/** since(performance.now())에 뜬 로더가 한 바퀴를 다 돌 때까지 기다린다 — 이미 돌았으면 바로 끝난다 */
+export function waitSpinTurn(since: number): Promise<void> {
+  const left = SPIN_MS - (performance.now() - since)
+  return left > 0 ? new Promise((resolve) => setTimeout(resolve, left)) : Promise.resolve()
+}
+
+// 스피너는 회전(transform)만 움직여 GPU 합성 스레드에서 돈다 — 로딩 중 무거운 작업이 메인 스레드를 막아도 끊기지 않는다
+// (호 길이를 바꾸는 stroke-dashoffset 애니메이션은 매 프레임 메인 스레드에서 다시 그려야 해 그때마다 멈춘다).
+// 준비되면 0.75s(cubic in-out)에 걸쳐 사라진다.
 // 스피너는 늘 화면 한가운데에 두고 글은 그 아래로만 늘어나게 해, 로더끼리 넘겨받아도(페이지 전환 로더 → 씬 로더,
 // 상태별 로더) 스피너와 첫 줄이 제자리에 있다
 const CSS = `
-  @keyframes ld-rotator { 0% { transform: rotate(0deg); } 100% { transform: rotate(270deg); } }
-  @keyframes ld-dash {
-    0% { stroke-dashoffset: 187; }
-    50% { stroke-dashoffset: 46.75; transform: rotate(135deg); }
-    100% { stroke-dashoffset: 187; transform: rotate(450deg); }
-  }
+  @keyframes ld-spin { to { transform: rotate(360deg); } }
   .ld-root { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
     padding: 0 24px; background-color: #FFFDF8; text-align: center; }
   .ld-root::before { content: ''; flex: 1 1 0; }
@@ -19,9 +28,9 @@ const CSS = `
   .ld-root.fading > * { opacity: 0; }
   .ld-root > .ld-spinner.off { visibility: hidden; }
   .ld-body { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; }
-  .ld-spinner { display: block; flex: none; width: 54px; height: 54px; }
-  .ld-spinner svg { display: block; width: 100%; height: 100%; animation: ld-rotator 2.5s linear infinite; }
-  .ld-spinner .path { stroke: #BDBCB8; stroke-dasharray: 187; stroke-dashoffset: 0; transform-origin: center; animation: ld-dash 2.5s ease-in-out infinite; }
+  .ld-spinner { display: block; flex: none; width: 54px; height: 54px; animation: ld-spin ${SPIN_MS}ms linear infinite; will-change: transform; }
+  .ld-spinner svg { display: block; width: 100%; height: 100%; }
+  .ld-spinner .path { stroke: #BDBCB8; stroke-dasharray: 58 200; }
   .ld-message { margin-top: 22px; font-family: Pretendard, sans-serif; font-size: 15px; line-height: 1.5; color: #9a968f; word-break: keep-all; }
   .ld-hint { margin-top: 6px; max-width: 24rem; font-family: Pretendard, sans-serif; font-size: 12.5px; line-height: 1.55; color: #b3aea6; word-break: keep-all; }
   .ld-detail { margin-top: 10px; max-width: 26rem; font-family: Pretendard, sans-serif; font-size: 12.5px; line-height: 1.55; color: #9a968f;

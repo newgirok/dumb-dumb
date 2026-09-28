@@ -12,7 +12,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js'
 import PaperMap, { GpsBadge, MapIcon, useMapHotkey, type MapTrack } from '@/components/world/PaperMap'
-import Loader from '@/components/transition/Loader'
+import Loader, { waitSpinTurn } from '@/components/transition/Loader'
 import GpsSteps from '@/components/world/GpsSteps'
 import { createGpsTracker, formatAccuracy, isWalkableFix, useGpsSnapshot, waitForStartFix, type GpsTracker } from '@/lib/geo/gps'
 import { detectGpsEnv, startWaitNote, walkNote, type GpsEnv } from '@/lib/geo/gpsMessages'
@@ -67,6 +67,8 @@ export default function NeighborhoodScene() {
   useEffect(() => {
     const mount = mountRef.current
     if (!mount) return
+    // 로더가 뜬 때 — 준비가 일찍 끝나도 스피너가 한 바퀴는 돈 뒤에 걷는다
+    const loaderSince = performance.now()
 
     const mobile = isMobileDevice()
     const shared = createSharedUniforms()
@@ -304,6 +306,8 @@ export default function NeighborhoodScene() {
 
       frame = local
       trackRef.current = track
+      await waitSpinTurn(loaderSince)
+      if (destroyed) return
       setPhase('playing')
     })().catch((err) => {
       if (destroyed) return
