@@ -100,7 +100,7 @@ NestJS 가드와 PostgreSQL RLS가 담당한다.
 | **대시보드 월드 렌더링 (예정)** | Mapbox GL JS v3 + Three.js 커스텀 레이어 | Mapbox 캔버스의 WebGL 컨텍스트 공유 ([ADR 001](../adr/001-webgl-context-sharing.md)) |
 | **지도 엔진** | Mapbox GL JS v3 | 펼침 지도(마을 씬·내 주변) — Streets v8 벡터 타일과 지형 DEM을 게임 화풍으로 칠한 자체 스타일(`paperMapStyle.ts`). 대시보드 월드 베이스 지도(예정, Standard 스타일). 무료 티어 20만 건/월 |
 | **길 데이터** | OpenStreetMap 벡터 타일 (OpenFreeMap, OpenMapTiles 스키마) | 내 주변 바닥. z14 타일을 브라우저 워커가 직접 받아 `@mapbox/vector-tile`·`pbf`로 해석 |
-| **UI 스타일** | Tailwind CSS v4 + oklch 디자인 시스템 | 루트 레이아웃 기본 글꼴 Nunito. 마을 씬 HUD는 `sa-*` 스타일·Stylish 폰트 |
+| **UI 스타일** | Tailwind CSS v4 + oklch 디자인 시스템 | 루트 레이아웃 기본 글꼴 Nunito, 한글 UI 글씨 Pretendard, 선택 페이지 제목·펼침 지도 글씨 Stylish(웹 폰트는 모두 `font-display: block`). 마을 씬 HUD는 `sa-*` 스타일 |
 | **프론트 배포** | Vercel Edge Network | Next.js 서버(`output: 'standalone'`, Route Handler `/api/health`) + ref-assets 정적 파일 |
 | **API 서버** | NestJS 11 (`apps/api`) | 자체 호스팅 |
 | **데이터베이스** | PostgreSQL + PostGIS (자체 호스팅, 단일 공유 DB) | 공간 연산 내장 ([ADR 002](../adr/002-self-hosted-backend.md)) |
