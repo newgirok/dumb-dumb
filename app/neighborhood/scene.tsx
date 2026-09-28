@@ -61,6 +61,8 @@ export default function NeighborhoodScene() {
   const takeBestRef = useRef<(() => void) | null>(null)
   const [env, setEnv] = useState<GpsEnv | null>(null)
   const [mobile, setMobile] = useState(false)
+  // 지도 데이터 출처 — 길이 깔린 동안만 보이고, OSM 표기 지침대로 5초 뒤 구석의 (i)로 접힌다(누르면 다시 편다)
+  const [creditOpen, setCreditOpen] = useState(true)
 
   useEffect(() => {
     const mount = mountRef.current
@@ -370,6 +372,13 @@ export default function NeighborhoodScene() {
 
   useMapHotkey(phase === 'playing', setMapOpen)
 
+  useEffect(() => {
+    if (phase !== 'playing') return
+    setCreditOpen(true)
+    const timer = window.setTimeout(() => setCreditOpen(false), 5000)
+    return () => window.clearTimeout(timer)
+  }, [phase])
+
   // 기기 정보는 브라우저에서만 안다 — 서버 렌더와 첫 화면을 맞추려고 마운트 뒤에 읽는다
   useEffect(() => {
     setEnv(detectGpsEnv())
@@ -457,20 +466,35 @@ export default function NeighborhoodScene() {
       )}
       {phase === 'loading' && <Loader message="내 주변 길을 깔고 있어요. 잠시만 기다려 주세요." />}
 
-      <p className="absolute bottom-2 left-3 text-[11px] text-[#716c66]/80">
-        지도 데이터{' '}
-        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline">
-          © OpenStreetMap
-        </a>{' '}
-        ·{' '}
-        <a href="https://openmaptiles.org/" target="_blank" rel="noreferrer" className="underline">
-          OpenMapTiles
-        </a>{' '}
-        ·{' '}
-        <a href="https://openfreemap.org/" target="_blank" rel="noreferrer" className="underline">
-          OpenFreeMap
-        </a>
-      </p>
+      {phase === 'playing' && (
+        <div className="absolute bottom-2 left-3 flex items-center gap-1.5 text-[11px] text-[#716c66]/80">
+          <button
+            type="button"
+            aria-label="지도 데이터 출처"
+            aria-expanded={creditOpen}
+            className="flex h-5 w-5 items-center justify-center rounded-full bg-[#f9efdc]/90 font-serif text-[11px] font-bold italic text-[#716c66] shadow-[1px_1px_0_0_#716c66] pointer-coarse:h-7 pointer-coarse:w-7"
+            onClick={() => setCreditOpen((open) => !open)}
+          >
+            i
+          </button>
+          {creditOpen && (
+            <span>
+              지도 데이터{' '}
+              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline">
+                © OpenStreetMap
+              </a>{' '}
+              ·{' '}
+              <a href="https://openmaptiles.org/" target="_blank" rel="noreferrer" className="underline">
+                OpenMapTiles
+              </a>{' '}
+              ·{' '}
+              <a href="https://openfreemap.org/" target="_blank" rel="noreferrer" className="underline">
+                OpenFreeMap
+              </a>
+            </span>
+          )}
+        </div>
+      )}
 
       {phase === 'playing' && gps && (
         <PaperMap open={mapOpen} onClose={() => setMapOpen(false)} gps={gps} track={trackRef} title="지도" />
