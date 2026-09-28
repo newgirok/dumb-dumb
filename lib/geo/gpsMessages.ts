@@ -22,6 +22,11 @@ export interface GpsNote {
   tone: 'ok' | 'wait' | 'warn' | 'off'
   title: string
   hint?: string
+  /**
+   * 설정 순서 — 한 단계에 한 가지씩(두 단계 이상이면 번호를 붙여 보인다). 메뉴 경로는
+   * [설정 › 개인정보 보호 및 보안 › 위치 서비스]처럼 대괄호로 묶는다 — `GpsSteps`가 경로를 강조하고 조각마다 줄이 끊기지 않게 한다
+   */
+  steps?: string[]
   /** 지도에 찍는 도장 글씨(쓸 수 없을 때) */
   stamp?: string
   /** 다시 시도 버튼 — iOS 사파리는 거부한 뒤로 새로고침해야 권한이 바뀐다 */
@@ -50,32 +55,40 @@ export function detectGpsEnv(): GpsEnv {
 
 const isMobile = (env: GpsEnv) => env.platform === 'ios' || env.platform === 'android'
 
-function deniedHint(env: GpsEnv): string {
-  if (env.inApp) return '앱 속 브라우저에선 위치가 잘 안 잡혀요. 메뉴에서 ‘다른 브라우저로 열기’를 눌러 주세요'
-  if (env.samsung) return '메뉴 > 설정 > 사이트 및 다운로드 > 사이트 권한 > 위치에서 허용하고, 휴대폰 ‘위치’도 켜 주세요'
+type Guide = Pick<GpsNote, 'hint' | 'steps'>
+
+function deniedGuide(env: GpsEnv): Guide {
+  if (env.inApp) return { hint: '앱 속 브라우저에선 위치가 잘 안 잡혀요', steps: ['메뉴에서 ‘다른 브라우저로 열기’를 눌러 주세요'] }
+  if (env.samsung) return { steps: ['[메뉴 › 설정 › 사이트 및 다운로드 › 사이트 권한 › 위치]에서 허용해 주세요', '휴대폰 ‘위치’도 켜 주세요'] }
   switch (env.platform) {
     case 'ios':
-      return '설정 > 개인정보 보호 및 보안 > 위치 서비스를 켜고 Safari 웹사이트를 ‘앱을 사용하는 동안’으로 바꾼 뒤 새로고침해 주세요'
+      return {
+        steps: [
+          '[설정 › 개인정보 보호 및 보안 › 위치 서비스]를 켜 주세요',
+          '같은 화면의 [Safari 웹사이트]를 ‘앱을 사용하는 동안’으로 바꿔 주세요',
+          '아래 ‘새로고침’을 눌러 주세요',
+        ],
+      }
     case 'android':
-      return '주소창 왼쪽 아이콘 > 권한에서 위치를 허용하고, 휴대폰 ‘위치’도 켜 주세요'
+      return { steps: ['[주소창 왼쪽 아이콘 › 권한]에서 위치를 허용해 주세요', '휴대폰 ‘위치’도 켜 주세요'] }
     case 'windows':
-      return '주소창 왼쪽 아이콘에서 위치를 허용하고, Windows 설정 > 개인 정보 및 보안 > 위치에서 ‘위치 서비스’를 켜 주세요'
+      return { steps: ['[주소창 왼쪽 아이콘]에서 위치를 허용해 주세요', '[Windows 설정 › 개인 정보 및 보안 › 위치]에서 ‘위치 서비스’를 켜 주세요'] }
     case 'mac':
-      return '주소창 왼쪽 아이콘에서 위치를 허용하고, 시스템 설정 > 개인정보 보호 및 보안 > 위치 서비스에서 브라우저를 켜 주세요'
+      return { steps: ['[주소창 왼쪽 아이콘]에서 위치를 허용해 주세요', '[시스템 설정 › 개인정보 보호 및 보안 › 위치 서비스]에서 브라우저를 켜 주세요'] }
     default:
-      return '브라우저 사이트 설정에서 위치를 허용해 주세요'
+      return { steps: ['브라우저 사이트 설정에서 위치를 허용해 주세요'] }
   }
 }
 
-function approximateHint(env: GpsEnv): string {
-  if (env.inApp && env.platform === 'ios') return '설정 > 개인정보 보호 및 보안 > 위치 서비스에서 이 앱의 ‘정확한 위치’를 켜 주세요'
+function approximateGuide(env: GpsEnv): Guide {
+  if (env.inApp) return { hint: '앱 속 브라우저에선 위치가 흐릴 수 있어요', steps: ['메뉴에서 ‘다른 브라우저로 열기’를 눌러 보세요'] }
   switch (env.platform) {
     case 'ios':
-      return '설정 > 개인정보 보호 및 보안 > 위치 서비스 > Safari 웹사이트에서 ‘정확한 위치’를 켜 주세요'
+      return { steps: ['[설정 › 개인정보 보호 및 보안 › 위치 서비스 › Safari 웹사이트]에서 ‘정확한 위치’를 켜 주세요'] }
     case 'android':
-      return '브라우저 앱 정보 > 권한 > 위치에서 ‘정확한 위치 사용’을 켜 주세요'
+      return { steps: ['[브라우저 앱 정보 › 권한 › 위치]에서 ‘정확한 위치 사용’을 켜 주세요'] }
     default:
-      return 'PC는 GPS가 없어 위치가 크게 어긋날 수 있어요. 휴대폰으로 열면 정확해요'
+      return { hint: 'PC는 GPS가 없어 위치가 크게 어긋날 수 있어요. 휴대폰으로 열면 정확해요' }
   }
 }
 
@@ -121,7 +134,7 @@ export function gpsNote(snapshot: GpsSnapshot, env: GpsEnv, { walking = false } 
         tone: 'off',
         stamp: '위치 꺼짐',
         title: '위치 권한이 꺼져 있어요',
-        hint: deniedHint(env),
+        ...deniedGuide(env),
         action: env.platform === 'ios' && !env.inApp ? 'reload' : 'retry',
       }
     case 'good':
@@ -141,11 +154,7 @@ export function gpsNote(snapshot: GpsSnapshot, env: GpsEnv, { walking = false } 
     case 'coarse':
       return { tone: 'warn', title: `위치가 아직 흐릿해요 · ${accuracy}`, hint: '밖으로 나가거나 와이파이를 켜면 더 정확해져요' }
     case 'approximate':
-      return {
-        tone: 'warn',
-        title: `대략적인 위치만 받고 있어요 · ${accuracy}`,
-        hint: env.inApp ? '앱 속 브라우저에선 위치가 흐릴 수 있어요. ‘다른 브라우저로 열기’를 눌러 보세요' : approximateHint(env),
-      }
+      return { tone: 'warn', title: `대략적인 위치만 받고 있어요 · ${accuracy}`, ...approximateGuide(env) }
     case 'stale':
       return { tone: 'warn', title: '걸음 신호가 잠시 멈췄어요', hint: '가만히 있으면 그럴 수 있어요. 걸으면 다시 따라가요' }
   }
@@ -167,7 +176,7 @@ export function startWaitNote(snapshot: GpsSnapshot, env: GpsEnv): GpsNote | nul
     case 'coarse':
     case 'approximate': {
       const note = gpsNote(snapshot, env, { walking: true })!
-      return { ...note, hint: `${note.hint} · 정확해지면 바로 시작해요` }
+      return { ...note, hint: note.hint ? `${note.hint} · 정확해지면 바로 시작해요` : '정확해지면 바로 시작해요' }
     }
     default:
       return gpsNote(snapshot, env, { walking: true })

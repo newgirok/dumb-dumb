@@ -24,6 +24,8 @@ const CSS = `
   .ld-spinner .path { stroke: #BDBCB8; stroke-dasharray: 187; stroke-dashoffset: 0; transform-origin: center; animation: ld-dash 2.5s ease-in-out infinite; }
   .ld-message { margin-top: 22px; font-family: Pretendard, sans-serif; font-size: 15px; line-height: 1.5; color: #9a968f; word-break: keep-all; }
   .ld-hint { margin-top: 6px; max-width: 24rem; font-family: Pretendard, sans-serif; font-size: 12.5px; line-height: 1.55; color: #b3aea6; word-break: keep-all; }
+  .ld-detail { margin-top: 10px; max-width: 26rem; font-family: Pretendard, sans-serif; font-size: 12.5px; line-height: 1.55; color: #9a968f;
+    --gps-path: #716c66; }
   .ld-actions { margin-top: 18px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
 `
 
@@ -59,12 +61,15 @@ export function LoaderSpinner({ size = 54, className = '' }: { size?: number; cl
 export default function Loader({
   message,
   hint,
+  detail,
   spinning = true,
   fading = false,
   children,
 }: {
   message?: string
   hint?: string
+  /** 안내 아래에 붙는 내용(설정 순서 등) */
+  detail?: ReactNode
   spinning?: boolean
   /** 준비가 끝나 사라지는 중 — 내용이 0.75초에 걸쳐 흐려진다 */
   fading?: boolean
@@ -77,6 +82,7 @@ export default function Loader({
       <div className="ld-body">
         {message && <p className="ld-message">{message}</p>}
         {hint && <p className="ld-hint">{hint}</p>}
+        {detail && <div className="ld-detail">{detail}</div>}
         {children && <div className="ld-actions">{children}</div>}
       </div>
     </div>

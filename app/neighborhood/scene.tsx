@@ -13,6 +13,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js'
 import PaperMap, { GpsBadge, MapIcon, useMapHotkey, type MapTrack } from '@/components/world/PaperMap'
 import Loader from '@/components/transition/Loader'
+import GpsSteps from '@/components/world/GpsSteps'
 import { createGpsTracker, formatAccuracy, isWalkableFix, useGpsSnapshot, waitForStartFix, type GpsTracker } from '@/lib/geo/gps'
 import { detectGpsEnv, startWaitNote, walkNote, type GpsEnv } from '@/lib/geo/gpsMessages'
 import { createLocalFrame, type LocalFrame } from '@/lib/geo/localFrame'
@@ -428,7 +429,12 @@ export default function NeighborhoodScene() {
         </Loader>
       )}
       {phase === 'locating' && (
-        <Loader spinning={waiting?.tone !== 'off'} message={waiting?.title ?? '위치를 찾고 있어요…'} hint={waiting?.hint}>
+        <Loader
+          spinning={waiting?.tone !== 'off'}
+          message={waiting?.title ?? '위치를 찾고 있어요…'}
+          hint={waiting?.hint}
+          detail={waiting?.steps && <GpsSteps steps={waiting.steps} />}
+        >
           {waiting?.action && (
             <button
               type="button"

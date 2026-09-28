@@ -7,6 +7,7 @@ import { PAPER, PAPER_STYLE, PATTERNS } from './paperMapStyle'
 import { formatAccuracy, isGpsBlocked, useGpsSnapshot, type GpsSnapshot, type GpsTracker } from '@/lib/geo/gps'
 import { detectGpsEnv, gpsNote, type GpsEnv } from '@/lib/geo/gpsMessages'
 import { LoaderSpinner } from '@/components/transition/Loader'
+import GpsSteps from './GpsSteps'
 
 /** 씬이 매 프레임 채워 주는 캐릭터 위치와 화면 방향(북쪽 기준 시계방향 도) */
 export interface MapTrack {
@@ -142,6 +143,7 @@ const CSS = `
     background: rgba(214, 196, 158, 0.75); box-shadow: 0 1px 0 rgba(113, 108, 102, 0.2); }
   .pm-note-title { font-family: Stylish, sans-serif; font-size: 19px; line-height: 1.2; word-break: keep-all; }
   .pm-note-hint { font-family: Pretendard, sans-serif; font-size: 12.5px; line-height: 1.5; color: #8d8981; margin-top: 3px; word-break: keep-all; }
+  .pm-note-steps { font-family: Pretendard, sans-serif; font-size: 12.5px; line-height: 1.5; color: #8d8981; margin-top: 4px; --gps-path: #5d5a57; --gps-num: #b9ad9c; }
   .pm-note-icon { position: absolute; left: 13px; top: 12px; width: 22px; height: 22px; }
   .pm-note-retry { margin-top: 8px; padding: 4px 12px; border-radius: 999px; background: #716c66; color: #f9efdc; font-family: Pretendard, sans-serif;
     font-size: 12px; cursor: pointer; }
@@ -161,7 +163,7 @@ const CSS = `
     .pm-close { top: 12px; right: 14px; }
     .pm-north { top: 56px; right: 16px; }
     .pm-note { top: 12px; }
-    .pm-note-hint { font-size: 11.5px; }
+    .pm-note-hint, .pm-note-steps { font-size: 11.5px; }
   }
   .pm-stamp { position: absolute; left: 50%; top: 54%; padding: 6px 18px; border: 4px solid rgba(172, 76, 58, 0.72); border-radius: 8px;
     color: rgba(172, 76, 58, 0.78); font-family: Stylish, sans-serif; font-size: clamp(30px, 6vw, 54px); letter-spacing: 0.08em; white-space: nowrap;
@@ -850,6 +852,7 @@ export default function PaperMap({
                   <NoteIcon tone={note.tone} />
                   <div className="pm-note-title">{note.title}</div>
                   {note.hint && <div className="pm-note-hint">{note.hint}</div>}
+                  {note.steps && <GpsSteps steps={note.steps} className="pm-note-steps" />}
                   {note.action && (
                     <button
                       type="button"
