@@ -18,7 +18,7 @@ export interface SceneConnection {
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:9001'
 /** 원본 updateRate — 35ms마다 바뀐 필드만 올린다 */
 const SEND_MS = 35
-/** 원본 inactiveDisconnect — 5분 동안 바뀐 게 없으면 끊고, 다시 바뀌면 붙는다 */
+/** 원본 inactiveDisconnect — 5분 동안 바뀐 게 없으면 끊고, 다시 바뀌거나 탭으로 돌아오면 붙는다 */
 const INACTIVE_MS = 300_000
 /** 서버가 끊으면(정원 초과·과다 전송) 30초 뒤 다시 청한다 */
 const RETRY_MS = 30_000
@@ -31,8 +31,9 @@ const isLoopback = (host: string) => host === 'localhost' || host === '127.0.0.1
  *
  * 로그인 없이 월드 네임스페이스(여름 마을 `/scene`, 내 주변 `/neighborhood`)에 붙는다.
  * 내 상태는 35ms마다 read()로 읽어 바뀐 필드만 올리고(위치는 월드마다 정한 소수 자리,
- * 방향은 소수 둘째 자리로 반올림해 비교), 탭이 숨으면 끊었다가 보이면 다시 붙는다.
- * 서버에 닿지 못하면 소켓이 뒤에서 재시도할 뿐 씬은 혼자인 채로 돈다.
+ * 방향은 소수 둘째 자리로 반올림해 비교). 탭이 숨어도(창 최소화·다른 탭) 연결을 두어, 다른 사람에게 계속 보이고
+ * 다른 사람의 상태도 계속 받는다 — 화면은 돌아왔을 때 이어서 그린다. 서버에 닿지 못하면 소켓이 뒤에서 재시도할 뿐
+ * 씬은 혼자인 채로 돈다.
  *
  * 방에 (다시) 들어가거나 연결이 끊기면 onReset — 이전 아이들을 지운다. 붙으면 서버가
  * 함께 보이는 사람들의 전체 상태를 먼저 보내 준다.
@@ -87,7 +88,7 @@ export function connectScene(
     // 서버가 끊은 경우 socket.io는 스스로 다시 붙지 않는다
     if (reason === 'io server disconnect') {
       clearTimeout(retry)
-      retry = setTimeout(() => !document.hidden && socket.connect(), RETRY_MS)
+      retry = setTimeout(() => socket.connect(), RETRY_MS)
     }
   })
 
@@ -117,25 +118,22 @@ export function connectScene(
         inactive = true
         socket.disconnect()
       }
-    } else if (inactive && changed && !document.hidden) {
+    } else if (inactive && changed) {
       inactive = false
       socket.connect()
     }
   }
   const timer = setInterval(send, SEND_MS)
 
+  // 오래 가만히 있어 끊긴 채 탭으로 돌아오면(사람이 돌아왔다) 움직이기 전이라도 바로 다시 붙는다
   const onVisibility = () => {
-    clearTimeout(retry)
-    if (document.hidden) {
-      socket.disconnect()
-    } else {
-      inactive = false
-      changedAt = Date.now()
-      socket.connect()
-    }
+    if (document.hidden || !inactive) return
+    inactive = false
+    changedAt = Date.now()
+    socket.connect()
   }
   document.addEventListener('visibilitychange', onVisibility)
-  if (!document.hidden) socket.connect()
+  socket.connect()
 
   return {
     dispose() {
