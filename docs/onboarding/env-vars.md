@@ -10,8 +10,8 @@
 
 | 변수 | 필수 | 기본값 | 설명 |
 |---|---|---|---|
-| `NEXT_PUBLIC_WS_URL` | 필수 | `http://localhost:9001` | 브라우저가 직접 붙는 socket.io 주소 — 마을 씬 익명 소켓(`/scene`), 내 동네 익명 소켓(`/neighborhood`). Docker `app-prod`는 빌드 인자로 받아 번들에 굽고, 없으면 `http://localhost:9001`로 굽는다. localhost로 구운 페이지를 localhost가 아닌 주소에서 열면 마을 씬·내 동네는 소켓에 접속하지 않고 혼자 돈다 |
-| `NEXT_PUBLIC_MAPBOX_TOKEN` | 필수 | — | Mapbox GL JS 공개 토큰. 마을 씬·내 동네의 5시 미니맵이 쓴다. 없으면 미니맵은 지도 없이 테두리만 남는다. 도메인 락 필수 (프로덕션) |
+| `NEXT_PUBLIC_WS_URL` | 필수 | `http://localhost:9001` | 브라우저가 직접 붙는 socket.io 주소 — 마을 씬 익명 소켓(`/scene`), 내 주변 익명 소켓(`/neighborhood`). Docker `app-prod`는 빌드 인자로 받아 번들에 굽고, 없으면 `http://localhost:9001`로 굽는다. localhost로 구운 페이지를 localhost가 아닌 주소에서 열면 마을 씬·내 주변은 소켓에 접속하지 않고 혼자 돈다 |
+| `NEXT_PUBLIC_MAPBOX_TOKEN` | 필수 | — | Mapbox GL JS 공개 토큰. 마을 씬·내 주변의 펼침 지도가 쓴다. 없으면 지도 대신 "지도를 그릴 수 없어요" 쪽지만 뜨고 씬은 그대로 돈다. 도메인 락 필수 (프로덕션) |
 
 `NEXT_PUBLIC_*` 값은 빌드 시점에 번들에 구워진다. 값을 바꾸면 프론트엔드를 다시 빌드해야 한다.
 

@@ -43,7 +43,7 @@ NestJS API 서버(`apps/api`)를 호스팅한다.
    `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `HASH_ROUNDS`,
    `PG_WEBHOOK_SECRET`, `KAKAO_CLIENT_ID/SECRET`, `GOOGLE_CLIENT_ID/SECRET`,
    `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
-4. WebSocket(마을 씬 익명 소켓 `/scene`, 내 동네 익명 소켓 `/neighborhood`, 대시보드 월드 소켓 `/world`)이 이 서버에서 함께 서빙되므로 브라우저가 붙을 공개 주소를 확보한다 → 프론트 `NEXT_PUBLIC_WS_URL`에 등록
+4. WebSocket(마을 씬 익명 소켓 `/scene`, 내 주변 익명 소켓 `/neighborhood`, 대시보드 월드 소켓 `/world`)이 이 서버에서 함께 서빙되므로 브라우저가 붙을 공개 주소를 확보한다 → 프론트 `NEXT_PUBLIC_WS_URL`에 등록
 5. `WEB_ORIGIN`을 프론트 도메인으로 설정 (HTTP CORS·소켓 CORS 허용 오리진). 소켓 CORS는 게이트웨이 데코레이터가 `.env.local`을 읽기 전에 평가되므로, 파일이 아닌 서버 프로세스 환경변수(호스트·컨테이너 환경)로 넣는다
 
 ---
@@ -58,8 +58,8 @@ NestJS API 서버(`apps/api`)를 호스팅한다.
 
 | 변수 | 값 출처 |
 |---|---|
-| `NEXT_PUBLIC_WS_URL` | API 서버 공개 주소 (마을 씬·내 동네 소켓) |
-| `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapbox account.mapbox.com → Tokens (마을 씬·내 동네 미니맵) |
+| `NEXT_PUBLIC_WS_URL` | API 서버 공개 주소 (마을 씬·내 주변 소켓) |
+| `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapbox account.mapbox.com → Tokens (마을 씬·내 주변 펼침 지도) |
 
 로그인·대시보드 월드·상점 화면을 다시 만들면 다음도 등록한다:
 

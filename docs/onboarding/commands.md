@@ -87,7 +87,7 @@ docker compose --env-file .env.local --profile prod up -d --build app-prod
 docker info
 ```
 
-`app-prod`는 `NEXT_PUBLIC_MAPBOX_TOKEN`·`NEXT_PUBLIC_LIVEKIT_URL`·`NEXT_PUBLIC_APP_URL`·`NEXT_PUBLIC_WS_URL`을 빌드 시점에 굽는다. 그중 코드가 읽는 값은 `NEXT_PUBLIC_MAPBOX_TOKEN`(5시 미니맵)과 `NEXT_PUBLIC_WS_URL`(마을 씬·내 동네 소켓)이고, 나머지는 로그인·대시보드 월드 화면을 다시 만들 때 쓴다. `--env-file .env.local` 없이 빌드하면 빈 값으로 구워지고, `NEXT_PUBLIC_WS_URL`만은 비어 있으면 `http://localhost:9001`로 굽는다. 코드 변경은 `--build`로 이미지를 다시 만들어야 반영된다.
+`app-prod`는 `NEXT_PUBLIC_MAPBOX_TOKEN`·`NEXT_PUBLIC_LIVEKIT_URL`·`NEXT_PUBLIC_APP_URL`·`NEXT_PUBLIC_WS_URL`을 빌드 시점에 굽는다. 그중 코드가 읽는 값은 `NEXT_PUBLIC_MAPBOX_TOKEN`(마을 씬·내 주변 펼침 지도)과 `NEXT_PUBLIC_WS_URL`(마을 씬·내 주변 소켓)이고, 나머지는 로그인·대시보드 월드 화면을 다시 만들 때 쓴다. `--env-file .env.local` 없이 빌드하면 빈 값으로 구워지고, `NEXT_PUBLIC_WS_URL`만은 비어 있으면 `http://localhost:9001`로 굽는다. 코드 변경은 `--build`로 이미지를 다시 만들어야 반영된다.
 
 ---
 
