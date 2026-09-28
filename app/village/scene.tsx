@@ -43,7 +43,9 @@ import { createRemotes, type Remotes } from './remotes'
 import { baseDevicePixelRatio, configure, isMobileDevice } from './setup'
 import { connectScene, type SceneConnection } from '@/lib/realtime/scene'
 import type { SceneMotion } from '@/shared/scene/contract'
-import MiniMap from '@/components/world/MiniMap'
+import PaperMap, { GpsBadge, MapIcon, useMapHotkey } from '@/components/world/PaperMap'
+import Loader from '@/components/transition/Loader'
+import { createGpsTracker, useGpsSnapshot, type GpsTracker } from '@/lib/geo/gps'
 
 /**
  * 월드 좌표가 지오메트리에 구워져 있는 정적 메시.
@@ -173,11 +175,12 @@ export default function SummerAfternoonPage() {
   const mountRef = useRef<HTMLDivElement>(null)
   // 'loading' → 에셋 로드 중, 'fading' → 로더가 사라지는 중, 'playing' → 인트로·조작 시작
   const [phase, setPhase] = useState<'loading' | 'fading' | 'playing'>('loading')
-  // 폰트가 늦게 오면 원본처럼 로더 제목을 대체 크기(42px)로 둔다
-  const [fontReady, setFontReady] = useState(false)
   const [unsupported, setUnsupported] = useState(false)
-  // 인트로 소용돌이 리빌이 끝났는가 — 미니맵을 리빌 후에 노출한다
-  const [revealed, setRevealed] = useState(false)
+  // 펼침 지도(M) — 지도가 펼쳐져 있는 동안은 캐릭터 조작을 끈다(원본이 모달을 띄울 때처럼)
+  const [mapOpen, setMapOpen] = useState(false)
+  // 실제 내 위치는 지도에만 쓴다 — 권한 창은 지도를 처음 펼칠 때 뜬다(이미 허용했으면 바로 찾는다)
+  const [gps, setGps] = useState<GpsTracker | null>(null)
+  const gpsView = useGpsSnapshot(gps)
   const [error, setError] = useState<string | null>(null)
   // 원본처럼 소리 꺼짐으로 시작하고, 첫 입력 때 켜진다
   const [muted, setMuted] = useState(true)
@@ -186,20 +189,11 @@ export default function SummerAfternoonPage() {
 
   const audioRef = useRef<SceneAudio | null>(null)
   const mutedRef = useRef(true)
+  const controllerRef = useRef<ThirdPerson | null>(null)
+  const mapOpenRef = useRef(false)
   // useEffect 안에서 만든 함수를 React 버튼과 잇는 다리
   const cycleColorRef = useRef<() => void>(() => {})
   const startAudioRef = useRef<(event?: Event) => boolean>(() => false)
-
-  useEffect(() => {
-    let cancelled = false
-    document.fonts
-      ?.load('1em Stylish')
-      .then(() => !cancelled && setFontReady(true))
-      .catch(() => !cancelled && setFontReady(true))
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   useEffect(() => {
     const mount = mountRef.current
@@ -634,6 +628,8 @@ export default function SummerAfternoonPage() {
         mobile,
         onTouchJump: (ndc) => circles.jump(ndc),
       })
+      controllerRef.current = controller
+      controller.setEnabled(!mapOpenRef.current)
 
       // 카메라를 캐릭터 뒤에 미리 세워 인트로 리빌이 캐릭터를 화면 중앙에 잡게 한다
       controller.update(0)
@@ -687,7 +683,10 @@ export default function SummerAfternoonPage() {
       adaptive.lastUpdate = adaptive.waitUntil
       adaptive.bucketStart = introStartTime
       setPhase('playing')
-    })().catch((err) => setError(String(err)))
+    })().catch((err) => {
+      console.error(err)
+      setError(String(err))
+    })
 
     // 브라우저 자동재생 정책상 오디오는 사용자 제스처 안에서 만들어야 한다. 원본처럼
     // 첫 입력(페이지 클릭·캔버스 터치·키)에서 음소거를 풀고, 인트로 1.5초 뒤부터 소리를 낸다.
@@ -702,7 +701,7 @@ export default function SummerAfternoonPage() {
       startEvent = event ?? null
       document.body.removeEventListener('click', startAudio)
       canvas.removeEventListener('pointerup', startAudio)
-      window.removeEventListener('keydown', startAudio)
+      window.removeEventListener('keydown', onFirstKey)
       setMuted(false)
       mutedRef.current = false
       const canPlay = new Promise<void>((resolve) => {
@@ -717,10 +716,16 @@ export default function SummerAfternoonPage() {
       audioRef.current = audio
       return true
     }
+    // Ctrl·Shift·Alt·Cmd만 누른 것은 첫 입력으로 치지 않는다 — Ctrl+M(음소거)의 Ctrl이 먼저 소리를 켜면
+    // 이어 오는 M이 곧바로 다시 끈다(브라우저 단축키를 누를 때 소리가 켜지지도 않는다)
+    const onFirstKey = (event: KeyboardEvent) => {
+      if (event.key === 'Control' || event.key === 'Shift' || event.key === 'Alt' || event.key === 'Meta') return
+      startAudio(event)
+    }
     startAudioRef.current = startAudio
     document.body.addEventListener('click', startAudio)
     canvas.addEventListener('pointerup', startAudio)
-    window.addEventListener('keydown', startAudio)
+    window.addEventListener('keydown', onFirstKey)
 
     const start = performance.now()
     let last = start
@@ -755,14 +760,13 @@ export default function SummerAfternoonPage() {
       birds?.update(dt, ratio)
       sky?.position.copy(camera.position)
 
-      // 인트로 리빌 진행(4초 선형). 끝나면 인트로를 끄고 미니맵을 노출한다.
+      // 인트로 리빌 진행(4초 선형). 끝나면 인트로를 끈다.
       if (introStartTime >= 0 && !introDone) {
         const tr = Math.min(1, (now - introStartTime) / INTRO_REVEAL_MS)
         finalPass.uniforms.uTransition.value = tr
         if (tr >= 1) {
           introDone = true
           finalPass.uniforms.uIntro.value = 0
-          setRevealed(true)
         }
       }
 
@@ -804,8 +808,9 @@ export default function SummerAfternoonPage() {
       ro.disconnect()
       document.body.removeEventListener('click', startAudio)
       canvas.removeEventListener('pointerup', startAudio)
-      window.removeEventListener('keydown', startAudio)
+      window.removeEventListener('keydown', onFirstKey)
       controller?.dispose()
+      controllerRef.current = null
       connection?.dispose()
       remotes?.dispose()
       audioRef.current?.dispose()
@@ -826,8 +831,37 @@ export default function SummerAfternoonPage() {
     audioRef.current?.setMuted(muted)
   }, [muted])
 
+  useEffect(() => {
+    mapOpenRef.current = mapOpen
+    controllerRef.current?.setEnabled(!mapOpen)
+  }, [mapOpen])
+
+  // 개발 모드(StrictMode)는 이펙트를 두 번 돌린다 — 추적기는 이펙트 안에서 만들고 버린다
+  useEffect(() => {
+    const tracker = createGpsTracker()
+    tracker.startIfGranted()
+    setGps(tracker)
+    return () => tracker.dispose()
+  }, [])
+
   /** 원본 버튼 — 누르는 순간 클릭음(키보드로 누르면 클릭 때) */
   const pressSound = () => audioRef.current?.click()
+
+  const playing = phase === 'playing' && !unsupported
+  useMapHotkey(playing, setMapOpen)
+
+  // Ctrl+M — 사운드 버튼과 같다. 첫 입력이 이 키면 원본처럼 소리를 켜는 것으로 끝난다
+  useEffect(() => {
+    if (!playing) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'KeyM' || !e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || e.repeat) return
+      e.preventDefault()
+      audioRef.current?.click()
+      if (!startAudioRef.current(e)) setMuted((m) => !m)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [playing])
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#FFFDF8] select-none">
@@ -841,22 +875,6 @@ export default function SummerAfternoonPage() {
           font-display: swap;
         }
         .sa-root { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-        /* 원본 로더 — 제목 + SVG 스피너(2.5s). 준비되면 0.75s(cubic in-out)에 걸쳐 사라진다 */
-        @keyframes sa-rotator { 0% { transform: rotate(0deg); } 100% { transform: rotate(270deg); } }
-        @keyframes sa-dash {
-          0% { stroke-dashoffset: 187; }
-          50% { stroke-dashoffset: 46.75; transform: rotate(135deg); }
-          100% { stroke-dashoffset: 187; transform: rotate(450deg); }
-        }
-        .sa-loader { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; background-color: #FFFDF8; }
-        .sa-loader > * { transition: opacity 0.75s cubic-bezier(0.645, 0.045, 0.355, 1); }
-        .sa-loader.fading > * { opacity: 0; }
-        .sa-loader h1 { font-family: Stylish, sans-serif; font-weight: normal; text-align: center; font-size: 50px; line-height: 0.8em; margin: 0 0 20px 0; color: #BDBCB8; }
-        .sa-loader h1.fallback { line-height: 0.95em; font-size: 42px; }
-        .sa-spinner { width: 54px; height: 54px; }
-        .sa-spinner svg { display: block; width: 100%; height: 100%; animation: sa-rotator 2.5s linear infinite; }
-        .sa-spinner .path { stroke: #BDBCB8; stroke-dasharray: 187; stroke-dashoffset: 0; transform-origin: center; animation: sa-dash 2.5s ease-in-out infinite; }
-
         /* 우상단 nav — 원본 UI. 인트로 시작 2.5s 뒤 오른쪽 80px에서 1.5s power2.out으로 들어온다. */
         @keyframes sa-nav-in { from { transform: translateX(80px); } to { transform: translateX(0); } }
         .sa-nav { position: absolute; top: 35px; right: 35px; display: flex; flex-direction: column; align-items: center; touch-action: none; -webkit-tap-highlight-color: transparent; animation: sa-nav-in 1.5s cubic-bezier(0.33, 1, 0.68, 1) 2.5s both; }
@@ -870,55 +888,55 @@ export default function SummerAfternoonPage() {
         .sa-sound { display: block; position: absolute; top: 4px; left: 4px; width: 25px; height: 25px; transform: rotate(-10deg); }
         .sa-sound2 { left: 8px; }
         .sa-color { position: relative; width: 18px; height: 18px; margin: 7px; border-radius: 2px; transform: rotate(-16deg); }
+        .sa-map { display: block; position: absolute; top: 7px; left: 6px; transform: rotate(-10deg); }
 
         /* 원본 max-width: 1200px 분기 */
         @media (max-width: 1200px) {
           .sa-nav { top: 20px; right: 20px; }
           .sa-btn { margin-bottom: 12px; }
         }
+        /* 손가락으로 누르는 화면과 아주 큰 화면에서는 버튼 묶음을 통째로 키운다(오른쪽 위 기준) */
+        @media (pointer: coarse) { .sa-nav { scale: 1.2; transform-origin: top right; } }
+        @media (min-width: 2400px) and (min-height: 1300px) { .sa-nav { scale: 1.3; transform-origin: top right; } }
       `}</style>
       <div className="sa-root absolute inset-0">
         <div ref={mountRef} className="w-full h-full touch-none" />
 
-        {/* WebGL2가 없으면 원본처럼 안내 문구만 띄운다 */}
+        {/* WebGL2가 없으면 로더를 걷은 뒤 안내만 띄운다 */}
         {unsupported && phase === 'playing' && (
-          <div>
-            Seems like WebGL2 is not supported by your browser 😰 Please update it to access the
-            experience.
-          </div>
+          <Loader
+            spinning={false}
+            message="이 브라우저에서는 마을을 열 수 없어요"
+            hint="WebGL2를 지원하는 최신 브라우저(Chrome·Safari·Edge)로 열어 주세요"
+          />
         )}
 
-        {/* 화면 5시 나침반형 GIS 미니맵 — 인트로 소용돌이 리빌이 끝난 뒤 노출 */}
-        {revealed && <MiniMap />}
-
-        {/* 로딩 화면 — 원본 레이아웃: 제품 이름 + SVG 스피너 (버튼 없음, 자동 진입) */}
-        {phase !== 'playing' && (
-          <div className={`sa-loader${phase === 'fading' ? ' fading' : ''}`}>
-            <h1 className={fontReady ? '' : 'fallback'}>어슬렁</h1>
-            {error ? (
-              <p className="text-sm text-red-500/80">로드 실패: {error}</p>
-            ) : (
-              <div className="sa-spinner">
-                <svg viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg">
-                  <circle
-                    className="path"
-                    fill="none"
-                    strokeWidth="7"
-                    strokeLinecap="round"
-                    cx="33"
-                    cy="33"
-                    r="29"
-                  />
-                </svg>
-              </div>
-            )}
-          </div>
+        {/* 펼침 지도 — 실제 내 위치(GPS)를 게임 화풍 종이 지도로 */}
+        {playing && gps && (
+          <PaperMap open={mapOpen} onClose={() => setMapOpen(false)} gps={gps} title="지도" accent={charColor} />
         )}
 
-        {/* 우상단 버튼 — 원본과 동일: 사운드 / 옷 색 */}
-        {phase === 'playing' && !unsupported && (
+        {/* 로딩 화면 — 원본 로더(제품 이름 + SVG 스피너, 버튼 없이 자동 진입)에 안내 한 줄 */}
+        {phase !== 'playing' &&
+          (error ? (
+            <Loader spinning={false} message="마을을 불러오지 못했어요" hint="잠시 후 새로고침해 주세요">
+              <button
+                type="button"
+                className="rounded-full bg-[#f9efdc] px-5 py-2 text-[#716c66] shadow-[2px_2px_0_0_#716c66]"
+                onClick={() => window.location.reload()}
+              >
+                새로고침
+              </button>
+            </Loader>
+          ) : (
+            <Loader fading={phase === 'fading'} message="마을을 불러오고 있어요. 잠시만 기다려 주세요." />
+          ))}
+
+        {/* 우상단 버튼 — 원본 사운드 / 옷 색에 지도를 더했다 */}
+        {playing && (
           <nav className="sa-nav">
             <ToolButton
+              label="소리 켜기·끄기 (Ctrl+M)"
               onPress={pressSound}
               onClick={(e) => {
                 // 첫 입력이 이 버튼이면 원본처럼 소리를 켜는 것으로 끝난다
@@ -949,8 +967,13 @@ export default function SummerAfternoonPage() {
               )}
             </ToolButton>
 
-            <ToolButton onPress={pressSound} onClick={() => cycleColorRef.current()}>
+            <ToolButton label="옷 색 바꾸기" onPress={pressSound} onClick={() => cycleColorRef.current()}>
               <div className="sa-color" style={{ backgroundColor: charColor }} />
+            </ToolButton>
+
+            <ToolButton label="지도 펼치기 (M)" onPress={pressSound} onClick={() => setMapOpen((open) => !open)}>
+              <MapIcon className="sa-map" />
+              <GpsBadge snapshot={gpsView} />
             </ToolButton>
           </nav>
         )}
@@ -965,10 +988,13 @@ export default function SummerAfternoonPage() {
  * 누르는 순간 클릭음이 난다(키보드로 누르면 클릭 때).
  */
 function ToolButton({
+  label,
   onPress,
   onClick,
   children,
 }: {
+  /** 스크린 리더·툴팁 이름 — 단축키가 있으면 함께 적는다 */
+  label: string
   onPress: () => void
   onClick: (e: ReactMouseEvent<HTMLButtonElement>) => void
   children: ReactNode
@@ -977,6 +1003,8 @@ function ToolButton({
     <button
       type="button"
       className="sa-btn"
+      aria-label={label}
+      title={label}
       onPointerDown={onPress}
       onClick={(e) => {
         if (e.detail === 0) onPress()
