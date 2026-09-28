@@ -4,7 +4,7 @@
 
 ## 결정
 
-공간 음성(Spatial Voice)을 위해 자체 TURN 서버나 WebRTC Mesh P2P를 구축하지 않고, **LiveKit Cloud 매니지드 SFU**를 채택한다. 음성은 대시보드 월드(`/dashboard`, 예정) 전용이며, 마을 씬·내 동네에는 음성이 없다.
+공간 음성(Spatial Voice)을 위해 자체 TURN 서버나 WebRTC Mesh P2P를 구축하지 않고, **LiveKit Cloud 매니지드 SFU**를 채택한다. 음성은 대시보드 월드(`/dashboard`, 예정) 전용이며, 마을 씬·내 주변에는 음성이 없다.
 
 ## 배경
 
