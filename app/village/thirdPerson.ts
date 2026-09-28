@@ -130,6 +130,61 @@ const SHAKE_FADE_DURATION = 4
 /** 카메라 극각이 뒤집히지 않게 두는 여유(원본 EPS) */
 const PHI_EPS = 1e-6
 
+// ── 화면 비율 반응형 구도 ──
+// 원본 구도(세로 화각 45°)는 가로 화면(16:9)에 맞춰져 있다. 세로로 긴 화면(휴대폰 세로)에서 그대로 쓰면
+// 가로 화각이 20°대로 좁아져 캐릭터가 화면을 덮고 앞길이 안 보인다. 16:9보다 좁아질수록 화각을 넓히고,
+// 조금 물러나 높이 올라가고, 시선을 살짝 들어 캐릭터를 화면 아래쪽에 둔다 — 가장 긴 세로 화면에서
+// 하늘·앞길·발밑이 대략 3분의 1씩 보인다(16:9 이상은 원본 그대로). 창 크기가 바뀌면 부드럽게 따라간다.
+const FRAMING_WIDE_ASPECT = 16 / 9
+const FRAMING_TALL_ASPECT = 9 / 19.5
+const FRAMING_FOV_WIDE = 45
+const FRAMING_FOV_TALL = 66
+const FRAMING_PULL_TALL = 1.3
+const FRAMING_RAISE_TALL = THREE.MathUtils.degToRad(8)
+const FRAMING_TILT_TALL = THREE.MathUtils.degToRad(5)
+/** 마우스 조이스틱이 최대 세기가 되는 거리 — 작은 창에서는 짧은 변에 맞춰 줄인다(원본 200px) */
+const CONTROL_MOUSE_SHORT_SIDE = 0.23
+const CONTROL_MOUSE_MIN = 90
+
+interface Framing {
+  /** 세로 화각(도) */
+  fov: number
+  /** 시선 목표점에서 카메라까지 반경(m) */
+  distance: number
+  /** 카메라 극각(라디안) — 작을수록 높이 올라가 내려다본다 */
+  phi: number
+  /** 시선을 드는 각(라디안) — 캐릭터가 화면 아래쪽으로 내려간다 */
+  tilt: number
+  /** 마우스 조이스틱 고정점(화면 위에서 몇 할) — 캐릭터 발끝을 따라간다 */
+  mouseCenterY: number
+}
+
+/** 발끝이 화면 위에서 몇 할 지점에 오는가(시선 목표점을 tilt만큼 올려다볼 때) */
+function feetScreenY(fov: number, distance: number, phi: number, tilt: number): number {
+  const elevation = Math.PI / 2 - phi
+  const below =
+    Math.atan(
+      (distance * Math.sin(elevation) + LOOK_OFFSET.y) / (distance * Math.cos(elevation) - LOOK_OFFSET.z),
+    ) -
+    elevation +
+    tilt
+  return 0.5 + Math.tan(below) / (2 * Math.tan(THREE.MathUtils.degToRad(fov) / 2))
+}
+
+const BASE_FEET_Y = feetScreenY(FRAMING_FOV_WIDE, CAMERA_DISTANCE, CAMERA_PHI, 0)
+
+/** 화면 비율(가로/세로)에 맞는 구도 — 0(16:9 이상, 원본) ~ 1(가장 긴 세로 화면) 사이를 매끄럽게 잇는다 */
+export function framingFor(aspect: number): Framing {
+  const k = 1 - THREE.MathUtils.smoothstep(aspect, FRAMING_TALL_ASPECT, FRAMING_WIDE_ASPECT)
+  const fov = THREE.MathUtils.lerp(FRAMING_FOV_WIDE, FRAMING_FOV_TALL, k)
+  const distance = CAMERA_DISTANCE * THREE.MathUtils.lerp(1, FRAMING_PULL_TALL, k)
+  const phi = CAMERA_PHI - FRAMING_RAISE_TALL * k
+  const tilt = FRAMING_TILT_TALL * k
+  // 원본 고정점(72.5%)을 구도가 바뀐 만큼 발끝을 따라 옮긴다 — 16:9에서는 원본 값 그대로다
+  const mouseCenterY = MOUSE_CENTER_Y_FRAC + feetScreenY(fov, distance, phi, tilt) - BASE_FEET_Y
+  return { fov, distance, phi, tilt, mouseCenterY }
+}
+
 const UP = new THREE.Vector3(0, 1, 0)
 
 /** 원본 lerpCoefFPS — 60fps 기준 프레임당 비율 k를 ratio 프레임만큼 적용한 계수 */
@@ -281,16 +336,23 @@ export function createThirdPerson({
 
   // 카메라 — 목표 방위가 캐릭터 등 뒤를 따라 돌고, 실제 방위가 목표를 따라간다.
   // 카메라는 시선 목표점을 중심으로 한 구면(반경·극각 고정)에 선다.
+  // 화면 비율에 맞춘 구도 — 처음에는 곧장 맞추고, 그 뒤 비율이 바뀌면 화각·극각·반경이 서서히 따라간다
+  let framedAspect = camera.aspect
+  let framing = framingFor(framedAspect)
+  camera.fov = framing.fov
+  camera.updateProjectionMatrix()
+  let camPhi = framing.phi
+  let camTilt = framing.tilt
   let camTheta = charTheta
   let camThetaTarget = charTheta
-  let radius = CAMERA_DISTANCE
-  let radiusTarget = CAMERA_DISTANCE
+  let radius = framing.distance
+  let radiusTarget = framing.distance
   let parTheta = 0
   let parPhi = 0
   const lookOffset = LOOK_OFFSET.clone().applyAxisAngle(UP, charTheta + Math.PI)
   const lookTarget = position.clone().add(lookOffset)
   const basePosition = new THREE.Vector3()
-    .setFromSphericalCoords(radius, CAMERA_PHI, camTheta)
+    .setFromSphericalCoords(radius, camPhi, camTheta)
     .add(lookTarget)
 
   const ray = new THREE.Ray()
@@ -339,9 +401,14 @@ export function createThirdPerson({
   const updateDrag = (clientX: number, clientY: number) => {
     const rect = domElement.getBoundingClientRect()
     const cx = rect.left + rect.width * 0.5
-    const cy = rect.top + rect.height * MOUSE_CENTER_Y_FRAC
-    let dx = (clientX - cx) / CONTROL_MOUSE_AMOUNT
-    let dy = (clientY - cy) / CONTROL_MOUSE_AMOUNT
+    const cy = rect.top + rect.height * framing.mouseCenterY
+    const amount = THREE.MathUtils.clamp(
+      Math.min(rect.width, rect.height) * CONTROL_MOUSE_SHORT_SIDE,
+      CONTROL_MOUSE_MIN,
+      CONTROL_MOUSE_AMOUNT,
+    )
+    let dx = (clientX - cx) / amount
+    let dy = (clientY - cy) / amount
     const len = Math.hypot(dx, dy)
     if (len > 1) {
       dx /= len
@@ -545,6 +612,18 @@ export function createThirdPerson({
    * 물리보다 먼저, 직전 프레임의 캐릭터 상태로 갱신한다.
    */
   function updateCamera(ratio: number, clock: number, introSec: number) {
+    // 화면 비율이 바뀌었으면(창 크기·회전) 새 구도를 잡는다. 반경은 아래 줌 스무딩이, 화각·극각은 여기서 따라간다
+    if (camera.aspect !== framedAspect) {
+      framedAspect = camera.aspect
+      framing = framingFor(framedAspect)
+    }
+    if (Math.abs(camera.fov - framing.fov) > 0.01) {
+      camera.fov += (framing.fov - camera.fov) * lerpCoef(ZOOM_LERP, ratio)
+      camera.updateProjectionMatrix()
+    }
+    camPhi += (framing.phi - camPhi) * lerpCoef(ZOOM_LERP, ratio)
+    camTilt += (framing.tilt - camTilt) * lerpCoef(ZOOM_LERP, ratio)
+
     // 시선 목표점 — 발 위 1.1m·캐릭터 정면 0.5m. 오프셋은 캐릭터 방향을 따라 아주
     // 느리게 돌고, 목표점 자체는 캐릭터를 살짝 늦게 따라간다.
     offsetGoal.copy(LOOK_OFFSET).applyAxisAngle(UP, charTheta + Math.PI)
@@ -568,9 +647,9 @@ export function createThirdPerson({
     ray.direction.subVectors(basePosition, lookTarget).normalize()
     const hit = bvh.raycastFirst(ray, THREE.FrontSide)
     radiusTarget =
-      hit && hit.distance < CAMERA_DISTANCE
+      hit && hit.distance < framing.distance
         ? Math.max(capsuleRadius * 1.25, hit.distance * 0.9)
-        : CAMERA_DISTANCE
+        : framing.distance
     if (introSec >= 0 && introSec < INTRO_DURATION) {
       radiusTarget += INTRO_ZOOM * (1 - easeInOut3(introSec / INTRO_DURATION))
     }
@@ -579,7 +658,7 @@ export function createThirdPerson({
     camTheta += (camThetaTarget - camTheta) * lerpCoef(ROTATE_LERP, ratio)
     radius += (radiusTarget - radius) * lerpCoef(ZOOM_LERP, ratio)
     lookTarget.lerp(panTarget, lerpCoef(mobile ? PAN_LERP_MOBILE : PAN_LERP, ratio))
-    basePosition.setFromSphericalCoords(radius, CAMERA_PHI, camTheta).add(lookTarget)
+    basePosition.setFromSphericalCoords(radius, camPhi, camTheta).add(lookTarget)
 
     // 패럴랙스·흔들림 세기 — 인트로 시작 4초 뒤부터 4초에 걸쳐 켜진다
     const touchAmount =
@@ -599,7 +678,7 @@ export function createThirdPerson({
     parPhi += (parallaxY * Math.PI * 0.5 * PARALLAX_PHI * touchAmount - parPhi) * parallaxLerp
     camera.position.setFromSphericalCoords(
       radius,
-      THREE.MathUtils.clamp(CAMERA_PHI + parPhi, PHI_EPS, Math.PI - PHI_EPS),
+      THREE.MathUtils.clamp(camPhi + parPhi, PHI_EPS, Math.PI - PHI_EPS),
       camTheta + parTheta,
     )
     camera.position.add(lookTarget)
@@ -610,7 +689,8 @@ export function createThirdPerson({
     const swayRoll = sineNoise1(23.434, -1.565, 8.454 + clock * SHAKE_SPEED) * SHAKE_ROLL * touchAmount
     spherical.setFromVector3(lookPoint.subVectors(lookTarget, basePosition))
     spherical.theta += swayTheta
-    spherical.phi = THREE.MathUtils.clamp(spherical.phi + swayPhi, PHI_EPS, Math.PI - PHI_EPS)
+    // 세로로 긴 화면에서는 시선을 조금 든다(반응형 구도)
+    spherical.phi = THREE.MathUtils.clamp(spherical.phi + swayPhi - camTilt, PHI_EPS, Math.PI - PHI_EPS)
     lookPoint.setFromSpherical(spherical).add(basePosition)
 
     // 아주 미세한 롤(수평선 기울기) — 위쪽 벡터를 카메라 오른쪽으로 살짝 기울인다
@@ -714,7 +794,7 @@ export function createThirdPerson({
     startIntro() {
       introStartMs = performance.now()
       // 원본처럼 줌아웃 위치로 곧장 세운 뒤 당겨온다
-      radius = radiusTarget = CAMERA_DISTANCE + INTRO_ZOOM
+      radius = radiusTarget = framing.distance + INTRO_ZOOM
     },
 
     setEnabled(value: boolean) {
