@@ -807,7 +807,9 @@ export default function PaperMap({
       style={{ ['--pm-accent' as string]: accent }}
     >
       <style>{CSS}</style>
-      <div className="pm-backdrop" onClick={onClose} />
+      {/* 다 펼친 뒤에만 접는다 — 펼치는 동안 지도 버튼을 연달아 누르면 그 클릭이 버튼을 덮은 배경에 떨어진다.
+          펼치거나 접는 중의 클릭은 여기서 삼켜 아래 버튼에도 가지 않는다(M·Esc는 그대로 되돌린다) */}
+      <div className="pm-backdrop" onClick={() => phaseRef.current === 'open' && onClose()} />
       <div className="pm-stage">
         <div ref={sheetRef} className="pm-sheet">
           <div className="pm-shadow" />
