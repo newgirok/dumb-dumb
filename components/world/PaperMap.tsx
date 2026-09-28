@@ -297,6 +297,7 @@ export default function PaperMap({
   track,
   title,
   accent = '#8875ad',
+  onClosed,
 }: {
   open: boolean
   onClose: () => void
@@ -305,6 +306,8 @@ export default function PaperMap({
   title: string
   /** '나' 표시·정확도 원 색 */
   accent?: string
+  /** 다 접혀 배경(dim)까지 걷힌 순간 — 씬은 이때 캐릭터 조작을 다시 켠다 */
+  onClosed?: () => void
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -319,6 +322,8 @@ export default function PaperMap({
   const phaseRef = useRef<Phase>('closed')
   const needsResizeRef = useRef(false)
   const returnFocusRef = useRef<Element | null>(null)
+  // 접기 애니메이션 끝(onfinish)에서 부른다 — 애니메이션은 펼칠 때 만들어지므로 그때의 콜백이 아닌 지금 것을 읽는다
+  const onClosedRef = useRef(onClosed)
   const [phase, setPhase] = useState<Phase>('closed')
   const [panels, setPanels] = useState<Panels>(3)
   const [mapState, setMapState] = useState<'loading' | 'ready' | 'none'>('loading')
@@ -331,6 +336,10 @@ export default function PaperMap({
   }
 
   useEffect(() => setEnv(detectGpsEnv()), [])
+
+  useEffect(() => {
+    onClosedRef.current = onClosed
+  }, [onClosed])
 
   // 종이 폭이 바뀌면(창 크기·회전) 접는 횟수를 바꾼다 — 레이아웃 크기라 변환과 무관하다
   useEffect(() => {
@@ -768,6 +777,7 @@ export default function PaperMap({
           }
           const back = returnFocusRef.current as HTMLElement | null
           if (back?.isConnected) back.focus?.({ preventScroll: true })
+          onClosedRef.current?.()
         }
       }
     }

@@ -176,7 +176,8 @@ export default function SummerAfternoonPage() {
   // 'loading' → 에셋 로드 중, 'fading' → 로더가 사라지는 중, 'playing' → 인트로·조작 시작
   const [phase, setPhase] = useState<'loading' | 'fading' | 'playing'>('loading')
   const [unsupported, setUnsupported] = useState(false)
-  // 펼침 지도(M) — 지도가 펼쳐져 있는 동안은 캐릭터 조작을 끈다(원본이 모달을 띄울 때처럼)
+  // 펼침 지도(M) — 지도가 화면에 있는 동안은 캐릭터 조작을 끈다(원본이 모달을 띄울 때처럼).
+  // 접을 때는 다 접혀 배경(dim)까지 걷힌 뒤에 켠다
   const [mapOpen, setMapOpen] = useState(false)
   // 실제 내 위치는 지도에만 쓴다 — 권한 창은 지도를 처음 펼칠 때 뜬다(이미 허용했으면 바로 찾는다)
   const [gps, setGps] = useState<GpsTracker | null>(null)
@@ -190,7 +191,7 @@ export default function SummerAfternoonPage() {
   const audioRef = useRef<SceneAudio | null>(null)
   const mutedRef = useRef(true)
   const controllerRef = useRef<ThirdPerson | null>(null)
-  const mapOpenRef = useRef(false)
+  const mapShownRef = useRef(false)
   // useEffect 안에서 만든 함수를 React 버튼과 잇는 다리
   const cycleColorRef = useRef<() => void>(() => {})
   const startAudioRef = useRef<(event?: Event) => boolean>(() => false)
@@ -634,7 +635,7 @@ export default function SummerAfternoonPage() {
         onTouchJump: (ndc) => circles.jump(ndc),
       })
       controllerRef.current = controller
-      controller.setEnabled(!mapOpenRef.current)
+      controller.setEnabled(!mapShownRef.current)
 
       // 카메라를 캐릭터 뒤에 미리 세워 인트로 리빌이 캐릭터를 화면 중앙에 잡게 한다
       controller.update(0)
@@ -838,10 +839,16 @@ export default function SummerAfternoonPage() {
     audioRef.current?.setMuted(muted)
   }, [muted])
 
+  // 펼치면 곧바로 조작을 끄고, 접으면 다 접혀 배경까지 걷힌 뒤(onClosed)에 켠다
   useEffect(() => {
-    mapOpenRef.current = mapOpen
-    controllerRef.current?.setEnabled(!mapOpen)
+    if (!mapOpen) return
+    mapShownRef.current = true
+    controllerRef.current?.setEnabled(false)
   }, [mapOpen])
+  const onMapClosed = () => {
+    mapShownRef.current = false
+    controllerRef.current?.setEnabled(true)
+  }
 
   // 개발 모드(StrictMode)는 이펙트를 두 번 돌린다 — 추적기는 이펙트 안에서 만들고 버린다
   useEffect(() => {
@@ -912,7 +919,7 @@ export default function SummerAfternoonPage() {
 
         {/* 펼침 지도 — 실제 내 위치(GPS)를 게임 화풍 종이 지도로 */}
         {playing && gps && (
-          <PaperMap open={mapOpen} onClose={() => setMapOpen(false)} gps={gps} title="지도" accent={charColor} />
+          <PaperMap open={mapOpen} onClose={() => setMapOpen(false)} onClosed={onMapClosed} gps={gps} title="지도" accent={charColor} />
         )}
 
         {/* 로딩 화면 — 로더(스피너 + 안내 한 줄, 버튼 없이 자동 진입) */}

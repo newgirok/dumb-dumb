@@ -51,9 +51,10 @@ export default function NeighborhoodScene() {
   const [attempt, setAttempt] = useState(0)
   const [gps, setGps] = useState<GpsTracker | null>(null)
   const gpsView = useGpsSnapshot(gps)
-  // 펼침 지도(M) — 펼쳐 둔 동안은 키보드·마우스 조작을 끈다(휴대폰 GPS 걷기는 계속된다)
+  // 펼침 지도(M) — 지도가 화면에 있는 동안은 키보드·마우스 조작을 끈다(휴대폰 GPS 걷기는 계속된다).
+  // 접을 때는 다 접혀 배경(dim)까지 걷힌 뒤에 켠다
   const [mapOpen, setMapOpen] = useState(false)
-  const mapOpenRef = useRef(false)
+  const mapShownRef = useRef(false)
   const controllerRef = useRef<ThirdPerson | null>(null)
   const [env, setEnv] = useState<GpsEnv | null>(null)
   const [mobile, setMobile] = useState(false)
@@ -241,7 +242,7 @@ export default function NeighborhoodScene() {
       controller.update(0)
       controller.startIntro()
       controllerRef.current = controller
-      controller.setEnabled(!mapOpenRef.current)
+      controller.setEnabled(!mapShownRef.current)
       const me = kid
       const walker = controller
       // 휴대폰은 늘 GPS를 따라 걷고, PC는 시작한 자리에서 키보드로 걷는다(흐린 위치로 시작했어도 나중에 옮기지 않는다).
@@ -353,10 +354,16 @@ export default function NeighborhoodScene() {
     }
   }, [attempt])
 
+  // 펼치면 곧바로 조작을 끄고, 접으면 다 접혀 배경까지 걷힌 뒤(onClosed)에 켠다
   useEffect(() => {
-    mapOpenRef.current = mapOpen
-    controllerRef.current?.setEnabled(!mapOpen)
+    if (!mapOpen) return
+    mapShownRef.current = true
+    controllerRef.current?.setEnabled(false)
   }, [mapOpen])
+  const onMapClosed = () => {
+    mapShownRef.current = false
+    controllerRef.current?.setEnabled(true)
+  }
 
   useMapHotkey(phase === 'playing', setMapOpen)
 
@@ -475,7 +482,7 @@ export default function NeighborhoodScene() {
       )}
 
       {phase === 'playing' && gps && (
-        <PaperMap open={mapOpen} onClose={() => setMapOpen(false)} gps={gps} track={trackRef} title="지도" />
+        <PaperMap open={mapOpen} onClose={() => setMapOpen(false)} onClosed={onMapClosed} gps={gps} track={trackRef} title="지도" />
       )}
     </div>
   )
