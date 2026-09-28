@@ -112,9 +112,9 @@ project/
 
 | 파일 | 역할 |
 |---|---|
-| `app/page.tsx` | 선택 페이지 — 여름 오후 풍경 위 제목 "어슬렁"과 세로로 쌓은 목적지 버튼 3개(마을·내 주변·에셋 미리보기, 이름·배지·아이콘은 `PLACES`). Stylish 폰트 파일을 `preload`로 미리 받는다 |
+| `app/page.tsx` | 선택 페이지 — 여름 오후 풍경 위 제목 "Dumb Dumb"과 세로로 쌓은 목적지 버튼 3개(마을·내 주변·에셋 미리보기, 이름·배지·아이콘은 `PLACES`). Stylish 폰트 파일을 `preload`로 미리 받는다 |
 | `lib/routes.ts` | `SCENE_ROUTES`(`/village`, `/neighborhood`, `/preview`) — 선택 페이지만 쓰는 경로 목록(카드 문구 `PLACES`와 타입으로 묶인다) |
-| `app/village/scene.tsx` | 마을 씬 — ref-assets 로드·씬 조립·렌더 루프, 우상단 HUD(사운드·옷 색·지도, 위치를 못 잡으면 지도 버튼 구석에 "!")와 단축키(M·Esc·Ctrl+M), 펼침 지도 마운트(펼친 동안 캐릭터 조작을 끈다), GPS 추적기(이미 허용된 사이트면 씬 시작 때 바로, 아니면 지도를 처음 펼칠 때 권한을 묻는다) |
+| `app/village/scene.tsx` | 마을 씬 — ref-assets 로드·씬 조립·렌더 루프, 우상단 HUD(사운드·옷 색·지도, 위치를 못 잡으면 지도 버튼 구석에 "!")와 단축키(M·Esc·Ctrl+M), 펼침 지도 마운트(지도가 다 접혀 배경이 걷힐 때까지 캐릭터 조작을 끈다), GPS 추적기(이미 허용된 사이트면 씬 시작 때 바로, 아니면 지도를 처음 펼칠 때 권한을 묻는다) |
 | `app/village/thirdPerson.ts` | 마을 씬 3인칭 조작(키보드·마우스·터치·게임패드)·캡슐 충돌·카메라 리그와 화면 비율 반응형 구도(`framingFor`) ([ADR 007](../adr/007-quarter-view-camera-lock.md)) |
 | `app/village/shadows.ts` | 동적 그림자(시선 앞 ±12m) + 정적 그림자(CSM) 굽기 |
 | `app/village/sea.ts` · `birds.ts` · `postprocess.ts` · `touchCircles.ts` | 하늘을 비추는 바다, 갈매기 무리 비행, 최종 화면 패스(LUT·인트로), 터치 원 UI |
@@ -128,7 +128,7 @@ project/
 | `lib/geo/gpsMessages.ts` | GPS 상태별 안내 문구(해요체)와 기기 판별(iOS·Android·Windows·Mac, 삼성 인터넷, 앱 속 브라우저) — `gpsNote`(지도 쪽지·도장·버튼)·`startWaitNote`(내 주변 대기 화면)·`walkNote`(내 주변 위쪽 알림) |
 | `components/world/PaperMap.tsx` | 펼침 지도 — 씬과 분리된 독립 Mapbox GL 캔버스([ADR 001](../adr/001-webgl-context-sharing.md)). 씬이 시작되면 한 번 만들고 접혀 있는 동안은 숨겨 둔다. 종이 폭에 따라 3단·반 접기·바로 펼침, GPS 상태 쪽지·도장·정확도 원·'나' 표시(DOM 마커). `MapIcon`·`GpsBadge`·`useMapHotkey`(M·Esc)·`MapTrack`도 내보낸다 |
 | `components/world/paperMapStyle.ts` | 펼침 지도 스타일 `PAPER_STYLE` — Mapbox Streets v8 + 지형 DEM을 게임 화풍으로 칠한다. 무늬 `PATTERNS`(나무·풀포기·물결)는 `styleimagemissing`에서 캔버스로 그려 넣는다 |
-| `lib/realtime/scene.ts` | socket.io 익명 멀티플레이 연결(마을 씬 `/scene`·내 주변 `/neighborhood`) — 35ms마다 바뀐 필드만 전송, 탭 숨김·5분 무변화 시 끊기, 재접속 때 전에 있던 방 요청 |
+| `lib/realtime/scene.ts` | socket.io 익명 멀티플레이 연결(마을 씬 `/scene`·내 주변 `/neighborhood`) — 35ms마다 바뀐 필드만 전송, 5분 무변화 시 끊기(탭을 숨겨도 연결을 둔다), 재접속 때 전에 있던 방 요청 |
 | `lib/three/fog.ts` | Fog of War CSS 비네트 반경 헬퍼 — 어느 화면에도 연결되어 있지 않다 ([ADR 006](../adr/006-fog-of-war-business-model.md)) |
 | `apps/api/src/scene/scene.gateway.ts` | 마을 씬 익명 socket.io 게이트웨이(`/scene`) — 방 배정(20명)·35ms 방 단위 변경분 방송 |
 | `apps/api/src/scene/neighborhood.gateway.ts` | 내 주변 익명 socket.io 게이트웨이(`/neighborhood`) — 실제 좌표, 사람마다 반경 200m 가까운 19명 선택·입장 전체 상태·퇴장 `leave` |
