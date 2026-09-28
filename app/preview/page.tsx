@@ -1,6 +1,6 @@
 'use client'
 
-// ref-assets 뷰어 — 지도와 무관하게 캐릭터/소품 에셋만 띄워 확인하는 개발용
+// 에셋 미리보기(/preview) — 지도와 무관하게 ref-assets 캐릭터/소품 에셋만 띄워 확인하는 개발용
 // 페이지. 자체 제작 에셋으로 교체할 때 규격(크기·본·애니메이션·인스턴스)을
 // 눈으로 대조하는 용도로도 쓴다.
 
@@ -9,6 +9,8 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { loadBinGeometry, createInstancedLOD } from '@/lib/three/binLoader'
 import { loadCharacter, type Character } from '@/lib/three/character'
+import { framingFor } from '@/app/village/thirdPerson'
+import Loader from '@/components/transition/Loader'
 
 // 원본 셰이더의 팔레트 규약 — ramps.png는 100행짜리 팔레트고,
 // colorInfo.r이 행 번호, x축은 음영 정도다.
@@ -64,7 +66,8 @@ export default function PreviewPage() {
   const mountRef = useRef<HTMLDivElement>(null)
   const charRef = useRef<Character | null>(null)
   const [moving, setMoving] = useState(true)
-  const [status, setStatus] = useState('로딩 중…')
+  const [status, setStatus] = useState('')
+  const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading')
   // LOD가 실제로 전환되는지 눈이 아니라 숫자로 확인하려고 노출
   const [stats, setStats] = useState('')
 
@@ -94,6 +97,8 @@ export default function PreviewPage() {
       const { clientWidth: w, clientHeight: h } = mount
       if (!w || !h) return
       renderer.setSize(w, h, false)
+      // 세로로 긴 화면에서는 씬들과 같은 기준으로 화각을 넓힌다
+      camera.fov = framingFor(w / h).fov
       camera.aspect = w / h
       camera.updateProjectionMatrix()
     }
@@ -141,7 +146,11 @@ export default function PreviewPage() {
       charRef.current = char
       lines.unshift('kid: 22 bones · 24fps')
       setStatus(lines.join('\n'))
-    })().catch((err) => setStatus(`로드 실패: ${String(err)}`))
+      setPhase('ready')
+    })().catch((err) => {
+      console.error(err)
+      setPhase('error')
+    })
 
     let raf = 0
     let last = performance.now()
@@ -193,13 +202,14 @@ export default function PreviewPage() {
   }, [])
 
   return (
-    <div className="relative w-screen h-screen bg-[#1b1f27]">
+    // 화면 크기가 바뀌어도 뷰포트를 꽉 채운다(100vw·100vh는 스크롤바·휴대폰 주소창까지 넣어 넘친다)
+    <div className="fixed inset-0 overflow-hidden bg-[#1b1f27]">
       <div ref={mountRef} className="w-full h-full" />
-      <div className="absolute top-4 left-4 flex items-start gap-3 rounded-lg bg-black/60 px-3 py-2 text-xs text-white">
-        <pre className="leading-5">{[status, stats].filter(Boolean).join('\n')}</pre>
+      <div className="absolute top-4 left-4 flex max-w-[calc(100%-2rem)] items-start gap-3 rounded-lg bg-black/60 px-3 py-2 text-xs text-white">
+        <pre className="min-w-0 overflow-x-auto whitespace-pre-wrap leading-5 [overflow-wrap:anywhere]">{[status, stats].filter(Boolean).join('\n')}</pre>
         <button
           type="button"
-          className="rounded bg-white/15 px-2 py-1 hover:bg-white/25"
+          className="shrink-0 rounded bg-white/15 px-2 py-1 hover:bg-white/25"
           onClick={() => {
             const next = !moving
             setMoving(next)
@@ -209,6 +219,19 @@ export default function PreviewPage() {
           {moving ? 'run → idle' : 'idle → run'}
         </button>
       </div>
+      {/* 에셋을 다 받을 때까지 로더 — 페이지 이동 로더와 같은 안내라 그대로 이어진다 */}
+      {phase === 'loading' && <Loader message="에셋을 불러오고 있어요. 잠시만 기다려 주세요." />}
+      {phase === 'error' && (
+        <Loader spinning={false} message="에셋을 불러오지 못했어요" hint="잠시 후 새로고침해 주세요">
+          <button
+            type="button"
+            className="rounded-full bg-[#f9efdc] px-5 py-2 text-[#716c66] shadow-[2px_2px_0_0_#716c66]"
+            onClick={() => window.location.reload()}
+          >
+            새로고침
+          </button>
+        </Loader>
+      )}
     </div>
   )
 }
