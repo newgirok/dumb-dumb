@@ -14,7 +14,7 @@ import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js'
 import PaperMap, { GpsBadge, MapIcon, useMapHotkey, type MapTrack } from '@/components/world/PaperMap'
 import Loader, { waitSpinTurn } from '@/components/transition/Loader'
 import GpsSteps from '@/components/world/GpsSteps'
-import { createGpsTracker, formatAccuracy, isWalkableFix, useGpsSnapshot, waitForStartFix, type GpsTracker } from '@/lib/geo/gps'
+import { createGpsTracker, isWalkableFix, useGpsSnapshot, waitForStartFix, type GpsTracker } from '@/lib/geo/gps'
 import { detectGpsEnv, startWaitNote, walkNote, type GpsEnv } from '@/lib/geo/gpsMessages'
 import { createLocalFrame, type LocalFrame } from '@/lib/geo/localFrame'
 import { createSkin, createSkinAnimation, loadBinGeometry } from '@/lib/three/binLoader'
@@ -57,8 +57,6 @@ export default function NeighborhoodScene() {
   const [mapOpen, setMapOpen] = useState(false)
   const mapOpenRef = useRef(false)
   const controllerRef = useRef<ThirdPerson | null>(null)
-  // 흐린 위치만 올 때 '이 근처에서 시작하기' — 기다리는 동안만 채워진다
-  const takeBestRef = useRef<(() => void) | null>(null)
   const [env, setEnv] = useState<GpsEnv | null>(null)
   const [mobile, setMobile] = useState(false)
   // 지도 데이터 출처 — 길이 깔린 동안만 보이고, OSM 표기 지침대로 5초 뒤 구석의 (i)로 접힌다(누르면 다시 편다)
@@ -149,11 +147,9 @@ export default function NeighborhoodScene() {
 
     // 위치를 받을 때까지 대기 화면에서 기다린다 — 가짜 자리(기본 좌표)로 넘어가지 않는다
     const wait = waitForStartFix(gps)
-    takeBestRef.current = wait.takeBest
 
     ;(async () => {
       const fix = await wait.promise
-      takeBestRef.current = null
       if (destroyed) return
       const rough = !isWalkableFix(fix)
       setRoughStart(rough)
@@ -354,7 +350,6 @@ export default function NeighborhoodScene() {
       ro.disconnect()
       unwatch()
       wait.cancel()
-      takeBestRef.current = null
       gps.dispose()
       connection?.dispose()
       remotes?.dispose()
@@ -391,7 +386,6 @@ export default function NeighborhoodScene() {
 
   const waiting = phase === 'locating' && gpsView && env ? startWaitNote(gpsView, env) : null
   const notice = phase === 'playing' && gpsView ? walkNote(gpsView, { roughStart, mobile }) : null
-  const rough = gpsView?.fix && (gpsView.status === 'coarse' || gpsView.status === 'approximate') ? gpsView.fix : null
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#FFFDF8] select-none">
@@ -455,15 +449,6 @@ export default function NeighborhoodScene() {
               onClick={() => (waiting.action === 'reload' ? window.location.reload() : gps?.retry())}
             >
               {waiting.action === 'reload' ? '새로고침' : '다시 시도'}
-            </button>
-          )}
-          {rough && (
-            <button
-              type="button"
-              className="text-xs text-[#8d8981] underline underline-offset-4"
-              onClick={() => takeBestRef.current?.()}
-            >
-              이 근처에서 시작하기 ({formatAccuracy(rough.accuracy)})
             </button>
           )}
         </Loader>

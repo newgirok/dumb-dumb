@@ -265,21 +265,16 @@ export function createGpsTracker({ watchStale = false }: { watchStale?: boolean 
   }
 }
 
-/** 이 안이면 조금 더 나아지길 기다렸다가 그대로 시작한다(동네 한 구역 안의 오차) */
-const START_ROUGH_M = WEAK_M
-
 export interface StartWait {
-  /** 시작할 위치 — 오기 전까지는 끝나지 않는다(가짜 자리로 넘어가지 않는다) */
+  /** 시작할 위치 — 위치를 하나라도 받기 전에는 끝나지 않는다(가짜 자리로 넘어가지 않는다) */
   promise: Promise<GpsFix>
-  /** 흐린 위치(±150m 넘음)라도 지금까지 받은 가장 나은 위치로 시작한다 — 사용자가 고를 때만 부른다 */
-  takeBest(): void
   cancel(): void
 }
 
 /**
- * 시작할 위치를 기다린다 — ±50m 안이 오면 바로, ±150m 안이면 조금 더 나아지길 기다렸다가 그 사이
- * 가장 나은 위치로 시작한다. 그보다 흐린 위치(와이파이·IP 추정)나 거부·http 같은 상태에서는 알아서
- * 넘어가지 않고 계속 기다린다 — 대기 화면이 이유와 해결 방법을 보여 준다.
+ * 시작할 위치를 기다린다 — ±50m 안이 오면 바로 시작하고, 그보다 흐리면 첫 위치를 받고 refineMs가 지난 뒤
+ * 그 사이 가장 나은 위치로 이 근처에서 시작한다.
+ * 위치를 하나도 못 받는 동안(권한 창·찾는 중·거부·http)은 넘어가지 않는다 — 대기 화면이 이유와 해결 방법을 보여 준다.
  */
 export function waitForStartFix(tracker: GpsTracker, { refineMs = 6_000 } = {}): StartWait {
   let best: GpsFix | null = null
@@ -303,12 +298,12 @@ export function waitForStartFix(tracker: GpsTracker, { refineMs = 6_000 } = {}):
     if (done || !fix) return
     if (!best || fix.accuracy < best.accuracy) best = fix
     if (isWalkableFix(best)) return finish(best)
-    if (best.accuracy <= START_ROUGH_M && !refineTimer) refineTimer = window.setTimeout(() => finish(best), refineMs)
+    if (!refineTimer) refineTimer = window.setTimeout(() => finish(best), refineMs)
   }
   const unsubscribe = tracker.subscribe(check)
   tracker.start()
   check(tracker.snapshot)
-  return { promise, takeBest: () => finish(best), cancel: () => !done && stop() }
+  return { promise, cancel: () => !done && stop() }
 }
 
 /** 화면 문구용 — 상태·정확도(반올림)·slow가 바뀔 때만 다시 그린다 */
