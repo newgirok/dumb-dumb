@@ -1,21 +1,20 @@
 'use client'
 
-// 내 동네 시험판 — 내 위치 주변의 실제 길(OpenStreetMap)을 여름 마을 화풍으로 깔고,
-// 1m = 1m로 걸으며 미니맵과 맞춰 본다. 걷는 만큼 앞쪽 구역을 이어 깐다(끝이 없다).
+// 내 주변(베타) — 내 위치 주변의 실제 길(OpenStreetMap)을 여름 마을 화풍으로 깔고,
+// 1m = 1m로 걸으며 펼침 지도(M)와 맞춰 본다. 걷는 만큼 앞쪽 구역을 이어 깐다(끝이 없다).
 // 같은 동네(반경 200m)에 들른 사람이 실제 자리에 보인다. 건물·소품은 아직 없다.
 
 import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
 import * as THREE from 'three'
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js'
-import MiniMap, { type MiniMapTrack } from '@/components/world/MiniMap'
-import { SCENE_ROUTES } from '@/lib/routes'
-import { getCurrentPosition } from '@/lib/geo/currentPosition'
-import { watchPosition } from '@/lib/geo/watchPosition'
+import PaperMap, { GpsBadge, MapIcon, useMapHotkey, type MapTrack } from '@/components/world/PaperMap'
+import Loader from '@/components/transition/Loader'
+import { createGpsTracker, formatAccuracy, isWalkableFix, useGpsSnapshot, waitForStartFix, type GpsTracker } from '@/lib/geo/gps'
+import { detectGpsEnv, startWaitNote, walkNote, type GpsEnv } from '@/lib/geo/gpsMessages'
 import { createLocalFrame, type LocalFrame } from '@/lib/geo/localFrame'
 import { createSkin, createSkinAnimation, loadBinGeometry } from '@/lib/three/binLoader'
 import { createRampMaterial, createSharedUniforms, createSkyMaterial, loadKtx2Lut } from '../village/rampShader'
@@ -28,10 +27,6 @@ import { baseDevicePixelRatio, configure, isMobileDevice } from '../village/setu
 import { connectScene, type SceneConnection } from '@/lib/realtime/scene'
 import { createGroundStream, type GroundStream } from './stream'
 
-/** 위치를 못 받으면 서울시청에서 시작한다(미니맵 기본 중심과 같다) */
-const FALLBACK: [number, number] = [126.9779, 37.5665]
-/** 첫 위치를 기다리는 시간 — PC는 와이파이로 위치를 잡는 데 8초를 넘기곤 한다 */
-const FIRST_FIX_TIMEOUT_MS = 15_000
 /** 원점은 0.001° 격자에 맞춘다 — 정확한 내 위치를 원점으로 두지 않고, 같은 동네면 같은 바닥이 나온다 */
 const ORIGIN_GRID = 0.001
 /** 휴대폰 GPS 따라가기 — 이 안이면 서고, 여기서 이만큼 더 멀어지면 최고 속도로 걷는다 */
@@ -50,11 +45,21 @@ function motionOf(controller: ThirdPerson) {
 
 export default function NeighborhoodScene() {
   const mountRef = useRef<HTMLDivElement>(null)
-  const trackRef = useRef<MiniMapTrack | null>(null)
+  const trackRef = useRef<MapTrack | null>(null)
   const [phase, setPhase] = useState<Phase>('locating')
-  const [fallback, setFallback] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // 흐린 위치(±50m 밖)로 시작해 아직 제자리로 옮기지 못했다 — 정확한 위치가 오면 옮기고 알림을 내린다
+  const [roughStart, setRoughStart] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  const [gps, setGps] = useState<GpsTracker | null>(null)
+  const gpsView = useGpsSnapshot(gps)
+  // 펼침 지도(M) — 펼쳐 둔 동안은 키보드·마우스 조작을 끈다(휴대폰 GPS 걷기는 계속된다)
+  const [mapOpen, setMapOpen] = useState(false)
+  const mapOpenRef = useRef(false)
+  const controllerRef = useRef<ThirdPerson | null>(null)
+  // 흐린 위치만 올 때 '이 근처에서 시작하기' — 기다리는 동안만 채워진다
+  const takeBestRef = useRef<(() => void) | null>(null)
+  const [env, setEnv] = useState<GpsEnv | null>(null)
+  const [mobile, setMobile] = useState(false)
 
   useEffect(() => {
     const mount = mountRef.current
@@ -120,7 +125,11 @@ export default function NeighborhoodScene() {
     let unwatch = () => {}
     const disposables: { dispose(): void }[] = []
     const abort = new AbortController()
-    const track: MiniMapTrack = { lng: 0, lat: 0, bearing: 0 }
+    const track: MapTrack = { lng: 0, lat: 0, bearing: 0 }
+    // 개발 모드(StrictMode)는 이펙트를 두 번 돌린다 — 추적기는 이펙트 안에서 만들고 버린다.
+    // 휴대폰은 걷는 동안 위치가 계속 와야 하므로 한참 안 오면 '멈춤'으로 알린다(PC는 위치가 거의 안 바뀐다)
+    const gps = createGpsTracker({ watchStale: mobile })
+    setGps(gps)
 
     // 휴대폰은 실제 GPS 위치로 걸어간다 — 가까우면 서고, 멀수록 빨라진다
     const steer = () => {
@@ -133,16 +142,18 @@ export default function NeighborhoodScene() {
       return { x: dx * k, z: dz * k }
     }
 
+    // 위치를 받을 때까지 대기 화면에서 기다린다 — 가짜 자리(기본 좌표)로 넘어가지 않는다
+    const wait = waitForStartFix(gps)
+    takeBestRef.current = wait.takeBest
+
     ;(async () => {
-      const fix = await getCurrentPosition(FALLBACK, FIRST_FIX_TIMEOUT_MS)
+      const fix = await wait.promise
+      takeBestRef.current = null
       if (destroyed) return
-      // 실패하면 넘겨준 배열 그대로 돌아온다
-      setFallback(fix === FALLBACK)
-      const local = createLocalFrame(
-        Math.round(fix[0] / ORIGIN_GRID) * ORIGIN_GRID,
-        Math.round(fix[1] / ORIGIN_GRID) * ORIGIN_GRID,
-      )
-      const start = local.toLocal(fix[0], fix[1])
+      const rough = !isWalkableFix(fix)
+      setRoughStart(rough)
+      const local = createLocalFrame(Math.round(fix.lng / ORIGIN_GRID) * ORIGIN_GRID, Math.round(fix.lat / ORIGIN_GRID) * ORIGIN_GRID)
+      const start = local.toLocal(fix.lng, fix.lat)
       setPhase('loading')
 
       const loader = new THREE.TextureLoader().setPath('/ref-assets/images/')
@@ -232,27 +243,28 @@ export default function NeighborhoodScene() {
       })
       controller.update(0)
       controller.startIntro()
+      controllerRef.current = controller
+      controller.setEnabled(!mapOpenRef.current)
       const me = kid
       const walker = controller
-      // 휴대폰은 늘 GPS를 따라 걷는다. PC는 처음 위치를 못 받았을 때만 기다렸다가,
-      // 첫 진짜 위치로 한 번 옮기고 그 뒤로는 키보드로 걷는다(GPS 첫 수신이 늦는 경우)
-      if (mobile || fix === FALLBACK) {
-        unwatch = watchPosition((lng, lat) => {
-          const target = local.toLocal(lng, lat)
-          setFallback(false)
-          if (!mobile) {
-            walker.snap(target.x, target.z)
-            unwatch()
-            unwatch = () => {}
-            return
-          }
-          gpsTarget = target
-          // 지하철·차로 멀리 옮겨 갔으면 걸어가지 않고 그 자리로 옮긴다(앞쪽 구역은 다음 프레임부터 깔린다)
-          if (Math.hypot(target.x - me.position.x, target.z - me.position.z) > GPS_TELEPORT_M) {
-            walker.snap(target.x, target.z)
-          }
-        })
-      }
+      // 휴대폰은 늘 GPS를 따라 걷는다. PC는 흐린 위치로 시작했을 때만 첫 정확한 위치로 한 번 옮기고
+      // 그 뒤로는 키보드로 걷는다. ±50m 밖 위치(건물 사이·와이파이·IP 추정)로는 걷지도 옮기지도 않는다
+      let needsSnap = rough
+      unwatch = gps.subscribe(({ fix: next }) => {
+        if (!next || !isWalkableFix(next)) return
+        const target = local.toLocal(next.lng, next.lat)
+        if (needsSnap) {
+          needsSnap = false
+          walker.snap(target.x, target.z)
+          setRoughStart(false)
+        }
+        if (!mobile) return
+        gpsTarget = target
+        // 지하철·차로 멀리 옮겨 갔으면 걸어가지 않고 그 자리로 옮긴다(앞쪽 구역은 다음 프레임부터 깔린다)
+        if (Math.hypot(target.x - me.position.x, target.z - me.position.z) > GPS_TELEPORT_M) {
+          walker.snap(target.x, target.z)
+        }
+      })
       // 같은 동네 사람들 — 원점이 저마다 달라 실제 좌표(경위도)로 주고받고, 받은 위치는
       // 내 원점 기준으로 바꿔 세운다. 서버에 닿지 못하면 혼자인 채로 돈다
       const peers = createRemotes({
@@ -292,7 +304,7 @@ export default function NeighborhoodScene() {
       setPhase('playing')
     })().catch((err) => {
       if (destroyed) return
-      setError(String(err))
+      console.error(err)
       setPhase('error')
     })
 
@@ -312,7 +324,7 @@ export default function NeighborhoodScene() {
         sun.follow(camera.position, controller.target)
         mixer.update(dt)
 
-        // 미니맵 — 캐릭터 자리, 화면이 보는 쪽이 위(북쪽 기준 시계방향 도)
+        // 펼침 지도의 '나' — 캐릭터 자리와 화면이 보는 쪽(북쪽 기준 시계방향 도)
         camera.getWorldDirection(forward)
         const at = frame.toLngLat(kid.position.x, kid.position.z)
         track.lng = at.lng
@@ -334,9 +346,13 @@ export default function NeighborhoodScene() {
       cancelAnimationFrame(raf)
       ro.disconnect()
       unwatch()
+      wait.cancel()
+      takeBestRef.current = null
+      gps.dispose()
       connection?.dispose()
       remotes?.dispose()
       controller?.dispose()
+      controllerRef.current = null
       mixer?.stopAllAction()
       trackRef.current = null
       disposables.forEach((d) => d.dispose())
@@ -346,50 +362,94 @@ export default function NeighborhoodScene() {
     }
   }, [attempt])
 
+  useEffect(() => {
+    mapOpenRef.current = mapOpen
+    controllerRef.current?.setEnabled(!mapOpen)
+  }, [mapOpen])
+
+  useMapHotkey(phase === 'playing', setMapOpen)
+
+  // 기기 정보는 브라우저에서만 안다 — 서버 렌더와 첫 화면을 맞추려고 마운트 뒤에 읽는다
+  useEffect(() => {
+    setEnv(detectGpsEnv())
+    setMobile(isMobileDevice())
+  }, [])
+
+  const waiting = phase === 'locating' && gpsView && env ? startWaitNote(gpsView, env) : null
+  const notice = phase === 'playing' && gpsView ? walkNote(gpsView, { roughStart, mobile }) : null
+  const rough = gpsView?.fix && (gpsView.status === 'coarse' || gpsView.status === 'approximate') ? gpsView.fix : null
+
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#FFFDF8] select-none">
       <div ref={mountRef} className="absolute inset-0" style={{ touchAction: 'none' }} />
 
-      <div className="absolute left-4 top-4 flex items-center gap-3 text-sm text-[#716c66]">
-        <span className="rounded-full bg-[#f9efdc]/90 px-3 py-1 font-bold shadow-[2px_2px_0_0_#716c66]">
-          어슬렁 · 내 동네 <span className="font-normal">시험판</span>
-        </span>
-        {SCENE_ROUTES.map((href) => (
-          <Link key={href} href={href} className="rounded-full bg-[#f9efdc]/90 px-3 py-1 shadow-[2px_2px_0_0_#716c66]">
-            {href}
-          </Link>
-        ))}
-      </div>
-
-      {fallback && phase === 'playing' && (
-        <div className="absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-[#716c66]/85 px-4 py-1.5 text-sm text-[#f9efdc]">
-          위치를 받지 못해 서울시청에서 시작했어요
+      {notice && !mapOpen && (
+        // 좁은 화면에서는 버튼이 글 아래 줄로 내려간다 — 오른쪽 위 지도 버튼과 겹치지 않게 비켜 둔다
+        <div className="absolute left-4 right-16 top-4 z-10 mx-auto flex w-fit max-w-[36rem] flex-wrap items-center justify-end gap-x-3 gap-y-1.5 rounded-[18px] bg-[#716c66]/90 py-2 pl-4 pr-2 text-[13px] text-[#f9efdc] sm:right-4 sm:max-w-[46rem] sm:text-sm">
+          <span className="min-w-[12rem] flex-1 [word-break:keep-all]">{notice}</span>
+          <button
+            type="button"
+            className="shrink-0 rounded-full bg-[#f9efdc] px-3 py-0.5 text-[13px] text-[#5d5a57]"
+            onClick={() => setMapOpen(true)}
+          >
+            지도 보기
+          </button>
         </div>
       )}
 
-      {phase !== 'playing' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-[#FFFDF8] text-[#8d8981]">
-          {phase === 'error' ? (
-            <>
-              <p className="text-lg">동네 길을 불러오지 못했어요</p>
-              <p className="max-w-md text-center text-xs text-[#b5a997]">{error}</p>
-              <button
-                type="button"
-                className="rounded-full bg-[#f9efdc] px-5 py-2 text-[#716c66] shadow-[2px_2px_0_0_#716c66]"
-                onClick={() => {
-                  setError(null)
-                  setPhase('locating')
-                  setAttempt((a) => a + 1)
-                }}
-              >
-                다시 시도
-              </button>
-            </>
-          ) : (
-            <p className="text-lg">{phase === 'locating' ? '내 위치를 찾는 중…' : '동네 길을 까는 중…'}</p>
+      {phase === 'playing' && (
+        <nav className="absolute right-5 top-5 z-20 origin-top-right [@media(pointer:coarse)]:scale-[1.2] [@media(min-width:2400px)_and_(min-height:1300px)]:scale-[1.3]">
+          <button
+            type="button"
+            aria-label="지도 펼치기 (M)"
+            title="지도 펼치기 (M)"
+            className="relative block h-8 w-8 rotate-[10deg] rounded-[5px] bg-[#f9efdc] shadow-[2px_2px_0_0_#716c66] transition-[scale,translate,box-shadow] duration-150 ease-[cubic-bezier(0.33,1,0.68,1)] [-webkit-tap-highlight-color:transparent] hover:scale-110 focus-visible:outline-[3px] focus-visible:outline-offset-4 focus-visible:outline-[#5d5a57] active:translate-x-0.5 active:translate-y-0.5 active:scale-110 active:shadow-none"
+            onClick={() => setMapOpen((open) => !open)}
+          >
+            <MapIcon className="absolute left-1.5 top-[7px] -rotate-[10deg]" />
+            <GpsBadge snapshot={gpsView} />
+          </button>
+        </nav>
+      )}
+
+      {/* 로더 — 위치를 받을 때까지 기다리고(받을 수 없는 상태면 스피너 없이 안내와 버튼만), 받은 뒤 길을 깐다 */}
+      {phase === 'error' && (
+        <Loader spinning={false} message="내 주변 길을 불러오지 못했어요" hint="잠시 후 다시 시도해 주세요">
+          <button
+            type="button"
+            className="rounded-full bg-[#f9efdc] px-5 py-2 text-[#716c66] shadow-[2px_2px_0_0_#716c66]"
+            onClick={() => {
+              setPhase('locating')
+              setAttempt((a) => a + 1)
+            }}
+          >
+            다시 시도
+          </button>
+        </Loader>
+      )}
+      {phase === 'locating' && (
+        <Loader spinning={waiting?.tone !== 'off'} message={waiting?.title ?? '위치를 찾고 있어요…'} hint={waiting?.hint}>
+          {waiting?.action && (
+            <button
+              type="button"
+              className="rounded-full bg-[#f9efdc] px-5 py-2 text-[#716c66] shadow-[2px_2px_0_0_#716c66]"
+              onClick={() => (waiting.action === 'reload' ? window.location.reload() : gps?.retry())}
+            >
+              {waiting.action === 'reload' ? '새로고침' : '다시 시도'}
+            </button>
           )}
-        </div>
+          {rough && (
+            <button
+              type="button"
+              className="text-xs text-[#8d8981] underline underline-offset-4"
+              onClick={() => takeBestRef.current?.()}
+            >
+              이 근처에서 시작하기 ({formatAccuracy(rough.accuracy)})
+            </button>
+          )}
+        </Loader>
       )}
+      {phase === 'loading' && <Loader message="내 주변 길을 깔고 있어요. 잠시만 기다려 주세요." />}
 
       <p className="absolute bottom-2 left-3 text-[11px] text-[#716c66]/80">
         지도 데이터{' '}
@@ -406,7 +466,9 @@ export default function NeighborhoodScene() {
         </a>
       </p>
 
-      {phase === 'playing' && <MiniMap track={trackRef} />}
+      {phase === 'playing' && gps && (
+        <PaperMap open={mapOpen} onClose={() => setMapOpen(false)} gps={gps} track={trackRef} title="지도" />
+      )}
     </div>
   )
 }
