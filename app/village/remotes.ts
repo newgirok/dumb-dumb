@@ -148,7 +148,7 @@ export function createRemotes({
         remotes.set(id, remote)
       }
       if (remote.leftAt >= 0) {
-        // 사라지던 아이가 다시 보인다(내 동네에서 멀어졌다 돌아왔다) — 지금 크기에서 다시 커진다
+        // 사라지던 아이가 다시 보인다(내 주변에서 멀어졌다 돌아왔다) — 지금 크기에서 다시 커진다
         remote.leftAt = -1
         if (remote.view) {
           const u = 1 - Math.cbrt(1 - remote.view.mesh.scale.x)

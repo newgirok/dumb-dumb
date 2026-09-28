@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 
-// 루트 3D 씬(여름 마을)과 내 동네 시험판이 함께 쓰는 기기·텍스처 준비
+// 루트 3D 씬(여름 마을)과 내 주변(베타)이 함께 쓰는 기기·텍스처 준비
 
 /** 원본 client.device === 'mobile'(휴대폰) */
 export function isMobileDevice(): boolean {

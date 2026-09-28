@@ -29,7 +29,7 @@ const isLoopback = (host: string) => host === 'localhost' || host === '127.0.0.1
 /**
  * 익명 멀티플레이 연결 — 원본 MicroRealmConnection의 동작을 socket.io로 옮겼다.
  *
- * 로그인 없이 월드 네임스페이스(여름 마을 `/scene`, 내 동네 `/neighborhood`)에 붙는다.
+ * 로그인 없이 월드 네임스페이스(여름 마을 `/scene`, 내 주변 `/neighborhood`)에 붙는다.
  * 내 상태는 35ms마다 read()로 읽어 바뀐 필드만 올리고(위치는 월드마다 정한 소수 자리,
  * 방향은 소수 둘째 자리로 반올림해 비교), 탭이 숨으면 끊었다가 보이면 다시 붙는다.
  * 서버에 닿지 못하면 소켓이 뒤에서 재시도할 뿐 씬은 혼자인 채로 돈다.

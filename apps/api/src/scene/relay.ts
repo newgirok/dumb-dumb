@@ -1,13 +1,13 @@
 import type { ScenePlayerState } from '../../../../shared/scene/contract'
 
 /**
- * 두 익명 릴레이(여름 마을 /scene · 내 동네 /neighborhood)가 함께 쓰는 상태 관리와 검증.
+ * 두 익명 릴레이(여름 마을 /scene · 내 주변 /neighborhood)가 함께 쓰는 상태 관리와 검증.
  * 서버가 사람마다 마지막 상태를 들고, 바뀐 필드를 모았다가 틱마다 내려보낸다.
  */
 
 /** 원본 updateRate — 35ms에 한 번 묶어 보낸다 */
 export const TICK_MS = 35
-/** 한 사람이 함께 보는 인원(나 포함) — 여름 마을은 방 정원, 내 동네는 나 + 가까운 19명 */
+/** 한 사람이 함께 보는 인원(나 포함) — 여름 마을은 방 정원, 내 주변은 나 + 가까운 19명 */
 export const ROOM_CAPACITY = 20
 export const MAX_PLAYERS = 1000
 /** 클라이언트는 5분 동안 바뀐 게 없으면 스스로 끊는다. 그보다 30초 더 조용하면 서버가 끊는다 */

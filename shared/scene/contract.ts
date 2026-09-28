@@ -13,7 +13,7 @@
 export const SCENE_WORLDS = {
   /** 여름 마을 섬 — p는 씬 로컬 [x, y, z](m). 먼저 온 순서대로 20명씩 방을 채운다 */
   island: { namespace: '/scene', digits: [2, 2, 2] },
-  /** 내 동네 — p는 실제 좌표 [경도, 위도, 높이(m)]. 저마다 가까운 사람만 본다 */
+  /** 내 주변 — p는 실제 좌표 [경도, 위도, 높이(m)]. 저마다 가까운 사람만 본다 */
   neighborhood: { namespace: '/neighborhood', digits: [7, 7, 2] },
 } as const
 
@@ -24,7 +24,7 @@ export type SceneMotion = 0 | 1 | 2
 
 /** 아이 한 명의 상태 — 원본 RealmData */
 export interface ScenePlayerState {
-  /** 발 위치 — 여름 마을은 씬 로컬 [x, y, z](m), 내 동네는 [경도, 위도, 높이(m)] */
+  /** 발 위치 — 여름 마을은 씬 로컬 [x, y, z](m), 내 주변은 [경도, 위도, 높이(m)] */
   p: [number, number, number]
   /** 몸 방향 [phi, theta] — 원본 spherical. theta는 등 뒤 방위(캐릭터 rotation.y − π) */
   r: [number, number]
@@ -36,7 +36,7 @@ export interface ScenePlayerState {
 /** 서버가 내려주는 다른 아이의 변경분 — 처음 보는 아이는 네 필드가 다 모여야 그린다 */
 export type ScenePeerUpdate = { id: string } & Partial<ScenePlayerState>
 
-/** 방 배정 — id는 내 변경분을 거르는 데, room은 다시 붙을 때 같은 방을 청하는 데 쓴다(내 동네는 방이 없어 '') */
+/** 방 배정 — id는 내 변경분을 거르는 데, room은 다시 붙을 때 같은 방을 청하는 데 쓴다(내 주변은 방이 없어 '') */
 export interface SceneWelcome {
   id: string
   room: string

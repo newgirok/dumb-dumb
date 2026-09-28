@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import NeighborhoodScene from './scene'
 
 export const metadata: Metadata = {
-  title: '어슬렁 · 내 동네 (시험판)',
+  title: '어슬렁 · 내 주변 (베타)',
 }
 
 // 루트 씬과 같은 viewport — 노치가 있는 화면에서도 캔버스를 끝까지 채운다

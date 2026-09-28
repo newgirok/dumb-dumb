@@ -192,7 +192,7 @@ export interface GroundPixels {
 export type Context2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
 
 /**
- * 내 동네 바닥 한 구역의 마스크를 그린다 — 원작 지형 셰이더에 꽂을 채널 그대로다
+ * 내 주변 바닥 한 구역의 마스크를 그린다 — 원작 지형 셰이더에 꽂을 채널 그대로다
  * (원작 masks.png: r 도로 · g 모래 · b 흙길 · a 다리. 차선은 원작 terrain-road 텍스처처럼
  * r 값이 밝은 곳). 바닥은 평평하다(고도 없음). 구역마다 따로 그리지만 길 선은 경계를 넘어
  * 이어 그리므로 이웃 구역과 이음매 없이 맞는다. 메인 스레드·워커 어느 캔버스로도 그린다.
