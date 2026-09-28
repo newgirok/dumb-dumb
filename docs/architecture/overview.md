@@ -9,21 +9,21 @@
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                         유저 브라우저 (PC / 모바일)                         │
-│  선택 페이지 (/) — /village · /neighborhood · /dev/assets 링크              │
+│  선택 페이지 (/) — /village · /neighborhood 카드 + /preview 링크            │
 │  마을 씬 (/village)                       대시보드 월드 (/dashboard, 예정)   │
 │  - 로그인 없는 공개 씬 + 익명 방 멀티플레이   - Mapbox 실지형 지도 기반 멀티플레이 │
 │  - PC: WASD·방향키·마우스 가상 조이스틱      - PC: WASD·방향키                 │
 │  - 모바일: 터치 가상 조이스틱               - 모바일: 실제 GPS 이동             │
-│  내 동네 (/neighborhood) — 같은 화풍의 실제 길 + 반경 200m 가까운 사람         │
-│  에셋 뷰어 (/dev/assets) — ref-assets 캐릭터·소품 확인 (개발용)               │
+│  내 주변 (/neighborhood) — 같은 화풍의 실제 길 + 반경 200m 가까운 사람         │
+│  에셋 미리보기 (/preview) — ref-assets 캐릭터·소품 확인 (개발용)              │
 └───────┬─────────────────────────┬─────────────────────────┬──────────────┘
         │ HTTPS                   │ socket.io               │ LiveKit SDK
         │ (페이지·정적 파일)        │ (씬 → 직접)              │ (예정)
 ┌───────▼─────────────────────────┼─────────────────────────┼──────────────┐
 │             Next.js 15 (App Router, CSR)                   │              │
 │  [마을 씬] Three.js 자체 WebGL 캔버스 (ref-assets 씬)        │              │
-│      + 5시 GIS 미니맵 — 독립 Mapbox GL 캔버스 (실제 GPS)     │              │
-│  [내 동네] 같은 캔버스 구조 + 바닥 워커(OffscreenCanvas)     │              │
+│      + 펼침 지도 — 독립 Mapbox GL 캔버스 (실제 GPS)          │              │
+│  [내 주변] 같은 캔버스 구조 + 바닥 워커(OffscreenCanvas)     │              │
 │  [대시보드 월드 — 예정] Mapbox GL + Three.js 커스텀 레이어     │              │
 │      (Mapbox의 WebGL 컨텍스트 공유)                         │              │
 │  app/api/health = 헬스 체크 · BFF 프록시는 예정              │              │
@@ -57,25 +57,29 @@
 └──────────────────────┘
 ```
 
-화면은 선택 페이지(`/`)에서 고르는 세 곳이고, 내 동네 시험판이 마을 씬의 렌더링을 함께 쓴다. 로그인 유저용 대시보드 월드는
+화면은 선택 페이지(`/`)에서 고르는 세 곳이고, 내 주변(베타)이 마을 씬의 렌더링을 함께 쓴다. 로그인 유저용 대시보드 월드는
 서버 쪽이 API 서버에 있고, 화면은 로그인·상점 화면과 함께 만든다(예정).
 
-- **선택 페이지**(`/`, `app/page.tsx`)는 `lib/routes.ts`의 `SCENE_ROUTES`(`/village`, `/neighborhood`, `/dev/assets`) 링크만 둔다.
+- **선택 페이지**(`/`, `app/page.tsx`)는 여름 오후 풍경 위에 제목 "어슬렁"을 올린 타이틀 화면이다. `lib/routes.ts`의
+  `SCENE_ROUTES`(마을 `/village`·내 주변 `/neighborhood`·개발용 `/preview`)를 목적지 버튼 3개로 세로로 쌓아
+  둔다.
 - **마을 씬**(`/village`, `app/village/`)은 씬이 직접 만든 Three.js WebGL 캔버스에 ref-assets 기반 로우폴리 해변 마을을
   렌더링하는 공개 씬이다. 로그인 없이 열리고, 같은 방(최대 20명)에 든 다른 방문자의 아이가 익명 소켓(`/scene`)으로
-  함께 보인다. 채팅·음성은 없고, 서버에 닿지 못하면 혼자인 채로 돈다. 좌표는 씬 로컬 미터 좌표다. 화면 5시(우하단)의
-  나침반형 GIS 미니맵은 씬 렌더러와 분리된 독립 Mapbox GL 캔버스로 유저의 실제 GPS 위치를 실지형 지도 위에 표시한다.
-  같은 렌더링을 쓰는 **내 동네 시험판**(`/neighborhood`, `app/neighborhood/`)은 내 위치 주변 실제 길을 깔고 걷는
-  만큼 이어 깔며, 반경 200m 사람의 아이가 익명 소켓(`/neighborhood`)으로 실제 자리에 보인다.
-- **에셋 뷰어**(`/dev/assets`, `app/dev/assets/`)는 ref-assets 캐릭터·소품을 띄워 크기·본·애니메이션·인스턴스 규격을
-  확인하는 개발용 페이지다.
+  함께 보인다. 채팅·음성은 없고, 서버에 닿지 못하면 혼자인 채로 돈다. 좌표는 씬 로컬 미터 좌표다. 우상단 지도 버튼이나
+  M 키로 여는 펼침 지도(`components/world/PaperMap.tsx`)는 씬 렌더러와 분리된 독립 Mapbox GL 캔버스로, 유저의 실제
+  GPS 위치를 게임 화풍 종이 지도 위에 표시한다. 위치 권한은 지도를 처음 펼칠 때 묻는다(이미 허용된 사이트면 씬 시작 때
+  바로 찾는다). 같은 렌더링을 쓰는 **내 주변(베타)**(`/neighborhood`, `app/neighborhood/`)은 위치를 받을 때까지 대기
+  화면에서 기다렸다가 그 주변 실제 길을 깔고, 걷는 만큼 이어 깐다. 반경 200m 사람의 아이가 익명 소켓(`/neighborhood`)으로
+  실제 자리에 보이고, 펼침 지도는 캐릭터 자리를 '나'로 보여 준다.
+- **에셋 미리보기**(`/preview`, `app/preview/`)는 ref-assets 캐릭터·소품을 지도 없이 띄워 크기·본·애니메이션·인스턴스·LOD
+  규격을 확인하는 개발용 페이지다.
 - **대시보드 월드**(`/dashboard`, 예정)는 Mapbox GL 실지형 지도를 베이스로 하고, 캐릭터를 Three.js 커스텀 레이어로
   지도 위에 그리는 멀티플레이 월드다. Three.js 렌더러는 Mapbox 캔버스의 WebGL 컨텍스트를 공유한다. 좌표는
   위경도(EPSG:4326)이며, 위치 브로드캐스트·섹터 판정·속도 검증·근접 음성이 모두 위경도 기준으로 동작한다.
   서버 쪽 월드 게이트웨이(`/world`)와 음성 룸 토큰 발급은 API 서버에 있다.
 
 브라우저가 지금 API 서버에 붙는 길은 씬 소켓뿐이다. 마을 씬은 `NEXT_PUBLIC_WS_URL` 주소의 `/scene` 네임스페이스에,
-내 동네 시험판은 `/neighborhood`에 토큰 없이 익명으로 붙는다. Next.js API 라우트는 헬스 체크(`/api/health`)뿐이다.
+내 주변(베타)은 `/neighborhood`에 토큰 없이 익명으로 붙는다. Next.js API 라우트는 헬스 체크(`/api/health`)뿐이다.
 로그인·상점·대시보드 화면을 만들 때 REST 호출은 Next.js Route Handler(`/api/auth/*`, `/api/billing/*`, `/api/me/*`,
 `/api/voice/token`)를 얇은 BFF 프록시로 거쳐 NestJS로 전달하고, 프록시가 `Authorization` 헤더를 그대로 넘기며,
 리프레시 토큰은 이 라우트가 httpOnly 쿠키로 관리한다(예정). 대시보드 월드의 위치·채팅 소켓(`/world`)과 공간
@@ -92,15 +96,15 @@ NestJS 가드와 PostgreSQL RLS가 담당한다.
 |---|---|---|
 | **코어 프레임워크** | Next.js 15 (App Router, CSR) | 개발 서버 Turbopack |
 | **3D 엔진** | Three.js (0.169) | ref-assets `.bin`(Draco) 지오메트리·스킨 애니메이션·인스턴스 LOD, 램프 팔레트 셰이더 |
-| **마을 씬·내 동네 렌더링** | Three.js 자체 WebGL 캔버스 + EffectComposer | 5시 미니맵과 WebGL 컨텍스트 분리 ([ADR 001](../adr/001-webgl-context-sharing.md)). 내 동네 바닥 마스크는 워커의 OffscreenCanvas가 그린다 |
+| **마을 씬·내 주변 렌더링** | Three.js 자체 WebGL 캔버스 + EffectComposer | 펼침 지도와 WebGL 컨텍스트 분리 ([ADR 001](../adr/001-webgl-context-sharing.md)). 내 주변 바닥 마스크는 워커의 OffscreenCanvas가 그린다 |
 | **대시보드 월드 렌더링 (예정)** | Mapbox GL JS v3 + Three.js 커스텀 레이어 | Mapbox 캔버스의 WebGL 컨텍스트 공유 ([ADR 001](../adr/001-webgl-context-sharing.md)) |
-| **지도 엔진** | Mapbox GL JS v3 (Standard 스타일) | 5시 미니맵(마을 씬·내 동네), 대시보드 월드 베이스 지도(예정). 무료 티어 20만 건/월 |
-| **길 데이터** | OpenStreetMap 벡터 타일 (OpenFreeMap, OpenMapTiles 스키마) | 내 동네 바닥. z14 타일을 브라우저 워커가 직접 받아 `@mapbox/vector-tile`·`pbf`로 해석 |
+| **지도 엔진** | Mapbox GL JS v3 | 펼침 지도(마을 씬·내 주변) — Streets v8 벡터 타일과 지형 DEM을 게임 화풍으로 칠한 자체 스타일(`paperMapStyle.ts`). 대시보드 월드 베이스 지도(예정, Standard 스타일). 무료 티어 20만 건/월 |
+| **길 데이터** | OpenStreetMap 벡터 타일 (OpenFreeMap, OpenMapTiles 스키마) | 내 주변 바닥. z14 타일을 브라우저 워커가 직접 받아 `@mapbox/vector-tile`·`pbf`로 해석 |
 | **UI 스타일** | Tailwind CSS v4 + oklch 디자인 시스템 | 루트 레이아웃 기본 글꼴 Nunito. 마을 씬 HUD는 `sa-*` 스타일·Stylish 폰트 |
 | **프론트 배포** | Vercel Edge Network | Next.js 서버(`output: 'standalone'`, Route Handler `/api/health`) + ref-assets 정적 파일 |
 | **API 서버** | NestJS 11 (`apps/api`) | 자체 호스팅 |
 | **데이터베이스** | PostgreSQL + PostGIS (자체 호스팅, 단일 공유 DB) | 공간 연산 내장 ([ADR 002](../adr/002-self-hosted-backend.md)) |
-| **실시간 소켓** | socket.io 4 (NestJS WebSocket 게이트웨이) | 마을 씬 익명 방 단위 변경분 중계(`/scene`), 내 동네 익명 가까운 사람 중계(`/neighborhood`), 대시보드 월드 섹터 단위 묶음 브로드캐스트(`/world`, 붙는 화면은 예정) |
+| **실시간 소켓** | socket.io 4 (NestJS WebSocket 게이트웨이) | 마을 씬 익명 방 단위 변경분 중계(`/scene`), 내 주변 익명 가까운 사람 중계(`/neighborhood`), 대시보드 월드 섹터 단위 묶음 브로드캐스트(`/world`, 붙는 화면은 예정) |
 | **인증** | 자체 JWT + bcrypt, 카카오/구글 OAuth | NestJS `auth` 모듈. 액세스 15분 / 리프레시 30일. 로그인 화면은 예정 |
 | **공간 음성** | LiveKit Cloud SFU (`livekit-server-sdk`) | 대시보드 월드 섹터별 룸. 서버는 룸 토큰을 발급하고, 룸에 붙는 화면은 대시보드 월드와 함께 예정 ([ADR 003](../adr/003-livekit-cloud-sfu.md)) |
 | **PG 결제** | 토스페이먼츠 / 카카오페이 | 원화 직행 ([ADR 004](../adr/004-direct-krw-payment.md)). 승인 웹훅은 API 서버가 받고, 결제창은 상점 화면과 함께 예정 |
@@ -112,8 +116,8 @@ NestJS 가드와 PostgreSQL RLS가 담당한다.
 
 | 서비스 | 용도 | 제한 / 비용 |
 |---|---|---|
-| **Mapbox** | 5시 GIS 미니맵 타일(마을 씬·내 동네), 대시보드 월드 베이스 지도 타일(예정) | 무료 20만 건/월, 초과 종량 |
-| **OpenFreeMap** | 내 동네 길 데이터(OpenStreetMap z14 벡터 타일, 브라우저가 직접 호출) | 무료·키 없음. 화면에 출처(OpenStreetMap·OpenMapTiles·OpenFreeMap) 표기 필수 |
+| **Mapbox** | 펼침 지도 타일(마을 씬·내 주변 — Streets v8·지형 DEM, 씬을 한 번 열 때 지도 한 번 로드), 대시보드 월드 베이스 지도 타일(예정) | 무료 20만 건/월, 초과 종량 |
+| **OpenFreeMap** | 내 주변 길 데이터(OpenStreetMap z14 벡터 타일, 브라우저가 직접 호출) | 무료·키 없음. 화면에 출처(OpenStreetMap·OpenMapTiles·OpenFreeMap) 표기 필수 |
 | **LiveKit Cloud** | 대시보드 월드 공간 음성 SFU (예정) | 무료 티어 내 소진, 초과분 종량 |
 | **토스페이먼츠 / 카카오페이** | 원화 결제 PG | 건당 수수료 |
 | **카카오 / 구글 OAuth** | 소셜 로그인 (Authorization Code 흐름, 코드 교환은 API 서버) | 무료 |
@@ -140,7 +144,7 @@ DB(PostgreSQL + PostGIS)와 NestJS API 서버는 자체 호스팅으로 운영�
 | 마을 씬 방 정원 | 20명 (전체 1,000명) | 익명 소켓 방 단위. 먼저 연 방부터 채우고, 다시 붙으면 전에 있던 방을 청한다 |
 | 마을 씬 상태 전송 | 35ms | 바뀐 필드(위치·방향은 소수 둘째 자리)만 클라이언트가 올리고, 서버가 방마다 묶어 내린다 |
 | 마을 씬 이동 검증 | 초당 10m 거리 예산 (최대 2m) | 넘는 이동은 버리고 순간이동(낙하 복귀)은 5초에 한 번 받는다. 초당 60건을 넘게 보내면 서버가 끊는다 |
-| 내 동네 보이는 사람 | 반경 200m, 가까운 19명 | 방 없이 사람마다 고른다. 보이던 사람은 230m까지 남고 순위를 30m 앞당겨 받는다. 위치는 실제 좌표(경위도, 약 1cm), 검증은 마을 씬과 같다 |
+| 내 주변 보이는 사람 | 반경 200m, 가까운 19명 | 방 없이 사람마다 고른다. 보이던 사람은 230m까지 남고 순위를 30m 앞당겨 받는다. 위치는 실제 좌표(경위도, 약 1cm), 검증은 마을 씬과 같다 |
 | 마을 씬 무변화 끊기 | 5분 | 바뀐 게 없으면 클라이언트가 스스로 끊고, 다시 움직이면 붙는다. 탭을 숨기면 바로 끊는다 |
 | Three.js Prune 임계값 | 반경 450m 외곽 | 대시보드 월드(예정) 피어 오브젝트 메모리 해제 기준 |
 | Prune 트리거 | 50m 이동마다 | 대시보드 월드(예정), 비동기 배치 실행 |
@@ -149,9 +153,9 @@ DB(PostgreSQL + PostGIS)와 NestJS API 서버는 자체 호스팅으로 운영�
 | 동시 구독 Capping | Top-8 | 클라이언트 CPU 방어 (대시보드 월드, 예정) |
 | 공간 음성 감쇠 | 30m까지 최대 → 40m 무음 | 30~40m 구간 선형 감쇠 (대시보드 월드, 예정) |
 | 에셋 프리로드 바운더리 | 전방 350~400m | 스폰서 텍스처 사전 다운로드 (Phase 5 예정) |
-| 마을 씬 카메라 | 3인칭 구면 리그 | 시선 목표점 기준 반경 5.836m·앙각 9.866° ([ADR 007](../adr/007-quarter-view-camera-lock.md)) |
+| 마을 씬 카메라 | 3인칭 구면 리그 | 16:9 이상은 시선 목표점 기준 반경 5.836m·앙각 9.866°·세로 화각 45°. 세로로 긴 화면일수록 화각(최대 66°)·반경(최대 ×1.3)·앙각(최대 +8°)을 키운다(`framingFor`) ([ADR 007](../adr/007-quarter-view-camera-lock.md)) |
 | 대시보드 월드 카메라 | pitch 45°·bearing 45° 고정 | 드래그·회전 잠금, 줌 14~20만 허용, 이동할 때마다 캐릭터 중심으로 맞춤 (예정) |
-| GIS 미니맵 카메라 | 유저 추적 고정 | `interactive: false`, 줌 16, 실제 위치 중심 고정 |
+| 펼침 지도 카메라 | 북쪽이 위인 평면 | 끌기·확대/축소만 받고 회전·기울이기는 막는다. 줌 11~18.5(처음 16), 펼칠 때 '나'를 가운데로 맞춘다 |
 | 액세스 토큰 만료 | 15분 | 브라우저 메모리 보관 |
 | 리프레시 토큰 만료 | 30일 | httpOnly 쿠키 보관 |
 
@@ -170,7 +174,7 @@ DB(PostgreSQL + PostGIS)와 NestJS API 서버는 자체 호스팅으로 운영�
 | LiveKit Cloud (무료 티어 내) | $0 |
 | Vercel (소규모 트래픽) | $0~소액 |
 | Mapbox (20만 건/월 무료 티어 내) | $0 |
-| OpenFreeMap (내 동네 길 타일) | $0 |
+| OpenFreeMap (내 주변 길 타일) | $0 |
 
 MVP 규모에서는 대부분 무료 티어~소액 수준에서 운영 가능하며, 동접·트래픽 증가에 따라 자체 호스팅 서버
 사양과 각 외부 서비스 종량 요금이 늘어난다.
@@ -181,10 +185,10 @@ MVP 규모에서는 대부분 무료 티어~소액 수준에서 운영 가능하
 
 | ADR | 주제 |
 |---|---|
-| [ADR 001](../adr/001-webgl-context-sharing.md) | WebGL 컨텍스트 구성 — 마을 씬·미니맵 분리, 대시보드 월드(예정) Mapbox 공유 |
+| [ADR 001](../adr/001-webgl-context-sharing.md) | WebGL 컨텍스트 구성 — 마을 씬·펼침 지도 분리, 대시보드 월드(예정) Mapbox 공유 |
 | [ADR 002](../adr/002-self-hosted-backend.md) | 자체 백엔드(NestJS + 공유 Postgres) |
 | [ADR 003](../adr/003-livekit-cloud-sfu.md) | LiveKit Cloud 매니지드 SFU |
 | [ADR 004](../adr/004-direct-krw-payment.md) | 원화 직행 결제 구조 |
 | [ADR 005](../adr/005-postgis-gist-index.md) | PostGIS + GiST 공간 인덱스 |
 | [ADR 006](../adr/006-fog-of-war-business-model.md) | 가시거리 라이선스 BM |
-| [ADR 007](../adr/007-quarter-view-camera-lock.md) | 마을 씬 3인칭 카메라 + 대시보드 월드(예정)·미니맵 카메라 잠금 |
+| [ADR 007](../adr/007-quarter-view-camera-lock.md) | 마을 씬 3인칭 카메라 + 대시보드 월드(예정) 카메라 잠금 |

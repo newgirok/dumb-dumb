@@ -93,7 +93,7 @@ CREATE TABLE user_identities (
 ### `characters`
 
 유저가 보유한 유니크 3D 아바타. 발급된 외형은 NestJS `GET /me/characters`로 조회하고(보여 줄 상점 화면은 예정),
-씬의 캐릭터 렌더링에는 반영하지 않는다(마을 씬·내 동네 모두 공용 kid 캐릭터를 쓴다). 발급 외형을 월드 캐릭터에
+씬의 캐릭터 렌더링에는 반영하지 않는다(마을 씬·내 주변 모두 공용 kid 캐릭터를 쓴다). 발급 외형을 월드 캐릭터에
 입히는 파츠 체계는 로드맵 P2-7에서 만든다.
 
 | 컬럼 | 타입 | 제약 | 설명 |
@@ -200,14 +200,14 @@ CREATE TABLE user_licenses (
 
 ### `sponsor_buildings`
 
-B2B 광고 랜드마크 마스터 테이블. Phase 5에서 월드에 배치할 브랜드 텍스처 에셋과 5시 GIS 미니맵 마커의
+B2B 광고 랜드마크 마스터 테이블. Phase 5에서 월드에 배치할 브랜드 텍스처 에셋과 펼침 지도 좌표 마커의
 원천이며, `geom` 컬럼에 GiST 인덱스가 있다. 이 테이블을 읽는 API·프론트엔드 코드는 Phase 5에서 구현한다.
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
 | `id` | BIGSERIAL PK | |
 | `advertiser_id` | UUID FK → users ON DELETE RESTRICT | 광고주 계정 (`role='advertiser'`) |
-| `mapbox_feature_id` | TEXT | Mapbox 실지형 Feature ID (지도·미니맵 마커 연동용) |
+| `mapbox_feature_id` | TEXT | Mapbox 실지형 Feature ID (지도·펼침 지도 좌표 마커 연동용) |
 | `geom` | GEOMETRY(Point, 4326) | 랜드마크 중심 위경도 (GiST 인덱스 적용) |
 | `texture_url` | TEXT | 브랜드 로고 URL |
 | `default_texture_url` | TEXT | 광고 미집행 시 기본 텍스처 |
