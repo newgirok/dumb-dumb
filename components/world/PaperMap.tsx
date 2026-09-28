@@ -28,19 +28,24 @@ const MARGIN = 10
  */
 const TRIFOLD_MIN_PX = 720
 const BIFOLD_MIN_PX = 440
-/** 펼치는 데 걸리는 시간(ms) — 3단·반·바로 펼침. 접을 때는 FOLD_RATE 배속으로 거꾸로 돈다 */
-const TRIFOLD_MS = 1150
-const BIFOLD_MS = 900
-const SPREAD_MS = 480
-const FOLD_RATE = 1.6
+/**
+ * 펼치는 데 걸리는 시간(ms) — 3단·반·바로 펼침. 종이가 떠오른 뒤 표지가 잠깐 머물고 날개가 천천히 펼쳐져,
+ * 표지와 접힌 모양을 볼 수 있다. 접을 때는 FOLD_RATE 배속으로 거꾸로 돈다
+ */
+const TRIFOLD_MS = 2600
+const BIFOLD_MS = 2000
+const SPREAD_MS = 700
+const FOLD_RATE = 2
+/** 접힌 종이가 떠오르는 구간(전체 길이 대비) — 이 뒤로 날개가 펼쳐지기 전까지 표지가 머문다 */
+const LIFT_TO = 0.18
 /** 3단 — 한 장면 안의 순서(전체 길이 대비). 앞 날개(왼쪽)가 먼저, 뒤 날개(오른쪽)가 조금 겹쳐 펼쳐진다 */
-const A_FROM = 0.16
-const A_TO = 0.56
-const B_FROM = 0.4
-const B_TO = 0.8
+const A_FROM = 0.36
+const A_TO = 0.66
+const B_FROM = 0.56
+const B_TO = 0.86
 /** 반 접기 — 오른쪽 반이 펼쳐지는 구간 */
-const HALF_FROM = 0.2
-const HALF_TO = 0.72
+const HALF_FROM = 0.4
+const HALF_TO = 0.82
 const STEP = 0.0005
 const FLIP_EASE = 'cubic-bezier(0.65, 0, 0.35, 1)'
 /** 펼칠 때 대략적인 위치면 원 전체가 보이게 물러난다(짧은 변의 이 비율) */
@@ -62,6 +67,7 @@ const FLAPS: Record<Panels, { key: 'a' | 'b'; span: [number, number]; cover: 'ti
 
 const CSS = `
   .pm-root { position: absolute; inset: 0; z-index: 40; visibility: hidden; }
+  .pm-root:focus { outline: none; }
   .pm-backdrop { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(52, 40, 28, 0.36), rgba(52, 40, 28, 0.7)); opacity: 0; }
   .pm-stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; perspective: 1800px; pointer-events: none; }
   .pm-sheet { position: relative; width: min(92vw, 1100px); height: min(82vh, 720px); transform-style: preserve-3d; }
@@ -255,18 +261,16 @@ export function MapIcon({ className }: { className?: string }) {
 
 /** 지도 버튼 구석의 GPS 표시 — 찾는 중(깜빡임)·흐림(노랑)·쓸 수 없음(빨강 느낌표). ±50m 안이면 숨긴다 */
 export function GpsBadge({ snapshot }: { snapshot: GpsSnapshot | null }) {
+  // 위치를 못 잡았을 때만 '!'를 단다 — 잡았으면 정확도와 상관없이 달지 않는다(자세한 상태는 펼침 지도 쪽지가 알린다).
+  // 아직 찾기 전(idle)에도 달지 않는다
   const status = snapshot?.status ?? 'idle'
-  if (status === 'idle' || status === 'good' || status === 'fair') return null
-  const off = isGpsBlocked(status)
-  const wait = status === 'searching' || status === 'prompt' || status === 'unavailable'
+  if (status === 'idle' || (snapshot?.fix && !isGpsBlocked(status))) return null
   return (
     <span
       aria-hidden="true"
-      className={`pointer-events-none absolute -right-1.5 -top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 border-[#f9efdc] text-[9px] font-bold leading-none text-[#f9efdc] ${
-        off ? 'bg-[#b2553f]' : 'bg-[#d99a2b]'
-      } ${wait ? 'animate-pulse' : ''}`}
+      className="pointer-events-none absolute -right-1.5 -top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 border-[#f9efdc] bg-[#b2553f] text-[9px] font-bold leading-none text-[#f9efdc]"
     >
-      {off ? '!' : ''}
+      !
     </span>
   )
 }
@@ -303,7 +307,6 @@ export default function PaperMap({
   const rootRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
   const mapBoxRef = useRef<HTMLDivElement>(null)
-  const closeRef = useRef<HTMLButtonElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const meRef = useRef<{ marker: mapboxgl.Marker; el: HTMLDivElement; arrow: HTMLDivElement } | null>(null)
   const haloRef = useRef<{ marker: mapboxgl.Marker; el: HTMLDivElement; label: HTMLSpanElement } | null>(null)
@@ -600,12 +603,12 @@ export default function PaperMap({
             ]
           : [
               { opacity: 0, transform: 'translateY(34px) rotate(-6deg) scale(0.9)', easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' },
-              { opacity: 1, transform: 'none', offset: 0.22 },
+              { opacity: 1, transform: 'none', offset: LIFT_TO },
               { opacity: 1, transform: 'none' },
             ],
         options,
       ),
-      q('.pm-ui').animate([{ opacity: 0 }, { opacity: 0, offset: count === 1 ? 0.45 : 0.84 }, { opacity: 1 }], options),
+      q('.pm-ui').animate([{ opacity: 0 }, { opacity: 0, offset: count === 1 ? 0.45 : 0.88 }, { opacity: 1 }], options),
     ]
     if (count === 1) return anims
 
@@ -751,7 +754,8 @@ export default function PaperMap({
             map?.resize()
             needsResizeRef.current = false
           }
-          closeRef.current?.focus({ preventScroll: true })
+          // 포커스는 대화상자에 둔다 — 닫기 버튼에 주면 키보드로 펼쳤을 때 버튼에 포커스 테두리가 그려진다(Tab으로 버튼에 간다)
+          rootRef.current?.focus({ preventScroll: true })
         } else {
           anims.forEach((a) => a.cancel())
           root.style.visibility = 'hidden'
@@ -785,6 +789,7 @@ export default function PaperMap({
       data-nowhere={nowhere}
       role="dialog"
       aria-modal="true"
+      tabIndex={-1}
       aria-label={title}
       aria-hidden={phase === 'closed'}
       style={{ ['--pm-accent' as string]: accent }}
@@ -801,7 +806,7 @@ export default function PaperMap({
             <div className="pm-grain" />
             <div className="pm-ui">
               <div className="pm-tag">{title}</div>
-              <button ref={closeRef} type="button" className="pm-btn pm-close" aria-label="지도 접기 (M)" title="지도 접기 (M)" onClick={onClose}>
+              <button type="button" className="pm-btn pm-close" aria-label="지도 접기 (M)" title="지도 접기 (M)" onClick={onClose}>
                 <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
                   <path d="M2 2 L12 12 M12 2 L2 12" stroke="#716C66" strokeWidth="2.4" strokeLinecap="round" />
                 </svg>
