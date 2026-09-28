@@ -8,7 +8,8 @@ import * as THREE from 'three'
  * 루프를 볼륨 0으로 튼 뒤 인트로 1.5초가 지나면 전체 볼륨을 0.25까지 1초 시상수로 올린다.
  * 소리는 모두 위치와 무관한 전역 음원이다 — 숲·해변 환경음은 캐릭터 x좌표(35~65m)로
  * 서로 교차하고, 발소리는 수평 속도에 맞춰 커지며(power2.in) 루프 위상을 전역
- * 시계에 맞춰 둔다. 탭이 가려지면 조용히 준다.
+ * 시계에 맞춰 둔다. 게임처럼 탭이 숨으면 소리를 줄인 뒤 오디오를 멈추고(음악도 그 자리에 선다),
+ * 돌아오면 멈춘 자리에서 다시 튼다.
  */
 
 const PATH = '/ref-assets/audio/'
@@ -18,6 +19,10 @@ const MASTER_VOLUME = 0.25
 const STEPS_OFFSET = 0.125
 /** 파일 준비 후 소리를 내기까지 원본이 더 기다리는 시간(miscutils.wait .5) */
 const START_WAIT_MS = 500
+/** 탭이 숨으면 소리를 줄이는 시상수(초) — 그 5배가 지나 거의 0이 되면 오디오를 멈춘다 */
+const HIDE_FADE_S = 0.5
+/** 보이는데 멈춰 있는 오디오를 다시 켜는 제스처 */
+const RESUME_EVENTS = ['pointerup', 'touchend', 'keydown'] as const
 
 export interface SceneAudio {
   /** 매 프레임 — 캐릭터 x(숲↔해변)·수평 속도(m/프레임)·땅 위에 서 있는지로 볼륨을 맞춘다 */
@@ -59,6 +64,7 @@ export function createSceneAudio({
   let muted = initialMuted
   let visible = document.visibilityState === 'visible'
   let syncOffset = 0
+  let suspendTimer = 0
 
   const fadeTo = (value: number, timeConstant: number) => gain.setTargetAtTime(value, ctx.currentTime, timeConstant)
 
@@ -66,14 +72,23 @@ export function createSceneAudio({
     const next = document.visibilityState === 'visible'
     if (next === visible) return
     visible = next
-    if (!loaded) return
+    window.clearTimeout(suspendTimer)
     if (visible) {
-      if (!muted) fadeTo(MASTER_VOLUME, 2)
+      // 멈추는 중이어도 그 뒤에 이어 다시 켜지도록 상태를 보지 않고 부른다
+      void ctx.resume()
+      if (loaded && !muted) fadeTo(MASTER_VOLUME, 2)
     } else {
-      fadeTo(0, 0.5)
+      if (loaded) fadeTo(0, HIDE_FADE_S)
+      suspendTimer = window.setTimeout(() => void ctx.suspend(), HIDE_FADE_S * 5 * 1000)
     }
   }
   document.addEventListener('visibilitychange', onVisibility)
+  // iOS 사파리는 숨었다 돌아오거나 전화 등으로 끊긴 컨텍스트를 제스처 없이 켜 주지 않을 때가 있다 —
+  // 보이는데 멈춰 있으면 다음 터치·키에서 켠다
+  const resumeOnGesture = () => {
+    if (visible && ctx.state !== 'running') void ctx.resume()
+  }
+  for (const type of RESUME_EVENTS) window.addEventListener(type, resumeOnGesture, true)
 
   ;(async () => {
     const loader = new THREE.AudioLoader().setPath(PATH)
@@ -153,6 +168,8 @@ export function createSceneAudio({
     dispose() {
       disposed = true
       document.removeEventListener('visibilitychange', onVisibility)
+      for (const type of RESUME_EVENTS) window.removeEventListener(type, resumeOnGesture, true)
+      window.clearTimeout(suspendTimer)
       for (const audio of loops.values()) {
         try {
           audio.stop()
