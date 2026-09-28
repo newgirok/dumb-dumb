@@ -76,14 +76,28 @@
   }
 }
 
-/* 제목 폰트(ref-assets) — 로더 제목·선택 페이지 제목·펼침 지도 글씨가 쓴다 */
+/* 웹 폰트는 모두 font-display: block — 기본 글꼴로 먼저 그렸다가 바꿔 끼우지 않고, 폰트가 오면 바로 그 폰트로 그린다
+   (3초 안에 오지 않을 때만 기본 글꼴로 보인다). 큰 파일은 미리 받아 둔다 — Pretendard는 루트 레이아웃, Stylish는 선택 페이지 */
+
+/* 제목 폰트(ref-assets) — 선택 페이지 제목·버튼 이름과 펼침 지도 글씨가 쓴다 */
 @font-face {
   font-family: 'Stylish';
   src: url('/ref-assets/fonts/Stylish-Regular.woff2') format('woff2'),
     url('/ref-assets/fonts/Stylish-Regular.woff') format('woff');
   font-weight: 400;
   font-style: normal;
-  font-display: swap;
+  font-display: block;
+}
+
+/* 한글 UI 글씨(Pretendard v1.3.9, 굵기 400만 쓴다) — 로더 안내·선택 페이지 배지·지도 쪽지 안내가 쓴다 */
+@font-face {
+  font-family: 'Pretendard';
+  src: local('Pretendard Regular'),
+    url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-Regular.woff2') format('woff2'),
+    url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff/Pretendard-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
 }
 
 /* WorldCanvas가 element.style.setProperty('--fog-radius', ...)로 런타임에 직접 쓰는

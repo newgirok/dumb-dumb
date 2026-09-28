@@ -1,19 +1,24 @@
 import type { Metadata } from 'next'
 import { Nunito, JetBrains_Mono } from 'next/font/google'
+import { preload } from 'react-dom'
 import { PageTransition } from '@/components/transition/PageTransition'
 import './globals.css'
 
+// 폰트가 오기 전에 기본 글꼴로 그렸다가 바꿔 끼우지 않도록 block으로 받는다(globals.css의 폰트도 같다)
 const nunito = Nunito({
   subsets: ['latin'],
   variable: '--font-display',
-  display: 'swap',
+  display: 'block',
 })
 
 const jetbrains = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
-  display: 'swap',
+  display: 'block',
 })
+
+/** 한글 UI 글씨 폰트(globals.css의 Pretendard) — 모든 페이지의 로더 안내가 쓰니 여기서 먼저 받아 둔다 */
+const PRETENDARD_WOFF2 = 'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-Regular.woff2'
 
 export const metadata: Metadata = {
   title: '어슬렁',
@@ -21,16 +26,10 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  preload(PRETENDARD_WOFF2, { as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' })
+
   return (
     <html lang="ko" className={`${nunito.variable} ${jetbrains.variable}`}>
-      <head>
-        {/* 랜딩 헤더에서만 사용 — 토스 실측 자간/두께에 가장 가까운 오픈소스 한국형 UI 폰트.
-            사이트 전체 브랜드 폰트(Nunito)는 그대로 유지, 헤더 텍스트에만 별도 적용 */}
-        <link
-          rel="stylesheet"
-          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css"
-        />
-      </head>
       <body>
         <PageTransition>{children}</PageTransition>
       </body>

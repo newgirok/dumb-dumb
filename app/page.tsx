@@ -55,7 +55,7 @@ const CSS = `
 `
 
 export default function Home() {
-  // 제목 폰트는 1MB 가까이 된다 — 마을 씬·지도도 같은 파일을 쓰니 여기서 먼저 받아 둔다
+  // 제목 폰트는 1MB 가까이 된다 — 펼침 지도도 같은 파일을 쓰니 여기서 먼저 받아 둔다
   preload('/ref-assets/fonts/Stylish-Regular.woff2', { as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' })
 
   return (

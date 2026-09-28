@@ -866,14 +866,6 @@ export default function SummerAfternoonPage() {
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#FFFDF8] select-none">
       <style>{`
-        @font-face {
-          font-family: 'Stylish';
-          src: url('/ref-assets/fonts/Stylish-Regular.woff2') format('woff2'),
-            url('/ref-assets/fonts/Stylish-Regular.woff') format('woff');
-          font-weight: 400;
-          font-style: normal;
-          font-display: swap;
-        }
         .sa-root { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
         /* 우상단 nav — 원본 UI. 인트로 시작 2.5s 뒤 오른쪽 80px에서 1.5s power2.out으로 들어온다. */
         @keyframes sa-nav-in { from { transform: translateX(80px); } to { transform: translateX(0); } }
