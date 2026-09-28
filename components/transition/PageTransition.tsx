@@ -2,11 +2,20 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { CuteLoader } from './CuteLoader'
+import Loader from './Loader'
 
 // 스피너가 한 프레임 반짝이고 사라지면 오히려 더 조잡해 보여서, 아무리
 // 빨리 끝나는 전환이라도 최소 이만큼은 보여줘 "전환이 있었다"는 걸 인지시킴
 const MIN_VISIBLE_MS = 350
+
+/** 가는 곳마다 로딩 안내(뒤로·앞으로 가기도 도착한 주소로 고른다) — 모르는 곳·코드로 이동은 기본 문구 */
+const DESTINATION_MESSAGES: Record<string, string> = {
+  '/': '처음 화면으로 가고 있어요. 잠시만요.',
+  '/village': '마을로 가고 있어요. 잠시만 기다려 주세요.',
+  '/neighborhood': '내 주변으로 가고 있어요. 잠시만 기다려 주세요.',
+  '/preview': '에셋을 불러오고 있어요. 잠시만 기다려 주세요.',
+}
+const DEFAULT_MESSAGE = '화면을 준비하고 있어요. 잠시만 기다려 주세요.'
 
 interface TransitionCtx {
   setReady: (ready: boolean) => void
@@ -47,6 +56,7 @@ export function useStartPageLoading() {
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [visible, setVisible] = useState(false)
+  const [message, setMessage] = useState(DEFAULT_MESSAGE)
   const loadingRef = useRef(false)
   const startedAtRef = useRef(0)
   const isFirstPathRef = useRef(true)
@@ -81,8 +91,9 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     if (ready) reveal()
   }, [reveal])
 
-  const startLoading = () => {
+  const startLoading = (destination?: string) => {
     if (loadingRef.current) return
+    setMessage((destination && DESTINATION_MESSAGES[destination]) || DEFAULT_MESSAGE)
     loadingRef.current = true
     startedAtRef.current = performance.now()
     setVisible(true)
@@ -114,10 +125,10 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       if (url.origin !== window.location.origin) return
       if (url.pathname === window.location.pathname) return
 
-      startLoading()
+      startLoading(url.pathname)
     }
 
-    const onPopState = () => startLoading()
+    const onPopState = () => startLoading(window.location.pathname)
 
     document.addEventListener('click', onClick, true)
     window.addEventListener('popstate', onPopState)
@@ -150,13 +161,14 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
   return (
     <TransitionContext.Provider value={{ setReady, startLoading }}>
       {children}
+      {/* 씬 로딩 화면과 같은 로더 — 도착한 씬이 제 로더를 띄우면 같은 화면이 이어진다 */}
       <div
         aria-hidden={!visible}
-        className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-md transition-opacity duration-300 ease-out ${
+        className={`fixed inset-0 z-[9999] transition-opacity duration-300 ease-out ${
           visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
-        <CuteLoader />
+        <Loader message={message} />
       </div>
     </TransitionContext.Provider>
   )
