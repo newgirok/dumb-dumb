@@ -1,28 +1,10 @@
 name: open-world-casual-journey
 
 services:
+  # 프론트(Next.js) standalone 빌드 — 핫 리로드 개발은 호스트에서 npm run dev
   app:
     build:
       context: .
-      target: dev
-    ports:
-      - "3000:3000"
-    volumes:
-      - .:/app
-      - node_modules:/app/node_modules
-      - next_cache:/app/.next
-    env_file:
-      - .env.local
-    environment:
-      - WATCHPACK_POLLING=true
-    restart: unless-stopped
-    depends_on:
-      - realtime
-
-  app-prod:
-    build:
-      context: .
-      target: runner
       args:
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
@@ -35,8 +17,6 @@ services:
       - "3000:3000"
     env_file:
       - .env.local
-    profiles:
-      - prod
     depends_on:
       - realtime
 
@@ -51,7 +31,3 @@ services:
       - WEB_ORIGIN=${WEB_ORIGIN:-http://localhost:3000}
       # /world 토큰 검증용 — 비어 있으면 /world 접속만 거절한다
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-}
-
-volumes:
-  node_modules:
-  next_cache:
