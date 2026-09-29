@@ -9,7 +9,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets'
 import type { Server, Socket } from 'socket.io'
-import { AuthService } from '../auth/auth.service'
+import { AccessTokenVerifier } from '../auth/access-token'
 import { distanceM, isPlausibleMove, requiredSectors } from './sector'
 import type {
   ChatPayload,
@@ -61,10 +61,7 @@ const TICK_MS = 200
 /** 이 시간 동안 갱신이 없으면 접속이 끊긴 것으로 보고 정리 */
 const STALE_MS = 30_000
 
-@WebSocketGateway({
-  namespace: '/world',
-  cors: { origin: process.env.WEB_ORIGIN ?? 'http://localhost:3000', credentials: true },
-})
+@WebSocketGateway({ namespace: '/world' })
 export class WorldGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
   @WebSocketServer() private server: WorldServer
   private readonly logger = new Logger(WorldGateway.name)
@@ -73,7 +70,7 @@ export class WorldGateway implements OnGatewayConnection, OnGatewayDisconnect, O
   private readonly players = new Map<string, PlayerState>()
   private timer?: NodeJS.Timeout
 
-  constructor(private readonly auth: AuthService) {}
+  constructor(private readonly tokens: AccessTokenVerifier) {}
 
   afterInit() {
     this.timer = setInterval(() => this.flush(), TICK_MS)
@@ -91,7 +88,7 @@ export class WorldGateway implements OnGatewayConnection, OnGatewayDisconnect, O
       return
     }
     try {
-      const payload = this.auth.verifyToken(token, 'access')
+      const payload = this.tokens.verify(token)
       client.data.userId = payload.sub
       client.data.email = payload.email
     } catch {

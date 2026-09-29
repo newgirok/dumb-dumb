@@ -37,9 +37,8 @@ import {
  * 한 번 바뀐 필드만 묶어 내린다. 새로 들어온 사람은 접속하자마자 방 전원의 현재
  * 상태를 받고, 값·속도·빈도 검증도 서버가 한다(relay.ts).
  *
- * Nest는 전역 가드(APP_GUARD)를 WebSocket 핸들러에 적용하지 않는다. 월드 게이트웨이는
- * handleConnection에서 토큰을 직접 검사하고, 이 게이트웨이는 일부러 검사하지 않는다.
- * 주고받는 것은 씬 로컬 좌표와 모션뿐이라 개인정보가 없다.
+ * 월드 게이트웨이는 handleConnection에서 토큰을 직접 검사하고, 이 게이트웨이는 일부러
+ * 검사하지 않는다. 주고받는 것은 씬 로컬 좌표와 모션뿐이라 개인정보가 없다.
  *
  * 상태는 이 프로세스 메모리에만 있다 — 인스턴스를 늘리면 인스턴스끼리는 서로 안 보인다.
  */
@@ -59,10 +58,7 @@ const ISLAND: PositionRules = {
   distance: (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]),
 }
 
-@WebSocketGateway({
-  namespace: SCENE_WORLDS.island.namespace,
-  cors: { origin: process.env.WEB_ORIGIN ?? 'http://localhost:3000', credentials: true },
-})
+@WebSocketGateway({ namespace: SCENE_WORLDS.island.namespace })
 export class SceneGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
   @WebSocketServer() private server: SceneNamespace
 

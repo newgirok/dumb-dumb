@@ -84,10 +84,7 @@ function metersBetween(a: ScenePlayerState['p'], b: ScenePlayerState['p']): numb
   return Math.hypot((b[0] - a[0]) * kx, (b[1] - a[1]) * M_PER_DEG_LAT, b[2] - a[2])
 }
 
-@WebSocketGateway({
-  namespace: SCENE_WORLDS.neighborhood.namespace,
-  cors: { origin: process.env.WEB_ORIGIN ?? 'http://localhost:3000', credentials: true },
-})
+@WebSocketGateway({ namespace: SCENE_WORLDS.neighborhood.namespace })
 export class NeighborhoodGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
   @WebSocketServer() private server: SceneNamespace
 

@@ -4,8 +4,6 @@ import { APP_GUARD } from '@nestjs/core'
 import { DatabaseModule } from './database/database.module'
 import { UsersModule } from './users/users.module'
 import { AuthModule } from './auth/auth.module'
-import { WorldModule } from './world/world.module'
-import { SceneModule } from './scene/scene.module'
 import { VoiceModule } from './voice/voice.module'
 import { BillingModule } from './billing/billing.module'
 import { AvatarsModule } from './avatars/avatars.module'
@@ -18,8 +16,6 @@ import { HealthController } from './health.controller'
     DatabaseModule,
     UsersModule,
     AuthModule,
-    WorldModule,
-    SceneModule,
     VoiceModule,
     BillingModule,
     AvatarsModule,

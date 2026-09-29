@@ -15,7 +15,7 @@ export interface SceneConnection {
 }
 
 // 빈 문자열로 구워져도 기본값을 쓴다 — 빈 주소는 아래 new URL()에서 예외가 나 씬 전체가 멈춘다
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:9001'
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:9002'
 /** 원본 updateRate — 35ms마다 바뀐 필드만 올린다 */
 const SEND_MS = 35
 /** 원본 inactiveDisconnect — 5분 동안 바뀐 게 없으면 끊고, 다시 바뀌거나 탭으로 돌아오면 붙는다 */

@@ -1,0 +1,8 @@
+# 이 Dockerfile 전용 — 빌드 컨텍스트(저장소 루트)에서 실시간 서버와 shared/ 계약만 보낸다
+*
+!apps/realtime
+!shared
+**/node_modules
+**/dist
+**/.env*.local
+**/*.tsbuildinfo
