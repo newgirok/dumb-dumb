@@ -157,7 +157,31 @@ npm run dev
 
 위치(GPS)는 보안 연결(https 또는 localhost)에서만 된다. 휴대폰에서 PC의 `http://<IP>:3000`으로 열면 "https 필요" 상태가 되어 위치를 받지 못한다 — 마을 씬 지도에는 "https 필요" 도장이 찍히고, 내 주변은 대기 화면에서 넘어가지 않는다.
 
-휴대폰에서 위치까지 확인하려면 ngrok으로 https 주소를 만든다 — 계정 토큰을 한 번 등록하고(`ngrok config add-authtoken <토큰>`) `ngrok http 3000`을 띄우면, 터미널과 http://127.0.0.1:4040 에 뜨는 `https://….ngrok-free.dev` 주소로 휴대폰에서 연다. 무료 계정은 처음 들어갈 때 ngrok 안내 페이지가 한 번 뜨고, "Visit Site"를 누르면 사이트가 열린다. 소켓 주소(`NEXT_PUBLIC_WS_URL`)는 빌드에 박힌 localhost 그대로라 이 주소로 연 휴대폰에서는 씬이 혼자 돈다.
+휴대폰에서 위치까지 확인하려면 ngrok으로 https 주소를 만든다 — 계정 토큰을 한 번 등록하고(`ngrok config add-authtoken <토큰>`) `ngrok http 3000`을 띄우면, 터미널과 http://127.0.0.1:4040 에 뜨는 `https://….ngrok-free.dev` 주소로 휴대폰에서 연다. 무료 계정은 처음 들어갈 때 ngrok 안내 페이지가 한 번 뜨고, "Visit Site"를 누르면 사이트가 열린다. 여러 기기에서 서로 보이게 하려면 소켓도 같은 주소로 내보낸다. 무료 계정은 도메인이 하나라, 한 에이전트에서 `/socket.io` 요청만 API 서버(9001)로 보내고 나머지는 3000으로 보낸다.
+
+```yaml
+# endpoints.yml — ngrok start --all --config "%LOCALAPPDATA%/ngrok/ngrok.yml" --config endpoints.yml
+version: 3
+endpoints:
+  - name: ws
+    url: https://ws.internal
+    upstream:
+      url: 9001
+  - name: web
+    url: https://<내 도메인>.ngrok-free.dev
+    upstream:
+      url: 3000
+    traffic_policy:
+      on_http_request:
+        - expressions:
+            - "req.url.path.startsWith('/socket.io')"
+          actions:
+            - type: forward-internal
+              config:
+                url: https://ws.internal
+```
+
+API 서버는 `WEB_ORIGIN=https://<내 도메인>.ngrok-free.dev`로 띄우고(CORS), 프론트는 `NEXT_PUBLIC_WS_URL=https://<내 도메인>.ngrok-free.dev`로 빌드한다(`app-prod`면 이 값을 셸에 두고 `--build`). 마을 씬 소켓(`/scene`)은 DB·로그인 없이 돈다.
 
 첫 번째 페이지 요청 시 Turbopack이 해당 라우트를 컴파일한다(수 초~수십 초, 이후 캐시됨).
 
