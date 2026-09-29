@@ -29,5 +29,5 @@ services:
       - "9002:9002"
     environment:
       - WEB_ORIGIN=${WEB_ORIGIN:-http://localhost:3000}
-      # /world 토큰 검증용 — 비어 있으면 /world 접속만 거절한다
+      # /sector 토큰 검증용 — 비어 있으면 /sector 접속만 거절한다
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-}

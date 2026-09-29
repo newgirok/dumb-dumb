@@ -41,8 +41,8 @@ import { createTouchCircles } from './touchCircles'
 import { blendKidAnimation, createKidAnimation, type KidAnimation } from './kidAnimation'
 import { createRemotes, type Remotes } from './remotes'
 import { baseDevicePixelRatio, configure, isMobileDevice } from './setup'
-import { connectScene, type SceneConnection } from '@/lib/realtime/scene'
-import type { SceneMotion } from '@/shared/scene/contract'
+import { connectRelay, type RelayConnection } from '@/lib/realtime/relay'
+import type { RelayMotion } from '@/shared/relay/contract'
 import PaperMap, { GpsBadge, MapIcon, useMapHotkey } from '@/components/world/PaperMap'
 import Loader, { SPIN_MS, waitSpinTurn } from '@/components/transition/Loader'
 import { createGpsTracker, useGpsSnapshot, type GpsTracker } from '@/lib/geo/gps'
@@ -167,7 +167,7 @@ function hueToCss(hue: number): string {
 }
 
 /** 원본 userData.a — 공중이면 1, 심심하면 2 */
-function motionOf(controller: ThirdPerson): SceneMotion {
+function motionOf(controller: ThirdPerson): RelayMotion {
   return controller.airborne ? 1 : controller.bored ? 2 : 0
 }
 
@@ -291,7 +291,7 @@ export default function SummerAfternoonPage() {
     let controller: ThirdPerson | null = null
     let kidAnimation: KidAnimation | null = null
     let remotes: Remotes | null = null
-    let connection: SceneConnection | null = null
+    let connection: RelayConnection | null = null
     let kidMesh: THREE.SkinnedMesh | null = null
     let frameDt = 0
     const materials: THREE.Material[] = []
@@ -664,7 +664,7 @@ export default function SummerAfternoonPage() {
           createRampMaterial(rampTex, shared, { isCharacter: true, seed: s, shadowSide: THREE.FrontSide }),
       })
       remotes = peers
-      connection = connectScene({
+      connection = connectRelay({
         read: () =>
           controller && {
             p: [kid.position.x, kid.position.y, kid.position.z],

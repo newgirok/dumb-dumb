@@ -2,15 +2,15 @@
 
 import { io, type Socket } from 'socket.io-client'
 import {
-  SCENE_WORLDS,
-  type SceneClientToServerEvents,
-  type ScenePeerUpdate,
-  type ScenePlayerState,
-  type SceneServerToClientEvents,
-  type SceneWorld,
-} from '@/shared/scene/contract'
+  RELAYS,
+  type RelayClientToServerEvents,
+  type RelayPeerUpdate,
+  type RelayPlayerState,
+  type RelayServerToClientEvents,
+  type RelayName,
+} from '@/shared/relay/contract'
 
-export interface SceneConnection {
+export interface RelayConnection {
   dispose(): void
 }
 
@@ -29,8 +29,8 @@ const isLoopback = (host: string) => host === 'localhost' || host === '127.0.0.1
 /**
  * 익명 멀티플레이 연결 — 원본 MicroRealmConnection의 동작을 socket.io로 옮겼다.
  *
- * 로그인 없이 월드 네임스페이스(여름 마을 `/scene`, 내 주변 `/neighborhood`)에 붙는다.
- * 내 상태는 35ms마다 read()로 읽어 바뀐 필드만 올리고(위치는 월드마다 정한 소수 자리,
+ * 로그인 없이 중계 네임스페이스(방 `/room` — 마을 씬, 근접 `/proximity` — 내 주변)에 붙는다.
+ * 내 상태는 35ms마다 read()로 읽어 바뀐 필드만 올리고(위치는 중계마다 정한 소수 자리,
  * 방향은 소수 둘째 자리로 반올림해 비교). 탭이 숨어도(창 최소화·다른 탭) 연결을 두어, 다른 사람에게 계속 보이고
  * 다른 사람의 상태도 계속 받는다 — 화면은 돌아왔을 때 이어서 그린다. 서버에 닿지 못하면 소켓이 뒤에서 재시도할 뿐
  * 씬은 혼자인 채로 돈다.
@@ -38,16 +38,16 @@ const isLoopback = (host: string) => host === 'localhost' || host === '127.0.0.1
  * 방에 (다시) 들어가거나 연결이 끊기면 onReset — 이전 아이들을 지운다. 붙으면 서버가
  * 함께 보이는 사람들의 전체 상태를 먼저 보내 준다.
  */
-export function connectScene(
+export function connectRelay(
   handlers: {
-    /** 지금 내 상태(위치는 월드의 좌표). 아직 캐릭터가 없으면 null */
-    read: () => ScenePlayerState | null
+    /** 지금 내 상태(위치는 중계의 좌표). 아직 캐릭터가 없으면 null */
+    read: () => RelayPlayerState | null
     onReset: () => void
-    onUpdate: (update: ScenePeerUpdate) => void
+    onUpdate: (update: RelayPeerUpdate) => void
     onLeave: (id: string) => void
   },
-  world: SceneWorld = 'island',
-): SceneConnection {
+  relay: RelayName = 'room',
+): RelayConnection {
   // 소켓 주소 없이 빌드한 배포본(기본값 localhost)은 방문자 PC의 localhost로 붙으려 한다.
   // 공개 페이지에서 그러면 브라우저가 로컬 네트워크 접근 권한을 묻거나 재시도마다 오류를 남기므로 혼자 돈다
   if (isLoopback(new URL(WS_URL).hostname) && !isLoopback(location.hostname)) return { dispose() {} }
@@ -56,13 +56,13 @@ export function connectScene(
   let selfId = ''
   let joined = false
   // 서버가 가진 내 상태 — 여기와 다른 필드만 보낸다
-  let sent: Partial<ScenePlayerState> = {}
+  let sent: Partial<RelayPlayerState> = {}
   let changedAt = Date.now()
   let inactive = false
   let retry: ReturnType<typeof setTimeout> | undefined
 
-  const { namespace, digits } = SCENE_WORLDS[world]
-  const socket: Socket<SceneServerToClientEvents, SceneClientToServerEvents> = io(`${WS_URL}${namespace}`, {
+  const { namespace, digits } = RELAYS[relay]
+  const socket: Socket<RelayServerToClientEvents, RelayClientToServerEvents> = io(`${WS_URL}${namespace}`, {
     // 다시 붙을 때마다 전에 있던 방을 청한다(원본 roomLast)
     auth: (cb) => cb({ room }),
     transports: ['websocket'],
@@ -95,15 +95,15 @@ export function connectScene(
   const send = () => {
     const state = handlers.read()
     if (!state) return
-    const next: ScenePlayerState = {
+    const next: RelayPlayerState = {
       p: [round(state.p[0], digits[0]), round(state.p[1], digits[1]), round(state.p[2], digits[2])],
       r: [round(state.r[0], 2), round(state.r[1], 2)],
       a: state.a,
       s: state.s,
     }
-    const changes: Partial<ScenePlayerState> = {}
+    const changes: Partial<RelayPlayerState> = {}
     let changed = false
-    for (const key of Object.keys(next) as (keyof ScenePlayerState)[]) {
+    for (const key of Object.keys(next) as (keyof RelayPlayerState)[]) {
       if (JSON.stringify(next[key]) === JSON.stringify(sent[key])) continue
       ;(changes as Record<string, unknown>)[key] = next[key]
       changed = true

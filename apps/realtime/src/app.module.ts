@@ -1,14 +1,16 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { HealthController } from './health.controller'
-import { SceneModule } from './scene/scene.module'
-import { WorldModule } from './world/world.module'
+import { ProximityModule } from './proximity/proximity.module'
+import { RoomModule } from './room/room.module'
+import { SectorModule } from './sector/sector.module'
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env.local', '.env'] }),
-    SceneModule,
-    WorldModule,
+    RoomModule,
+    ProximityModule,
+    SectorModule,
   ],
   controllers: [HealthController],
 })

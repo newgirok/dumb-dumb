@@ -10,7 +10,7 @@
 
 | 변수 | 필수 | 기본값 | 설명 |
 |---|---|---|---|
-| `NEXT_PUBLIC_WS_URL` | 필수 | `http://localhost:9002` | 브라우저가 직접 붙는 실시간 서버(socket.io) 주소 — 마을 씬 익명 소켓(`/scene`), 내 주변 익명 소켓(`/neighborhood`). Docker `app`은 빌드 인자로 받아 번들에 굽고, 없으면 `http://localhost:9002`로 굽는다. 예전 기본값 `http://localhost:9001`은 이제 API 서버(소켓 없음)라, `.env.local`에 남아 있으면 9002로 고친다. localhost로 구운 페이지를 localhost가 아닌 주소에서 열면 마을 씬·내 주변은 소켓에 접속하지 않고 혼자 돈다 |
+| `NEXT_PUBLIC_WS_URL` | 필수 | `http://localhost:9002` | 브라우저가 직접 붙는 실시간 서버(socket.io) 주소 — 마을 씬 익명 소켓(`/room`), 내 주변 익명 소켓(`/proximity`). Docker `app`은 빌드 인자로 받아 번들에 굽고, 없으면 `http://localhost:9002`로 굽는다. 예전 기본값 `http://localhost:9001`은 이제 API 서버(소켓 없음)라, `.env.local`에 남아 있으면 9002로 고친다. localhost로 구운 페이지를 localhost가 아닌 주소에서 열면 마을 씬·내 주변은 소켓에 접속하지 않고 혼자 돈다 |
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | 필수 | — | Mapbox GL JS 공개 토큰. 마을 씬·내 주변의 펼침 지도가 쓴다. 없으면 지도 대신 "지도를 그릴 수 없어요" 쪽지만 뜨고 씬은 그대로 돈다. 도메인 락 필수 (프로덕션) |
 
 `NEXT_PUBLIC_*` 값은 빌드 시점에 번들에 구워진다. 값을 바꾸면 프론트엔드를 다시 빌드해야 한다.
@@ -22,7 +22,7 @@
 | 변수 | 기본값 | 설명 |
 |---|---|---|
 | `API_URL` | `http://localhost:9001` | NestJS API 서버 주소. BFF 라우트(Next Route Handler)에서만 쓰므로 `NEXT_PUBLIC_` 아님 |
-| `NEXT_PUBLIC_LIVEKIT_URL` | — | LiveKit 서버 WebSocket URL (`wss://...livekit.cloud`). 대시보드 월드 음성이 접속한다. 같은 `NEXT_PUBLIC_WS_URL`의 `/world` 소켓과 Mapbox 토큰도 대시보드 월드가 함께 쓴다 |
+| `NEXT_PUBLIC_LIVEKIT_URL` | — | LiveKit 서버 WebSocket URL (`wss://...livekit.cloud`). 대시보드 월드 음성이 접속한다. 같은 `NEXT_PUBLIC_WS_URL`의 `/sector` 소켓과 Mapbox 토큰도 대시보드 월드가 함께 쓴다 |
 
 ### `.env.example`에 있으나 프론트엔드 코드가 읽지 않는 항목
 
@@ -43,7 +43,7 @@
 |---|---|---|---|
 | `PORT` | 선택 | `9002` | 실시간 서버 리슨 포트. 프론트 `NEXT_PUBLIC_WS_URL`이 이 주소를 가리킨다 |
 | `WEB_ORIGIN` | 선택 | `http://localhost:3000` | 프론트 오리진 (socket.io CORS). `main.ts`의 어댑터가 설정을 읽은 뒤 넣으므로 `.env.local` 값도 먹는다 |
-| `JWT_ACCESS_SECRET` | 선택 | — | `/world` 접속 토큰 검증용. API 서버와 **같은 값**이어야 한다. 없으면 서버는 뜨고 `/world` 접속만 거절한다 (`/scene`·`/neighborhood`는 토큰을 쓰지 않는다) |
+| `JWT_ACCESS_SECRET` | 선택 | — | `/sector` 접속 토큰 검증용. API 서버와 **같은 값**이어야 한다. 없으면 서버는 뜨고 `/sector` 접속만 거절한다 (`/room`·`/proximity`는 토큰을 쓰지 않는다) |
 
 ---
 
@@ -60,7 +60,7 @@
 
 | 변수 | 필수 | 기본값 | 설명 |
 |---|---|---|---|
-| `JWT_ACCESS_SECRET` | 필수 | — | 액세스 토큰 서명 시크릿 (15분). 리프레시와 **다른 값**. 실시간 서버의 `/world` 검증에도 같은 값을 넣는다 |
+| `JWT_ACCESS_SECRET` | 필수 | — | 액세스 토큰 서명 시크릿 (15분). 리프레시와 **다른 값**. 실시간 서버의 `/sector` 검증에도 같은 값을 넣는다 |
 | `JWT_REFRESH_SECRET` | 필수 | — | 리프레시 토큰 서명 시크릿 (30일). 액세스와 **다른 값** |
 | `HASH_ROUNDS` | 필수 | `10` | bcrypt 비밀번호 해시 라운드 |
 

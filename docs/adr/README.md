@@ -11,4 +11,5 @@
 | [ADR 005](./005-postgis-gist-index.md) | PostGIS + GiST 인덱스 공간 연산 | Accepted |
 | [ADR 006](./006-fog-of-war-business-model.md) | 가시거리 안개를 BM과 연동하는 설계 | Accepted |
 | [ADR 007](./007-quarter-view-camera-lock.md) | 카메라 잠금 — 3인칭 추적 · 대시보드 쿼터뷰 | Accepted |
-| [ADR 008](./008-realtime-server-split.md) | 실시간 서버 분리 — socket.io 게이트웨이를 API 서버에서 떼어 냄 | Accepted |
+| [ADR 008](./008-realtime-server-split.md) | 실시간 서버 분리 — socket.io 게이트웨이를 API 서버에서 떼어 냄 | Accepted (네임스페이스·폴더 이름은 ADR 009로 대체) |
+| [ADR 009](./009-interest-management-naming.md) | 실시간 이름 — 받는 사람을 고르는 방식(방·근접·섹터)으로 부른다 | Accepted |

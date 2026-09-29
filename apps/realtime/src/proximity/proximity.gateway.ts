@@ -10,12 +10,12 @@ import {
 } from '@nestjs/websockets'
 import type { Namespace, Socket } from 'socket.io'
 import {
-  SCENE_WORLDS,
-  type SceneClientToServerEvents,
-  type ScenePeerUpdate,
-  type ScenePlayerState,
-  type SceneServerToClientEvents,
-} from '../../../../shared/scene/contract'
+  RELAYS,
+  type RelayClientToServerEvents,
+  type RelayPeerUpdate,
+  type RelayPlayerState,
+  type RelayServerToClientEvents,
+} from '../../../../shared/relay/contract'
 import {
   createRelayPlayer,
   IDLE_MS,
@@ -25,27 +25,27 @@ import {
   TICK_MS,
   type PositionRules,
   type RelayPlayer,
-} from './relay'
+} from '../relay/relay'
 
 /**
- * 내 주변 익명 멀티플레이 릴레이 — 실제 좌표로 주고받고, 저마다 가까운 사람만 본다.
+ * 근접 익명 중계 — 실제 좌표로 주고받고, 저마다 가까운 사람만 본다. 지금은 내 주변(/neighborhood)이 쓴다.
  *
  * 내 주변은 사람마다 선 동네가 달라 씬 원점도 저마다 다르다. 그래서 위치를 경위도로
  * 주고받고, 방을 나누는 대신 사람마다 반경 200m 안에서 가까운 19명을 골라 보여 준다
- * (여름 마을 방 정원 20명과 같다). 걸어가면 경계 없이 보이는 사람이 바뀌고, 새로 보이는
+ * (방 중계 정원 20명과 같다). 걸어가면 경계 없이 보이는 사람이 바뀌고, 새로 보이는
  * 사람은 전체 상태를, 계속 보이는 사람은 바뀐 필드만, 멀어진 사람은 leave를 받는다.
  *
  * 같은 동네 사람에게 내 실제 위치가 보이는 것이 이 기능의 목적이다. 로그인·이름 없이
- * 아이 모습만 보인다. 검증(빈도·속도·순간이동)은 여름 마을과 같다(relay.ts).
+ * 아이 모습만 보인다. 검증(빈도·속도·순간이동)은 방 중계와 같다(relay.ts).
  *
  * 상태는 이 프로세스 메모리에만 있다 — 인스턴스를 늘리면 인스턴스끼리는 서로 안 보인다.
  */
 
-type SceneNamespace = Namespace<SceneClientToServerEvents, SceneServerToClientEvents>
-type SceneSocket = Socket<SceneClientToServerEvents, SceneServerToClientEvents>
+type RelayNamespace = Namespace<RelayClientToServerEvents, RelayServerToClientEvents>
+type RelaySocket = Socket<RelayClientToServerEvents, RelayServerToClientEvents>
 
 interface Neighbor extends RelayPlayer {
-  socket: SceneSocket
+  socket: RelaySocket
   /** 지금 이 사람에게 보이는 사람들 */
   seen: Set<Neighbor>
 }
@@ -64,7 +64,7 @@ const CELL_LAT = CELL_M / M_PER_DEG_LAT
 /** 칸의 경도 폭은 줄(위도 띠)마다 정한다 — 같은 줄에 있는 사람은 늘 같은 폭으로 나뉜다 */
 const cellLng = (row: number) => CELL_M / (M_PER_DEG_LNG * Math.cos(((row + 0.5) * CELL_LAT * Math.PI) / 180))
 
-const [LNG_DIGITS, LAT_DIGITS, Y_DIGITS] = SCENE_WORLDS.neighborhood.digits
+const [LNG_DIGITS, LAT_DIGITS, Y_DIGITS] = RELAYS.proximity.digits
 const round = (v: number, digits: number) => Math.round(v * 10 ** digits) / 10 ** digits
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 
@@ -79,14 +79,14 @@ const REAL_WORLD: PositionRules = {
   distance: metersBetween,
 }
 
-function metersBetween(a: ScenePlayerState['p'], b: ScenePlayerState['p']): number {
+function metersBetween(a: RelayPlayerState['p'], b: RelayPlayerState['p']): number {
   const kx = M_PER_DEG_LNG * Math.cos((a[1] * Math.PI) / 180)
   return Math.hypot((b[0] - a[0]) * kx, (b[1] - a[1]) * M_PER_DEG_LAT, b[2] - a[2])
 }
 
-@WebSocketGateway({ namespace: SCENE_WORLDS.neighborhood.namespace })
-export class NeighborhoodGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
-  @WebSocketServer() private server: SceneNamespace
+@WebSocketGateway({ namespace: RELAYS.proximity.namespace })
+export class ProximityGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
+  @WebSocketServer() private server: RelayNamespace
 
   /** socket.id → 상태 */
   private readonly players = new Map<string, Neighbor>()
@@ -101,7 +101,7 @@ export class NeighborhoodGateway implements OnGatewayConnection, OnGatewayDiscon
     if (this.timer) clearInterval(this.timer)
   }
 
-  handleConnection(client: SceneSocket) {
+  handleConnection(client: RelaySocket) {
     if (this.players.size >= MAX_PLAYERS) {
       client.disconnect(true)
       return
@@ -116,7 +116,7 @@ export class NeighborhoodGateway implements OnGatewayConnection, OnGatewayDiscon
     client.emit('welcome', { id: player.id, room: '' })
   }
 
-  handleDisconnect(client: SceneSocket) {
+  handleDisconnect(client: RelaySocket) {
     const player = this.players.get(client.id)
     if (!player) return
     this.players.delete(client.id)
@@ -126,7 +126,7 @@ export class NeighborhoodGateway implements OnGatewayConnection, OnGatewayDiscon
   }
 
   @SubscribeMessage('state')
-  onState(@ConnectedSocket() client: SceneSocket, @MessageBody() body: unknown) {
+  onState(@ConnectedSocket() client: RelaySocket, @MessageBody() body: unknown) {
     const player = this.players.get(client.id)
     if (player && !receiveState(player, body, Date.now(), REAL_WORLD)) client.disconnect(true)
   }
@@ -151,7 +151,7 @@ export class NeighborhoodGateway implements OnGatewayConnection, OnGatewayDiscon
       if (now - viewer.lastMessageAt > IDLE_MS) idle.push(viewer)
       const next = this.pick(viewer, cells)
       for (const other of viewer.seen) if (!next.has(other)) viewer.socket.emit('leave', other.id)
-      const updates: ScenePeerUpdate[] = []
+      const updates: RelayPeerUpdate[] = []
       for (const other of next) {
         if (!viewer.seen.has(other)) updates.push({ id: other.id, ...other.state })
         else if (Object.keys(other.dirty).length > 0) updates.push({ id: other.id, ...other.dirty })

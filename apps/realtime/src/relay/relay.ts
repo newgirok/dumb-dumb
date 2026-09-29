@@ -1,13 +1,13 @@
-import type { ScenePlayerState } from '../../../../shared/scene/contract'
+import type { RelayPlayerState } from '../../../../shared/relay/contract'
 
 /**
- * 두 익명 릴레이(여름 마을 /scene · 내 주변 /neighborhood)가 함께 쓰는 상태 관리와 검증.
+ * 두 익명 중계(방 /room · 근접 /proximity)가 함께 쓰는 상태 관리와 검증.
  * 서버가 사람마다 마지막 상태를 들고, 바뀐 필드를 모았다가 틱마다 내려보낸다.
  */
 
 /** 원본 updateRate — 35ms에 한 번 묶어 보낸다 */
 export const TICK_MS = 35
-/** 한 사람이 함께 보는 인원(나 포함) — 여름 마을은 방 정원, 내 주변은 나 + 가까운 19명 */
+/** 한 사람이 함께 보는 인원(나 포함) — 방 중계는 방 정원, 근접 중계는 나 + 가까운 19명 */
 export const ROOM_CAPACITY = 20
 export const MAX_PLAYERS = 1000
 /** 클라이언트는 5분 동안 바뀐 게 없으면 스스로 끊는다. 그보다 30초 더 조용하면 서버가 끊는다 */
@@ -26,9 +26,9 @@ const TELEPORT_COOLDOWN_MS = 5000
 export interface RelayPlayer {
   /** 방송용 짧은 id — socket.id(20자)를 매 틱 싣지 않는다 */
   id: string
-  state: Partial<ScenePlayerState>
+  state: Partial<RelayPlayerState>
   /** 지난 틱 이후 바뀐 필드 */
-  dirty: Partial<ScenePlayerState>
+  dirty: Partial<RelayPlayerState>
   /** 이동 거리 예산(m)과 마지막으로 채운 시각 */
   budget: number
   budgetAt: number
@@ -54,8 +54,8 @@ export function createRelayPlayer(id: string, now: number): RelayPlayer {
 
 /** 월드마다 다른 위치 규칙 — p를 검증·반올림하고, 두 위치 사이 거리(m)를 잰다 */
 export interface PositionRules {
-  read(value: unknown): ScenePlayerState['p'] | null
-  distance(a: ScenePlayerState['p'], b: ScenePlayerState['p']): number
+  read(value: unknown): RelayPlayerState['p'] | null
+  distance(a: RelayPlayerState['p'], b: RelayPlayerState['p']): number
 }
 
 /**
@@ -75,14 +75,14 @@ export function receiveState(player: RelayPlayer, body: unknown, now: number, ru
   const position = rules.read(p)
   if (position && acceptMove(player, position, now, rules)) setField(player, 'p', position)
   const rotation = readNumbers(r, 2, Math.PI * 2 + 0.01, 2)
-  if (rotation) setField(player, 'r', rotation as ScenePlayerState['r'])
+  if (rotation) setField(player, 'r', rotation as RelayPlayerState['r'])
   if (a === 0 || a === 1 || a === 2) setField(player, 'a', a)
   if (typeof s === 'number' && s >= 0 && s < 4) setField(player, 's', s)
   return true
 }
 
 /** 거리 예산 안의 이동만 받는다. 예산을 넘는 순간이동은 쿨다운마다 한 번 받는다 */
-function acceptMove(player: RelayPlayer, next: ScenePlayerState['p'], now: number, rules: PositionRules): boolean {
+function acceptMove(player: RelayPlayer, next: RelayPlayerState['p'], now: number, rules: PositionRules): boolean {
   const prev = player.state.p
   if (!prev) return true
   player.budget = Math.min(BURST_M, player.budget + (MAX_SPEED_MS * (now - player.budgetAt)) / 1000)
@@ -97,7 +97,7 @@ function acceptMove(player: RelayPlayer, next: ScenePlayerState['p'], now: numbe
   return true
 }
 
-function setField<K extends keyof ScenePlayerState>(player: RelayPlayer, key: K, value: ScenePlayerState[K]) {
+function setField<K extends keyof RelayPlayerState>(player: RelayPlayer, key: K, value: RelayPlayerState[K]) {
   if (JSON.stringify(player.state[key]) === JSON.stringify(value)) return
   player.state[key] = value
   player.dirty[key] = value

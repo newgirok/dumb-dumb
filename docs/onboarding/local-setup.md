@@ -107,7 +107,7 @@ GRANT CONNECT ON DATABASE postgres TO app_api;
 
 ## 4. 환경변수 설정
 
-프론트엔드와 API 서버 각각에 `.env.local`을 만든다. 실시간 서버는 설정 없이 기본값(포트 9002, 오리진 `http://localhost:3000`)으로 뜨므로, 이 값을 바꾸거나 `/world`를 쓸 때만 만든다(`JWT_ACCESS_SECRET`은 API 서버와 같은 값).
+프론트엔드와 API 서버 각각에 `.env.local`을 만든다. 실시간 서버는 설정 없이 기본값(포트 9002, 오리진 `http://localhost:3000`)으로 뜨므로, 이 값을 바꾸거나 `/sector`를 쓸 때만 만든다(`JWT_ACCESS_SECRET`은 API 서버와 같은 값).
 
 ```bash
 # 프론트엔드 (루트)
@@ -153,7 +153,7 @@ npm run start:dev
 npm run dev
 ```
 
-브라우저는 `NEXT_PUBLIC_WS_URL`(기본 `http://localhost:9002`)의 실시간 서버 소켓에 직접 붙는다. 예전 `.env.example`로 만든 `.env.local`에 `http://localhost:9001`이 남아 있으면 9002로 고친다(9001은 소켓이 없는 API 서버다). 마을 씬은 `/scene`에 토큰 없이 붙어 같은 방 아이들을 받고, 내 주변(베타)은 `/neighborhood`에 붙어 반경 200m 사람들을 받는다. 실시간 서버를 띄우지 않으면 씬은 혼자 돌고, 브라우저 콘솔에 재시도마다(최대 10초 간격) WebSocket 연결 실패가 남는다. API 서버의 REST 엔드포인트는 지금 브라우저가 부르지 않으므로 `curl`로 확인한다.
+브라우저는 `NEXT_PUBLIC_WS_URL`(기본 `http://localhost:9002`)의 실시간 서버 소켓에 직접 붙는다. 예전 `.env.example`로 만든 `.env.local`에 `http://localhost:9001`이 남아 있으면 9002로 고친다(9001은 소켓이 없는 API 서버다). 마을 씬은 `/room`에 토큰 없이 붙어 같은 방 아이들을 받고, 내 주변(베타)은 `/proximity`에 붙어 반경 200m 사람들을 받는다. 실시간 서버를 띄우지 않으면 씬은 혼자 돌고, 브라우저 콘솔에 재시도마다(최대 10초 간격) WebSocket 연결 실패가 남는다. API 서버의 REST 엔드포인트는 지금 브라우저가 부르지 않으므로 `curl`로 확인한다.
 
 ---
 
@@ -196,7 +196,7 @@ endpoints:
                 url: https://ws.internal
 ```
 
-실시간 서버는 `WEB_ORIGIN=https://<내 도메인>.ngrok-free.dev`로 띄우고(socket.io CORS), 프론트는 `NEXT_PUBLIC_WS_URL=https://<내 도메인>.ngrok-free.dev`로 빌드한다(Docker `app`이면 이 값을 셸에 두고 `--build`). 마을 씬 소켓(`/scene`)은 DB·로그인 없이 돈다.
+실시간 서버는 `WEB_ORIGIN=https://<내 도메인>.ngrok-free.dev`로 띄우고(socket.io CORS), 프론트는 `NEXT_PUBLIC_WS_URL=https://<내 도메인>.ngrok-free.dev`로 빌드한다(Docker `app`이면 이 값을 셸에 두고 `--build`). 마을 씬 소켓(`/room`)은 DB·로그인 없이 돈다.
 
 첫 번째 페이지 요청 시 Turbopack이 해당 라우트를 컴파일한다(수 초~수십 초, 이후 캐시됨).
 
@@ -209,7 +209,7 @@ endpoints:
 | 서비스 | 빌드 | 실행 | 용도 |
 |---|---|---|---|
 | `app` | `Dockerfile` (builder → runner) | standalone `node server.js` (3000) | 프론트 프로덕션 빌드 확인용 |
-| `realtime` | `apps/realtime/Dockerfile` (컨텍스트는 저장소 루트) | `node dist/apps/realtime/src/main` (9002) | 실시간 서버. DB 없이 뜨고, `WEB_ORIGIN`(기본 `http://localhost:3000`)·`JWT_ACCESS_SECRET`(기본 빈 값 — `/world` 접속만 거절)을 셸이나 `--env-file`에서 받는다 |
+| `realtime` | `apps/realtime/Dockerfile` (컨텍스트는 저장소 루트) | `node dist/apps/realtime/src/main` (9002) | 실시간 서버. DB 없이 뜨고, `WEB_ORIGIN`(기본 `http://localhost:3000`)·`JWT_ACCESS_SECRET`(기본 빈 값 — `/sector` 접속만 거절)을 셸이나 `--env-file`에서 받는다 |
 
 ```bash
 # 이미지 빌드 + 기동 (app + realtime)

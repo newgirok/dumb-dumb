@@ -25,7 +25,7 @@ import { createFinalPass } from '../village/postprocess'
 import { blendKidAnimation, createKidAnimation, type KidAnimation } from '../village/kidAnimation'
 import { createRemotes, type Remotes } from '../village/remotes'
 import { baseDevicePixelRatio, configure, isMobileDevice } from '../village/setup'
-import { connectScene, type SceneConnection } from '@/lib/realtime/scene'
+import { connectRelay, type RelayConnection } from '@/lib/realtime/relay'
 import { createGroundStream, type GroundStream } from './stream'
 
 /** 원점은 0.001° 격자에 맞춘다 — 정확한 내 위치를 원점으로 두지 않고, 같은 동네면 같은 바닥이 나온다 */
@@ -122,7 +122,7 @@ export default function NeighborhoodScene() {
     let sky: THREE.Mesh | null = null
     let stream: GroundStream | null = null
     let remotes: Remotes | null = null
-    let connection: SceneConnection | null = null
+    let connection: RelayConnection | null = null
     let gpsTarget: { x: number; z: number } | null = null
     let unwatch = () => {}
     const disposables: { dispose(): void }[] = []
@@ -267,7 +267,7 @@ export default function NeighborhoodScene() {
           createRampMaterial(rampTex, shared, { isCharacter: true, seed: s, shadowSide: THREE.FrontSide }),
       })
       remotes = peers
-      connection = connectScene(
+      connection = connectRelay(
         {
           read: () => {
             const at = local.toLngLat(me.position.x, me.position.z)
@@ -287,7 +287,7 @@ export default function NeighborhoodScene() {
           },
           onLeave: (id) => peers.remove(id),
         },
-        'neighborhood',
+        'proximity',
       )
 
       frame = local

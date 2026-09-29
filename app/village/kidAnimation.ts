@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { SceneMotion } from '@/shared/scene/contract'
+import type { RelayMotion } from '@/shared/relay/contract'
 
 export interface KidClips {
   idle: THREE.AnimationClip
@@ -40,7 +40,7 @@ const settle = (v: number) => (v > 0.9999 ? 1 : v < 1e-4 ? 0 : v)
 export function blendKidAnimation(
   anim: KidAnimation,
   velocityHorizontal: number,
-  motion: SceneMotion,
+  motion: RelayMotion,
   ratio: number,
 ) {
   const k = 1 - Math.pow(0.9, ratio)

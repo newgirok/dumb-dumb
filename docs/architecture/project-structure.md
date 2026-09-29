@@ -39,7 +39,7 @@ project/
 │   │   ├── character.ts          ← kid 스킨드 캐릭터(idle/run) + 절차적 폴백 메시 (에셋 미리보기)
 │   │   └── fog.ts                ← Fog of War CSS 비네트 반경 헬퍼 (어느 화면에도 연결하지 않음)
 │   ├── realtime/
-│   │   └── scene.ts              ← socket.io 익명 연결 (마을 씬 `/scene`·내 주변 `/neighborhood`)
+│   │   └── scene.ts              ← socket.io 익명 연결 (마을 씬 `/room`·내 주변 `/proximity`)
 │   └── utils.ts                  ← `cn()` — clsx + 커스텀 토큰을 아는 tailwind-merge
 │
 ├── apps/api/src/                 ← NestJS API 서버 (REST, 9001)
@@ -58,17 +58,19 @@ project/
 │   │   ├── main.ts               ← 부트스트랩 (socket.io CORS 어댑터 · 포트)
 │   │   ├── app.module.ts
 │   │   ├── health.controller.ts
-│   │   ├── auth/access-token.ts  ← `/world` 접속 토큰 검증 (JWT_ACCESS_SECRET, DB 조회 없음)
-│   │   ├── world/                ← world.gateway (대시보드 월드 섹터 중계), sector.ts, module
-│   │   └── scene/                ← scene.gateway (마을 씬 익명 방 중계) · neighborhood.gateway (내 주변 가까운 사람 중계) · relay (함께 쓰는 검증), module
+│   │   ├── auth/access-token.ts  ← `/sector` 접속 토큰 검증 (JWT_ACCESS_SECRET, DB 조회 없음)
+│   │   ├── room/                 ← room.gateway (방 중계 — 정원 20명 방, 마을 씬), module
+│   │   ├── proximity/            ← proximity.gateway (근접 중계 — 반경 200m 가까운 19명, 내 주변), module
+│   │   ├── relay/relay.ts        ← 방·근접 중계가 함께 쓰는 상태 보관·검증
+│   │   └── sector/               ← sector.gateway (섹터 중계 — 500m 격자 칸, 대시보드 월드), grid.ts, module
 │   ├── Dockerfile                ← 빌드 컨텍스트는 저장소 루트 (shared/ 함께 컴파일)
 │   └── Dockerfile.dockerignore   ← 이 Dockerfile 전용 — apps/realtime·shared만 보낸다
 │
-├── shared/world/                 ← 프론트·실시간 서버 공유 단일 소스(SSOT) — 대시보드 월드
-│   ├── contract.ts               ← 월드 소켓 이벤트 계약 (socket.io 제네릭 타입)
-│   └── sector.ts                 ← 섹터 격자(500m)·거리·이동 검증 계산
-├── shared/scene/
-│   └── contract.ts               ← 익명 멀티플레이 소켓 이벤트 계약 (마을 씬·내 주변, socket.io 제네릭 타입)
+├── shared/sector/                ← 프론트·실시간 서버 공유 단일 소스(SSOT) — 섹터 중계(대시보드 월드)
+│   ├── contract.ts               ← 섹터 중계 소켓 이벤트 계약 (socket.io 제네릭 타입)
+│   └── grid.ts                   ← 섹터 격자(500m)·거리·이동 검증 계산
+├── shared/relay/
+│   └── contract.ts               ← 익명 중계 소켓 이벤트 계약 (방 — 마을 씬, 근접 — 내 주변, socket.io 제네릭 타입)
 │
 ├── supabase/migrations/          ← PostgreSQL 마이그레이션 SQL 0001~0010
 │                                    (PostGIS, pg_cron, pgcrypto, citext)
@@ -101,21 +103,22 @@ project/
 
 제품 진입은 선택 페이지(`/`)다. `app/page.tsx`가 `lib/routes.ts`의 `SCENE_ROUTES`(`/village`·`/neighborhood`·`/preview`)를
 목적지 버튼 3개로 세로로 쌓아 보여 주고, 세 페이지 모두 로그인 없이 동작한다. 마을 씬
-(`/village`)은 같은 방 다른 방문자를 익명 소켓(`/scene`)으로 받아 그리고, 실시간 서버에 닿지 못하면 혼자인 채로 돈다.
+(`/village`)은 같은 방 다른 방문자를 익명 소켓(`/room`)으로 받아 그리고, 실시간 서버에 닿지 못하면 혼자인 채로 돈다.
 내 주변(베타)(`/neighborhood`)은 마을 씬 모듈(`app/village/`의 셰이더·조작·그림자·후처리·원격 아이)을 가져다 쓰고,
-같은 계약으로 `/neighborhood`에 붙어 반경 200m 사람을 받는다. 두 씬은 펼침 지도(`components/world/PaperMap.tsx`)를
+같은 계약으로 `/proximity`에 붙어 반경 200m 사람을 받는다. 두 씬은 펼침 지도(`components/world/PaperMap.tsx`)를
 함께 쓰고, 씬마다 GPS 추적기(`lib/geo/gps.ts`) 하나를 씬과 지도가 나눠 쓴다. 페이지 라우트 게이팅은 없어
 (`middleware.ts`의 `matcher`가 비어 있음) 모든 페이지가 공개다.
 
 로그인·본인인증·대시보드 월드·상점 화면과 NestJS로 넘기는 BFF 라우트(`/api/auth/*`, `/api/billing/*`, `/api/me/*`,
 `/api/voice/token`)는 로드맵에 따라 만든다(예정). 이 화면들이 쓰는 서버 쪽은 `auth`·`billing`·`users`·`voice` 모듈이
-API 서버에, `world` 게이트웨이가 실시간 서버에 있다. 랜딩/마케팅 웹은 추후 별도 앱으로 분리한다(로드맵 참고).
+API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/마케팅 웹은 추후 별도 앱으로 분리한다(로드맵 참고).
 
 현재 구조는 루트 Next.js 앱과 `apps/api`(REST)·`apps/realtime`(socket.io) NestJS를 한 저장소에 코로케이션한 형태다
 ([ADR 008](../adr/008-realtime-server-split.md)). 워크스페이스 도구 없이 패키지마다 따로 설치하고, 두 서버는 서로 부르지 않는다.
-대시보드 월드의 섹터 계산과 소켓 이벤트 계약은 `shared/world/`에 단일 소스로 두고, 실시간 서버(`apps/realtime/src/world/`)가
-이를 재노출해 쓴다. 익명 멀티플레이 소켓 계약은 `shared/scene/contract.ts` 하나를 프론트(`lib/realtime/scene.ts`)와
-실시간 서버(`apps/realtime/src/scene/`의 두 게이트웨이)가 직접 import한다. API 서버는 `shared/`를 쓰지 않는다.
+대시보드 월드의 섹터 계산과 소켓 이벤트 계약은 `shared/sector/`에 단일 소스로 두고, 실시간 서버(`apps/realtime/src/sector/`)가
+이를 재노출해 쓴다. 익명 멀티플레이 소켓 계약은 `shared/relay/contract.ts` 하나를 프론트(`lib/realtime/relay.ts`)와
+실시간 서버(`apps/realtime/src/room/`·`proximity/`의 두 게이트웨이)가 직접 import한다. API 서버는 `shared/`를 쓰지 않는다.
+실시간 서버의 폴더·네임스페이스는 화면 이름 대신 받는 사람을 고르는 방식(방·근접·섹터)으로 부른다([ADR 009](../adr/009-interest-management-naming.md)).
 
 ---
 
@@ -139,17 +142,17 @@ API 서버에, `world` 게이트웨이가 실시간 서버에 있다. 랜딩/마
 | `lib/geo/gpsMessages.ts` | GPS 상태별 안내 문구(해요체)와 기기 판별(iOS·Android·Windows·Mac, 삼성 인터넷, 앱 속 브라우저) — `gpsNote`(지도 쪽지·도장·버튼)·`startWaitNote`(내 주변 대기 화면)·`walkNote`(내 주변 위쪽 알림) |
 | `components/world/PaperMap.tsx` | 펼침 지도 — 씬과 분리된 독립 Mapbox GL 캔버스([ADR 001](../adr/001-webgl-context-sharing.md)). 씬이 시작되면 한 번 만들고 접혀 있는 동안은 숨겨 둔다. 종이 폭에 따라 3단·반 접기·바로 펼침, GPS 상태 쪽지·도장·정확도 원·'나' 표시(DOM 마커). `MapIcon`·`GpsBadge`·`useMapHotkey`(M·Esc)·`MapTrack`도 내보낸다 |
 | `components/world/paperMapStyle.ts` | 펼침 지도 스타일 `PAPER_STYLE` — Mapbox Streets v8 + 지형 DEM을 게임 화풍으로 칠한다. 무늬 `PATTERNS`(나무·풀포기·물결)는 `styleimagemissing`에서 캔버스로 그려 넣는다 |
-| `lib/realtime/scene.ts` | socket.io 익명 멀티플레이 연결(마을 씬 `/scene`·내 주변 `/neighborhood`) — 35ms마다 바뀐 필드만 전송, 5분 무변화 시 끊기(탭을 숨겨도 연결을 둔다), 재접속 때 전에 있던 방 요청 |
+| `lib/realtime/relay.ts` | socket.io 익명 멀티플레이 연결(마을 씬 `/room`·내 주변 `/proximity`) — 35ms마다 바뀐 필드만 전송, 5분 무변화 시 끊기(탭을 숨겨도 연결을 둔다), 재접속 때 전에 있던 방 요청 |
 | `lib/three/fog.ts` | Fog of War CSS 비네트 반경 헬퍼 — 어느 화면에도 연결되어 있지 않다 ([ADR 006](../adr/006-fog-of-war-business-model.md)) |
 | `apps/realtime/src/main.ts` | 실시간 서버 부트스트랩 — 설정을 읽은 뒤 socket.io CORS(`WEB_ORIGIN`)를 넣는 어댑터(`CorsIoAdapter`), 포트 9002 |
-| `apps/realtime/src/auth/access-token.ts` | `AccessTokenVerifier` — `/world` 접속 토큰의 서명·만료·종류를 API 서버와 같은 `JWT_ACCESS_SECRET`으로 확인(DB 조회 없음, 시크릿이 없으면 거절) |
-| `apps/realtime/src/scene/scene.gateway.ts` | 마을 씬 익명 socket.io 게이트웨이(`/scene`) — 방 배정(20명)·35ms 방 단위 변경분 방송 |
-| `apps/realtime/src/scene/neighborhood.gateway.ts` | 내 주변 익명 socket.io 게이트웨이(`/neighborhood`) — 실제 좌표, 사람마다 반경 200m 가까운 19명 선택·입장 전체 상태·퇴장 `leave` |
-| `apps/realtime/src/scene/relay.ts` | 두 익명 게이트웨이가 함께 쓰는 상태 보관·필드 검증·거리 예산·순간이동·빈도 제한 |
-| `shared/scene/contract.ts` | 익명 멀티플레이 소켓 이벤트 이름·페이로드 계약(위치·방향·모션·색 시드)과 월드별 네임스페이스·위치 자리수(`SCENE_WORLDS`) — 프론트·실시간 서버 socket.io 제네릭 단일 소스 |
-| `apps/realtime/src/world/world.gateway.ts` | 대시보드 월드 socket.io 게이트웨이(`/world`) — 섹터 판정·속도 검증·5Hz 묶음 브로드캐스트 (`shared/world/contract` 제네릭 타입). 붙는 화면은 대시보드 월드와 함께 예정 |
-| `shared/world/contract.ts` | 월드 소켓 이벤트 이름·페이로드 계약 — socket.io 제네릭 단일 소스 |
-| `shared/world/sector.ts` | 섹터 격자(500m)·거리·이동 속도 검증 계산 — 단일 소스 |
+| `apps/realtime/src/auth/access-token.ts` | `AccessTokenVerifier` — `/sector` 접속 토큰의 서명·만료·종류를 API 서버와 같은 `JWT_ACCESS_SECRET`으로 확인(DB 조회 없음, 시크릿이 없으면 거절) |
+| `apps/realtime/src/room/room.gateway.ts` | 방 중계 익명 socket.io 게이트웨이(`/room`, 마을 씬) — 방 배정(20명)·35ms 방 단위 변경분 방송 |
+| `apps/realtime/src/proximity/proximity.gateway.ts` | 근접 중계 익명 socket.io 게이트웨이(`/proximity`, 내 주변) — 실제 좌표, 사람마다 반경 200m 가까운 19명 선택·입장 전체 상태·퇴장 `leave` |
+| `apps/realtime/src/relay/relay.ts` | 두 익명 게이트웨이가 함께 쓰는 상태 보관·필드 검증·거리 예산·순간이동·빈도 제한 |
+| `shared/relay/contract.ts` | 익명 멀티플레이 소켓 이벤트 이름·페이로드 계약(위치·방향·모션·색 시드)과 중계별 네임스페이스·위치 자리수(`RELAYS`) — 프론트·실시간 서버 socket.io 제네릭 단일 소스 |
+| `apps/realtime/src/sector/sector.gateway.ts` | 섹터 중계 socket.io 게이트웨이(`/sector`, 대시보드 월드) — 섹터 판정·속도 검증·5Hz 묶음 브로드캐스트 (`shared/sector/contract` 제네릭 타입). 붙는 화면은 대시보드 월드와 함께 예정 |
+| `shared/sector/contract.ts` | 섹터 중계 소켓 이벤트 이름·페이로드 계약 — socket.io 제네릭 단일 소스 |
+| `shared/sector/grid.ts` | 섹터 격자(500m)·거리·이동 속도 검증 계산 — 단일 소스 |
 | `apps/api/src/billing/fulfillment.worker.ts` | 결제 완료 주문을 폴링해 아바타·라이선스 발급 |
 | `apps/api/src/voice/voice.controller.ts` | LiveKit Cloud 섹터 룸 접속 JWT 토큰 발급 |
 | `apps/api/src/database/database.service.ts` | pg Pool + 트랜잭션별 `app.user_id`/`app.user_role` RLS 컨텍스트 주입 |

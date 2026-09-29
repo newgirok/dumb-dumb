@@ -102,7 +102,7 @@
 
 ## Phase 2 — 3D 월드 이동 + 실시간 위치 동기화
 
-> 선택 페이지(`/`)에서 마을 씬(`/village`)·내 주변(베타)(`/neighborhood`)·에셋 미리보기(`/preview`)로 들어간다. 마을 씬은 로그인 없이 열리는 3D 씬으로, 캐릭터를 3인칭으로 조작하고 M 키나 지도 버튼으로 펼치는 종이 지도(펼침 지도)에 실제 GPS 위치를 표시한다. 같은 방(최대 20명) 다른 방문자의 아이는 익명 소켓(`/scene`)으로 받아 그리고, 서버에 닿지 못하면 혼자인 채로 돈다. 내 주변(베타)은 같은 렌더링으로 내 위치 주변 실제 길을 깔고, 반경 200m 사람의 아이를 실제 자리에 보여 준다. 대시보드 월드(`/dashboard`, 예정)는 Mapbox 실지형 지도 위에서 캐릭터를 위경도로 이동시키며, 여러 유저가 서로의 위치를 실시간으로 본다. 섹터 판정·속도 검증·브로드캐스트 묶음은 서버가 담당한다.
+> 선택 페이지(`/`)에서 마을 씬(`/village`)·내 주변(베타)(`/neighborhood`)·에셋 미리보기(`/preview`)로 들어간다. 마을 씬은 로그인 없이 열리는 3D 씬으로, 캐릭터를 3인칭으로 조작하고 M 키나 지도 버튼으로 펼치는 종이 지도(펼침 지도)에 실제 GPS 위치를 표시한다. 같은 방(최대 20명) 다른 방문자의 아이는 익명 소켓(`/room`)으로 받아 그리고, 서버에 닿지 못하면 혼자인 채로 돈다. 내 주변(베타)은 같은 렌더링으로 내 위치 주변 실제 길을 깔고, 반경 200m 사람의 아이를 실제 자리에 보여 준다. 대시보드 월드(`/dashboard`, 예정)는 Mapbox 실지형 지도 위에서 캐릭터를 위경도로 이동시키며, 여러 유저가 서로의 위치를 실시간으로 본다. 섹터 판정·속도 검증·브로드캐스트 묶음은 서버가 담당한다.
 
 - **P2-1.** 마을 씬 + WebGL 렌더링 `[3D]`
   - 선택 페이지(`/`, `app/page.tsx`) — 게임 타이틀 화면. 여름 오후 풍경 일러스트(하늘·떠가는 구름·겹겹 언덕·발밑으로 굽어 오는 모래길·청록 나무·길을 걷는 아이) 위에 Luckiest Guy 제목 "Dumb Dumb"과 목적지 버튼 3개(마을, 내 주변 + "베타" 배지, 에셋 미리보기 + "개발용" 배지)를 세로로 쌓는다. 버튼은 아이콘과 이름뿐이고 `lib/routes.ts`의 `SCENE_ROUTES`(`/village`·`/neighborhood`·`/preview`)로 잇는다. 높이 520px 이하(휴대폰 가로)는 언덕·제목·버튼을 줄여 스크롤 없이 한 화면에 담는다
@@ -140,19 +140,19 @@
     - 대시보드 월드 — 캐릭터 이동 확인, 450m 외곽 오브젝트 정리 후 메모리 누수 없음
 
 - **P2-4.** socket.io 섹터 브로드캐스트 + 속도 검증 `[BE]`
-  - NestJS `world` 게이트웨이(`apps/realtime/src/world/world.gateway.ts`) — 액세스 토큰으로 접속 인증, 500m 섹터(경계 50m 이내면 인접 섹터 포함) 룸 구독, 200ms(5Hz)마다 섹터별 위경도 위치 묶음 브로드캐스트(2명 이상인 섹터만), 30초 무갱신 위치 상태 정리(소켓 유지)
-  - 섹터 계산(`shared/world/sector.ts`)과 이벤트 계약(`shared/world/contract.ts`)을 단일 소스로 두고 실시간 서버가 재노출한다(`apps/realtime/src/world/sector.ts`). 서버 속도 검증은 같은 파일의 haversine 거리를 쓴다
+  - NestJS `sector` 게이트웨이(`apps/realtime/src/sector/sector.gateway.ts`) — 액세스 토큰으로 접속 인증, 500m 섹터(경계 50m 이내면 인접 섹터 포함) 룸 구독, 200ms(5Hz)마다 섹터별 위경도 위치 묶음 브로드캐스트(2명 이상인 섹터만), 30초 무갱신 위치 상태 정리(소켓 유지)
+  - 섹터 계산(`shared/sector/grid.ts`)과 이벤트 계약(`shared/sector/contract.ts`)을 단일 소스로 두고 실시간 서버가 재노출한다(`apps/realtime/src/sector/grid.ts`). 서버 속도 검증은 같은 파일의 haversine 거리를 쓴다
   - 서버에서 30km/h 초과 이동 드롭
   - 위치·채팅은 DB에 저장하지 않는 휘발성 브로드캐스트. 채팅은 섹터 즉시 방송(200자)이며 입력·표시 UI는 Phase 5
-  - 대시보드 월드 클라이언트(예정) — 브라우저가 `NEXT_PUBLIC_WS_URL`로 `/world`에 socket.io로 직접 붙는다. 전송 전 같은 기준(30km/h, cheap-ruler 거리)으로 사전 검증하고 0.3m 미만 이동은 보내지 않는다
+  - 대시보드 월드 클라이언트(예정) — 브라우저가 `NEXT_PUBLIC_WS_URL`로 `/sector`에 socket.io로 직접 붙는다. 전송 전 같은 기준(30km/h, cheap-ruler 거리)으로 사전 검증하고 0.3m 미만 이동은 보내지 않는다
   - 검증
     - 시속 30km 초과 패킷 서버 드롭 확인
     - 대시보드 월드 — 여러 브라우저 창에서 상대 위치 지연 500ms 이하 동기화
 
 - **P2-5.** 마을 씬 익명 멀티플레이 `[BE][3D]`
-  - NestJS `scene` 게이트웨이(`/scene`, `apps/realtime/src/scene/scene.gateway.ts`) — 로그인 없는 익명 연결. 방은 20명까지 먼저 연 방부터 채우고, 다시 붙으면 전에 있던 방을 청한다(전체 1,000명). 들어오면 방 전원의 현재 상태를 받고, 이후 35ms마다 방별로 바뀐 필드만 묶어 방송한다
-  - 필드별 검증, 초당 10m 거리 예산(최대 2m)·순간이동 5초 1회, 초당 60건 초과·330초 무응답 끊기(`apps/realtime/src/scene/relay.ts`)
-  - 소켓 계약 `shared/scene/contract.ts`(위치·방향·모션·색 시드), 연결 `lib/realtime/scene.ts`(35ms마다 바뀐 필드만, 5분 무변화 시 끊기 — 탭을 숨겨도 연결을 둔다), 원격 아이 `app/village/remotes.ts`(2단 보간, 0.35초 등장·0.25초 퇴장, 로컬 아이와 같은 애니메이션 가중치)
+  - NestJS `room` 게이트웨이(`/room`, `apps/realtime/src/room/room.gateway.ts`) — 로그인 없는 익명 연결. 방은 20명까지 먼저 연 방부터 채우고, 다시 붙으면 전에 있던 방을 청한다(전체 1,000명). 들어오면 방 전원의 현재 상태를 받고, 이후 35ms마다 방별로 바뀐 필드만 묶어 방송한다
+  - 필드별 검증, 초당 10m 거리 예산(최대 2m)·순간이동 5초 1회, 초당 60건 초과·330초 무응답 끊기(`apps/realtime/src/relay/relay.ts`)
+  - 소켓 계약 `shared/relay/contract.ts`(위치·방향·모션·색 시드), 연결 `lib/realtime/relay.ts`(35ms마다 바뀐 필드만, 5분 무변화 시 끊기 — 탭을 숨겨도 연결을 둔다), 원격 아이 `app/village/remotes.ts`(2단 보간, 0.35초 등장·0.25초 퇴장, 로컬 아이와 같은 애니메이션 가중치)
   - 검증
     - 두 브라우저에서 상대 아이가 위치·방향·모션·옷 색 그대로 약 0.1초 지연 안에서 따라온다
     - 방 정원 20명, 속도 초과 이동 드롭, 실시간 서버가 없으면 혼자인 채로 씬이 돈다
@@ -168,7 +168,7 @@
     - 위쪽 알림 한 줄(`walkNote`)과 "지도 보기" 버튼 — 휴대폰에서 GPS가 걸음을 따라가지 못할 때(멈춤·흐림), 위치를 받을 수 없게 됐을 때 띄운다. 좁은 화면에서는 버튼이 글 아래 줄로 내려가고, 지도가 펼쳐져 있으면 숨긴다
     - 펼침 지도 — 우상단 지도 버튼(마을 씬 HUD 버튼과 같은 모양, 위치를 못 잡으면 구석에 "!", 손가락 기기 1.2배·큰 화면 1.3배)이나 M으로 펼치고, 다 펼친 뒤에는 배경 클릭·×로, 언제든 M·Esc로 접는다. '나'는 캐릭터 자리와 화면이 보는 방향 화살표(씬이 매 프레임 `MapTrack`을 채운다)이고, GPS가 잡은 자리는 작은 점과 정확도 원으로 따로 보인다. 지도가 화면에 있는 동안(접을 때는 배경이 다 걷힐 때까지) 키보드·마우스 조작은 끄고 휴대폰 GPS 걷기는 계속되며, '나'는 지도를 다시 그리지 않고 마커만 CSS로 움직인다
     - 셰이더·조작·그림자·후처리·애니메이션·원격 아이는 마을 씬 모듈(`app/village/*`)을 함께 쓴다
-    - 실제 위치 멀티플레이 — NestJS `neighborhood` 게이트웨이(`/neighborhood`)가 방 없이 사람마다 반경 200m 안 가까운 19명을 골라 35ms로 중계한다. 위치는 실제 좌표(경위도)로 주고받는다
+    - 실제 위치 멀티플레이 — NestJS `proximity` 게이트웨이(`/proximity`)가 방 없이 사람마다 반경 200m 안 가까운 19명을 골라 35ms로 중계한다. 위치는 실제 좌표(경위도)로 주고받는다
   - 2단계(예정) — 건물(벡터 타일 `building`의 높이로 로우폴리 매스), 가로등·나무를 길·공원을 따라 배치, 물(한강 등). 건물이 생기면 구역별 충돌이 필요하다
   - 3단계(예정) — 마을 씬에 적용
   - 결정됨 — 실제 동네 모드의 멀티플레이는 가까운 사람에게 실제 위치가 보이는 것이 목표다. 결정 필요 — 마을 씬에 어떻게 넣을지(첫 화면을 내 주변으로 둘지, 마을 씬에서 넘어가게 할지)
@@ -207,13 +207,13 @@
     - 배포 빌드와 저장소(이력 포함)에 ref-assets 파일이 없다
 
 - **P2-8.** 실시간 서버 분리 `[BE][Infra]` ([ADR 008](./adr/008-realtime-server-split.md))
-  - socket.io 게이트웨이 셋(`/scene`·`/neighborhood`·`/world`)을 API 서버에서 떼어 `apps/realtime`(`@owcj/realtime`, 새 포트 9002)으로 옮긴다. API 서버(`apps/api`)는 REST 전용이 되어 포트 9001을 그대로 쓰고(`API_URL` 그대로), socket.io 의존성과 `shared/` 참조를 뺀다
-  - 브라우저 소켓 주소가 9001에서 9002로 바뀐다 — `NEXT_PUBLIC_WS_URL` 기본값(`lib/realtime/scene.ts`·프론트 `Dockerfile`·compose 빌드 인자·루트 `.env.example`)과 ngrok 소켓 upstream을 9002로 바꾼다. 예전 값이 남은 `.env.local`은 9002로 고친다
-  - 실시간 서버는 DB 없이 뜬다. `/world` 토큰은 `AccessTokenVerifier`가 API 서버와 같은 `JWT_ACCESS_SECRET`으로 서명·만료·종류만 확인하고, socket.io CORS는 `main.ts`의 어댑터가 설정을 읽은 뒤 `WEB_ORIGIN`으로 넣는다
+  - socket.io 게이트웨이 셋(`/room`·`/proximity`·`/sector`)을 API 서버에서 떼어 `apps/realtime`(`@owcj/realtime`, 새 포트 9002)으로 옮긴다. API 서버(`apps/api`)는 REST 전용이 되어 포트 9001을 그대로 쓰고(`API_URL` 그대로), socket.io 의존성과 `shared/` 참조를 뺀다
+  - 브라우저 소켓 주소가 9001에서 9002로 바뀐다 — `NEXT_PUBLIC_WS_URL` 기본값(`lib/realtime/relay.ts`·프론트 `Dockerfile`·compose 빌드 인자·루트 `.env.example`)과 ngrok 소켓 upstream을 9002로 바꾼다. 예전 값이 남은 `.env.local`은 9002로 고친다
+  - 실시간 서버는 DB 없이 뜬다. `/sector` 토큰은 `AccessTokenVerifier`가 API 서버와 같은 `JWT_ACCESS_SECRET`으로 서명·만료·종류만 확인하고, socket.io CORS는 `main.ts`의 어댑터가 설정을 읽은 뒤 `WEB_ORIGIN`으로 넣는다
   - Docker — `apps/realtime/Dockerfile`(빌드 컨텍스트는 저장소 루트, 전용 `Dockerfile.dockerignore`)과 compose `realtime` 서비스. 프론트 `app`이 `depends_on`으로 함께 띄운다(compose는 서비스를 앱마다 하나씩 — 개발용 `app`·프로덕션용 `app-prod` 둘을 `app` 하나로 합치고 프로필을 없앴다)
   - 검증
-    - 실시간 서버가 환경변수·DB 없이 뜨고, 봇 두 개로 `/scene` 중계·퇴장, `/neighborhood` 200m 안 보임(1km 밖 안 보임)을 확인했다
-    - `/world`는 토큰 없음·다른 시크릿·리프레시 토큰을 끊고 올바른 액세스 토큰만 받으며, 같은 섹터 두 명에게 `positions`를 방송한다
+    - 실시간 서버가 환경변수·DB 없이 뜨고, 봇 두 개로 `/room` 중계·퇴장, `/proximity` 200m 안 보임(1km 밖 안 보임)을 확인했다
+    - `/sector`는 토큰 없음·다른 시크릿·리프레시 토큰을 끊고 올바른 액세스 토큰만 받으며, 같은 섹터 두 명에게 `positions`를 방송한다
     - `.env.local`에만 둔 `WEB_ORIGIN`이 socket.io 응답의 `Access-Control-Allow-Origin`에 나온다
     - API 서버는 REST 경로만 열고 `/socket.io`는 404다
 
@@ -329,7 +329,7 @@
     - 라이선스 지급 후 씬 뷰 디스턴스 즉시 확장 확인
 
 - **P5-6.** 대시보드 월드 채팅 UI `[FE]`
-  - 채팅 입력창과 말풍선 표시 — 대시보드 월드 HUD의 채팅 입력(`onChat`)과 섹터 채팅 수신을 잇는다(섹터 채팅 방송은 P2-4 `world` 게이트웨이, 200자)
+  - 채팅 입력창과 말풍선 표시 — 대시보드 월드 HUD의 채팅 입력(`onChat`)과 섹터 채팅 수신을 잇는다(섹터 채팅 방송은 P2-4 `sector` 게이트웨이, 200자)
   - 검증
     - 같은 섹터 두 창에서 채팅 말풍선 표시 확인
 

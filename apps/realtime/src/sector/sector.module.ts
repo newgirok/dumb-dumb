@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common'
 import { JwtModule } from '@nestjs/jwt'
-import { WorldGateway } from './world.gateway'
+import { SectorGateway } from './sector.gateway'
 import { AccessTokenVerifier } from '../auth/access-token'
 
 @Module({
   imports: [JwtModule.register({})],
-  providers: [WorldGateway, AccessTokenVerifier],
+  providers: [SectorGateway, AccessTokenVerifier],
 })
-export class WorldModule {}
+export class SectorModule {}

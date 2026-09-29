@@ -10,16 +10,16 @@ import {
 } from '@nestjs/websockets'
 import type { Server, Socket } from 'socket.io'
 import { AccessTokenVerifier } from '../auth/access-token'
-import { distanceM, isPlausibleMove, requiredSectors } from './sector'
+import { distanceM, isPlausibleMove, requiredSectors } from './grid'
 import type {
   ChatPayload,
   ClientToServerEvents,
   MovePayload,
   ServerToClientEvents,
-} from '../../../../shared/world/contract'
+} from '../../../../shared/sector/contract'
 
 /**
- * 위치 브로드캐스트 서버.
+ * 섹터 중계 — 500m 격자 칸(섹터) 단위로 위치를 묶어 방송하고 채팅을 흘린다. 대시보드 월드(예정)가 쓴다.
  *
  * Supabase Realtime을 쓰던 구조는 유저마다 자기 위치를 직접 쏘는 방식이라
  * 메시지 수가 유저 수에 비례해 폭증했다(10Hz × 인원). 여기서는 서버가
@@ -35,13 +35,13 @@ interface SocketData {
   email?: string
 }
 
-type WorldServer = Server<
+type SectorServer = Server<
   ClientToServerEvents,
   ServerToClientEvents,
   Record<string, never>,
   SocketData
 >
-type WorldSocket = Socket<
+type SectorSocket = Socket<
   ClientToServerEvents,
   ServerToClientEvents,
   Record<string, never>,
@@ -61,10 +61,10 @@ const TICK_MS = 200
 /** 이 시간 동안 갱신이 없으면 접속이 끊긴 것으로 보고 정리 */
 const STALE_MS = 30_000
 
-@WebSocketGateway({ namespace: '/world' })
-export class WorldGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
-  @WebSocketServer() private server: WorldServer
-  private readonly logger = new Logger(WorldGateway.name)
+@WebSocketGateway({ namespace: '/sector' })
+export class SectorGateway implements OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
+  @WebSocketServer() private server: SectorServer
+  private readonly logger = new Logger(SectorGateway.name)
 
   /** socket.id → 상태 */
   private readonly players = new Map<string, PlayerState>()
@@ -80,7 +80,7 @@ export class WorldGateway implements OnGatewayConnection, OnGatewayDisconnect, O
     if (this.timer) clearInterval(this.timer)
   }
 
-  handleConnection(client: WorldSocket) {
+  handleConnection(client: SectorSocket) {
     // 토큰은 handshake.auth 로 받는다. 쿼리스트링에 담으면 접속 로그에 남는다
     const token = client.handshake.auth?.token as string | undefined
     if (!token) {
@@ -96,12 +96,12 @@ export class WorldGateway implements OnGatewayConnection, OnGatewayDisconnect, O
     }
   }
 
-  handleDisconnect(client: WorldSocket) {
+  handleDisconnect(client: SectorSocket) {
     this.players.delete(client.id)
   }
 
   @SubscribeMessage('move')
-  onMove(@ConnectedSocket() client: WorldSocket, @MessageBody() body: MovePayload) {
+  onMove(@ConnectedSocket() client: SectorSocket, @MessageBody() body: MovePayload) {
     const userId = client.data.userId
     if (!userId) return
     const lng = body?.lng
@@ -136,7 +136,7 @@ export class WorldGateway implements OnGatewayConnection, OnGatewayDisconnect, O
   }
 
   @SubscribeMessage('chat')
-  onChat(@ConnectedSocket() client: WorldSocket, @MessageBody() body: ChatPayload) {
+  onChat(@ConnectedSocket() client: SectorSocket, @MessageBody() body: ChatPayload) {
     const userId = client.data.userId
     const state = this.players.get(client.id)
     if (!userId || !state) return

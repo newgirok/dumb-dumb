@@ -49,12 +49,12 @@ NestJS API 서버(`apps/api`, REST)를 호스팅한다.
 
 ## 3. 실시간 서버 호스팅
 
-NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 마을 씬 익명 소켓(`/scene`), 내 주변 익명 소켓(`/neighborhood`), 대시보드 월드 소켓(`/world`)이 이 서버에서 서빙되고, DB는 쓰지 않는다([ADR 008](../adr/008-realtime-server-split.md)).
+NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 마을 씬 익명 소켓(`/room`), 내 주변 익명 소켓(`/proximity`), 대시보드 섹터 소켓(`/sector`)이 이 서버에서 서빙되고, DB는 쓰지 않는다([ADR 008](../adr/008-realtime-server-split.md)).
 
 1. 서버/컨테이너 환경에 Node.js 20 이상 준비, `apps/realtime`에서 `npm install && npm run build`(컨테이너는 저장소 루트를 빌드 컨텍스트로 `apps/realtime/Dockerfile`을 쓴다)
 2. `npm run start:prod`로 기동 (기본 `PORT=9002`). 헬스 프로브는 `GET /health`
 3. `WEB_ORIGIN`을 프론트 도메인으로 설정 (socket.io CORS 허용 오리진 — `.env.local`이나 프로세스 환경변수 어느 쪽이든 된다)
-4. `/world`를 쓸 때는 `JWT_ACCESS_SECRET`을 API 서버와 같은 값으로 등록한다(없으면 서버는 뜨고 `/world` 접속만 거절한다)
+4. `/sector`를 쓸 때는 `JWT_ACCESS_SECRET`을 API 서버와 같은 값으로 등록한다(없으면 서버는 뜨고 `/sector` 접속만 거절한다)
 5. 브라우저가 붙을 공개 주소(WebSocket)를 확보한다 → 프론트 `NEXT_PUBLIC_WS_URL`에 등록
 6. 인스턴스는 하나로 운영한다 — 방·위치 상태가 프로세스 메모리에 있어 늘리면 인스턴스끼리 서로 안 보인다
 
@@ -143,7 +143,7 @@ NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 마을 �
 - [ ] PostgreSQL 프로비저닝 (확장 4종 + 마이그레이션 0001~0010 적용)
 - [ ] `app_api` 롤 생성 + 권한 부여
 - [ ] API 서버 호스팅 + 서버 시크릿 등록 (LiveKit 키 포함) + `GET /health` 응답 확인
-- [ ] 실시간 서버 호스팅 + `WEB_ORIGIN`(`/world`를 쓰면 `JWT_ACCESS_SECRET`) 등록 + `GET /health` 응답 확인 + 공개 주소를 `NEXT_PUBLIC_WS_URL`로 등록
+- [ ] 실시간 서버 호스팅 + `WEB_ORIGIN`(`/sector`를 쓰면 `JWT_ACCESS_SECRET`) 등록 + `GET /health` 응답 확인 + 공개 주소를 `NEXT_PUBLIC_WS_URL`로 등록
 - [ ] Vercel 프로젝트 생성 + GitHub 연결 + `NEXT_PUBLIC_*` 등록
 - [ ] LiveKit Cloud 프로젝트 생성 (지역: ap-northeast)
 - [ ] 토스페이먼츠 / 카카오페이 콘솔 + 웹훅 URL + `PG_WEBHOOK_SECRET`

@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { createSkin } from '@/lib/three/binLoader'
-import type { ScenePeerUpdate, ScenePlayerState } from '@/shared/scene/contract'
+import type { RelayPeerUpdate, RelayPlayerState } from '@/shared/relay/contract'
 import { blendKidAnimation, createKidAnimation, type KidAnimation, type KidClips } from './kidAnimation'
 
 /** 원본 characters 보간 — 60fps 한 프레임 기준 비율 */
@@ -30,7 +30,7 @@ interface View {
 }
 
 interface Remote {
-  data: Partial<ScenePlayerState>
+  data: Partial<RelayPlayerState>
   view: View | null
   leftAt: number
   leaveFrom: number
@@ -38,7 +38,7 @@ interface Remote {
 
 export interface Remotes {
   /** 서버가 보낸 필드를 합친다. 네 필드가 다 모이면 아이를 세운다 */
-  apply(update: ScenePeerUpdate): void
+  apply(update: RelayPeerUpdate): void
   remove(id: string): void
   /** 방에 (다시) 들어갔거나 끊겼다 — 원본 _removeAllCharacters처럼 곧바로 지운다 */
   clear(): void
@@ -93,7 +93,7 @@ export function createRemotes({
   const step = new THREE.Vector3()
   const rotation = new THREE.Quaternion()
 
-  function createView(data: ScenePlayerState): View {
+  function createView(data: RelayPlayerState): View {
     const material = createMaterial(data.s)
     const mesh = createSkin(geometry, bones, material)
     mesh.name = 'remote-kid'
@@ -187,7 +187,7 @@ export function createRemotes({
         const view = remote.view
         if (!view) continue
         const { mesh } = view
-        const data = remote.data as ScenePlayerState
+        const data = remote.data as RelayPlayerState
 
         if (remote.leftAt >= 0) {
           const t = Math.min(1, (now - remote.leftAt) / 1000 / LEAVE_S)

@@ -10,9 +10,9 @@ interface AccessTokenPayload {
 }
 
 /**
- * `/world` 접속 토큰 검증. 토큰은 API 서버가 발급하고, 여기서는 같은 JWT_ACCESS_SECRET으로
+ * `/sector` 접속 토큰 검증. 토큰은 API 서버가 발급하고, 여기서는 같은 JWT_ACCESS_SECRET으로
  * 서명·만료와 토큰 종류만 확인한다 — API 서버의 액세스 토큰 가드처럼 DB는 보지 않는다.
- * 시크릿이 없으면 던지므로 서버는 뜨고 `/world` 접속만 거절된다.
+ * 시크릿이 없으면 던지므로 서버는 뜨고 `/sector` 접속만 거절된다.
  */
 @Injectable()
 export class AccessTokenVerifier {
