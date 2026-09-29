@@ -20,18 +20,18 @@ const PLACES: Record<SceneRoute, { title: string; badge?: string; tilt: number; 
 }
 
 const CSS = `
-  .home { position: relative; min-height: 100dvh; overflow: hidden; display: flex; flex-direction: column; align-items: center;
+  .home { --card-w: min(420px, 86vw); position: relative; min-height: 100dvh; overflow: hidden; display: flex; flex-direction: column; align-items: center;
     background:
       radial-gradient(circle at 84% 10%, rgba(255, 246, 220, 0.95) 0, rgba(255, 246, 220, 0) 20%),
       linear-gradient(180deg, #71bdee 0%, #9dd5f5 36%, #d3eff7 60%, #f1faf3 76%); }
   .home-land { position: absolute; left: 0; bottom: 0; width: 100%; height: 44vh; min-height: 250px; }
   .home-cloud { position: absolute; left: 0; animation: home-drift linear infinite; will-change: transform; }
   @keyframes home-drift { from { transform: translateX(-35vw); } to { transform: translateX(125vw); } }
-  /* 하한은 좁은 휴대폰(폭 320px)에서도 제목이 한 줄에 들 만큼 — 제목 폭은 글자 크기의 5배쯤이다 */
-  .home-title { font-family: var(--font-title), Pretendard, sans-serif; font-weight: 400; font-size: clamp(44px, min(17vw, 22vh), 156px); line-height: 1;
+  /* 제목 폭을 버튼 폭에 맞춘다 — 제목 폭은 글자 크기의 5.75배다(제목 글자나 폰트를 바꾸면 다시 잰다) */
+  .home-title { --title-size: calc(var(--card-w) / 5.75); font-family: var(--font-title), Pretendard, sans-serif; font-weight: 400; font-size: var(--title-size); line-height: 1;
     color: #fffdf8; text-shadow: 4px 4px 0 #716c66; letter-spacing: 0.02em; }
   /* 버튼 크기는 화면 폭을 따라 늘고 준다 — 가장 긴 이름(에셋 미리보기 + 배지)이 좁은 휴대폰에서도 한 줄에 든다 */
-  .home-card { position: relative; display: flex; gap: clamp(12px, 3vw, 18px); align-items: center; width: min(420px, 86vw);
+  .home-card { position: relative; display: flex; gap: clamp(12px, 3vw, 18px); align-items: center; width: var(--card-w);
     padding: clamp(14px, 3.6vw, 22px) clamp(16px, 4.4vw, 28px);
     border-radius: 10px; background: #f9efdc; color: #5d5a57; box-shadow: 3px 3px 0 0 #716c66; transform: rotate(var(--tilt));
     -webkit-tap-highlight-color: transparent;
@@ -50,7 +50,7 @@ const CSS = `
   @media (max-height: 520px) {
     .home-land { height: 38vh; min-height: 0; }
     .home-hero { padding: 3vh 0 18vh; }
-    .home-title { font-size: clamp(48px, 18vh, 96px); }
+    .home-title { font-size: clamp(48px, 18vh, var(--title-size)); }
     .home-places { margin-top: 3vh; gap: 10px; }
     .home-card { padding: 9px 18px; gap: 12px; }
     .home-card svg { width: 34px; height: 34px; }
