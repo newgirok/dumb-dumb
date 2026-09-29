@@ -36,7 +36,8 @@ Tailwind CSS v4 + `@theme` 블록 기반 커스텀 디자인 시스템. 색상 �
 
 - **Display / Body**: Nunito (Google Fonts, `next/font/google`)
 - **Mono**: JetBrains Mono (코드, 시리얼 번호 등)
-- **Stylish**(제목·지도 글씨): `app/globals.css`가 `@font-face 'Stylish'`(`/ref-assets/fonts/Stylish-Regular.woff2`·`.woff`)를 전역으로 선언한다. 선택 페이지 제목·버튼 이름과 펼침 지도 글씨(지도 라벨·제목 태그·표지·범례·축척·쪽지 제목·도장·마커 라벨)가 쓴다. woff2 파일이 1MB 가까이 돼 선택 페이지가 `react-dom`의 `preload`로 미리 받아 둔다(펼침 지도가 같은 파일을 쓴다)
+- **Luckiest Guy**(선택 페이지 제목): `app/page.tsx`가 `next/font/google`로 받아 `--font-title` 변수로 제목 "Dumb Dumb"에만 쓴다. 두툼한 만화 로고체라 장난꾸러기 같은 이름과 어울린다
+- **Stylish**(버튼 이름·지도 글씨): `app/globals.css`가 `@font-face 'Stylish'`(`/ref-assets/fonts/Stylish-Regular.woff2`·`.woff`)를 전역으로 선언한다. 선택 페이지 버튼 이름과 펼침 지도 글씨(지도 라벨·제목 태그·표지·범례·축척·쪽지 제목·도장·마커 라벨)가 쓴다. woff2 파일이 1MB 가까이 돼 선택 페이지가 `react-dom`의 `preload`로 미리 받아 둔다(펼침 지도가 같은 파일을 쓴다)
 - **Pretendard**(한글 UI 글씨): `app/globals.css`가 `@font-face 'Pretendard'`(굵기 400 하나, jsDelivr의 `pretendard@v1.3.9` woff2·woff)를 선언하고, 루트 레이아웃이 woff2(약 770KB)를 `preload`로 미리 받는다. 로더 안내 글씨, 선택 페이지 버튼의 배지, 펼침 지도 쪽지의 안내 글씨·버튼이 쓴다
 - 웹 폰트는 모두 `font-display: block`이다(`next/font`도 `display: 'block'`). 기본 글꼴로 먼저 그렸다가 바꿔 끼우지 않고, 폰트가 오면 바로 그 폰트로 그린다 — 3초 안에 오지 않을 때만 기본 글꼴로 보인다
 
@@ -385,7 +386,7 @@ Web Animations API로 한 장면을 만든다. 모든 애니메이션이 같은 
 
 | 경로 | 위치 | 목적 | 페이지 게이팅 |
 |---|---|---|---|
-| `/` | `app/page.tsx` | 선택 페이지(타이틀 화면) — 여름 오후 풍경 일러스트 위에 Stylish 제목 "Dumb Dumb"과 목적지 버튼 3개(마을, "베타" 배지를 단 내 주변, "개발용" 배지를 단 에셋 미리보기)를 세로로 쌓는다. 버튼에는 아이콘과 이름만 있다. 높이 520px 이하 화면(휴대폰 가로)은 언덕·제목·버튼을 줄여 한 화면에 담는다 | 없음 |
+| `/` | `app/page.tsx` | 선택 페이지(타이틀 화면) — 여름 오후 풍경 일러스트 위에 Luckiest Guy 제목 "Dumb Dumb"과 목적지 버튼 3개(마을, "베타" 배지를 단 내 주변, "개발용" 배지를 단 에셋 미리보기)를 세로로 쌓는다. 버튼에는 아이콘과 이름만 있다. 높이 520px 이하 화면(휴대폰 가로)은 언덕·제목·버튼을 줄여 한 화면에 담는다 | 없음 |
 | `/village` | `app/village` | 마을 씬 (`page.tsx`가 `scene.tsx`를 내보내고 viewport-fit=cover로 노치 화면까지 채운다) | 없음 (씬 소켓도 익명) |
 | `/neighborhood` | `app/neighborhood` | 내 주변(베타) — 실제 길을 마을 씬 화풍으로 깐 1단계, 반경 200m 사람이 실제 자리에 보인다 | 없음 (소켓도 익명) |
 | `/preview` | `app/preview` | 에셋 미리보기(개발용, `page.tsx`가 `scene.tsx`를 내보낸다) — ref-assets 캐릭터·소품을 지도 없이 띄워 크기·본·애니메이션·인스턴스·LOD 규격을 확인한다(자체 에셋 교체 시 규격 대조). 에셋을 다 받을 때까지 로더("에셋을 불러오고 있어요. 잠시만 기다려 주세요.")를 띄운다 | 없음 |
