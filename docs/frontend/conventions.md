@@ -392,7 +392,7 @@ Web Animations API로 한 장면을 만든다. 모든 애니메이션이 같은 
 | `/asset-viewer` | `app/asset-viewer` | 에셋 미리보기(개발용, `page.tsx`가 `features/asset-viewer/asset-viewer.tsx`를 내보낸다) — ref-assets 캐릭터·소품을 지도 없이 띄워 크기·본·애니메이션·인스턴스·LOD 규격을 확인한다(자체 에셋 교체 시 규격 대조). 에셋을 다 받을 때까지 로더("에셋을 불러오고 있어요. 잠시만 기다려 주세요.")를 띄운다 | 없음 |
 | `/api/health` | `app/api/health/route.ts` | Next 서버 자체 응답(`{ "status": "ok" }`) | 없음 |
 
-`lib/routes.ts`의 `SCENE_ROUTES`(`/play`·`/nearby`·`/asset-viewer`)는 선택 페이지만 쓴다. 버튼의 이름·배지·기울기·아이콘은 `app/page.tsx`의 `PLACES`(경로별, `SCENE_ROUTES`와 타입으로 묶인다)에 있다. 선택 페이지는 서버 컴포넌트이고, 스타일은 페이지 안 `<style>`(`home-*` 클래스)에 있다. 옛 주소(`/village`·`/neighborhood`·`/preview`)는 `next.config.ts`의 `redirects`가 새 주소로 영구 이동(308)한다([ADR 010](../adr/010-web-structure-and-naming.md)).
+`lib/routes.ts`의 `SCENE_ROUTES`(`/play`·`/nearby`·`/asset-viewer`)는 선택 페이지만 쓴다. 버튼의 이름·배지·기울기·아이콘은 `app/page.tsx`의 `PLACES`(경로별, `SCENE_ROUTES`와 타입으로 묶인다)에 있다. 선택 페이지는 서버 컴포넌트이고, 스타일은 페이지 안 `<style>`(`home-*` 클래스)에 있다. `next.config.ts`의 `redirects`는 `/village`·`/neighborhood`·`/preview`를 각각 `/play`·`/nearby`·`/asset-viewer`로 영구 이동(308)한다.
 
 탭 제목은 루트 레이아웃의 `metadata.title`이 정한다 — `default`는 "Dumb Dumb"(선택 페이지), `template`은 "%s · Dumb Dumb"이다. 각 페이지는 선택 페이지 버튼 이름만 `title`로 적어 "플레이 · Dumb Dumb", "내 주변 · Dumb Dumb", "에셋 미리보기 · Dumb Dumb"이 된다(페이지 이름이 앞, 제품 이름이 뒤. 배지는 제목에 넣지 않는다). 제품 이름은 이 템플릿 한 곳에만 쓴다. `metadata`는 서버 컴포넌트에서만 내보낼 수 있어, 화면이 클라이언트 컴포넌트인 페이지는 `page.tsx`가 제목을 정하고 `features/<화면>/`의 화면 컴포넌트를 내보낸다.
 
