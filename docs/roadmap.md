@@ -39,7 +39,8 @@
     - API 서버 `GET /health` 200 응답
 
 - **P0-3.** PostgreSQL + 마이그레이션 `[DB]`
-  - PostgreSQL 마이그레이션 SQL 작성 (`apps/api/migrations/` 경로, `0001`~`0010`)
+  - PostgreSQL 마이그레이션 SQL 작성 (`apps/api/migrations/` 경로, `0000`~`0010`)
+    - `0000` — `0002`·`0004` 외래 키가 가리키는 `auth.users` 빈 스텁
     - `0001` — PostGIS, pg_cron, pgcrypto 확장 활성화
     - `0002` — `characters`, `orders`, `user_licenses`(가시거리 기본 25m)
     - `0003`·`0004` — `sponsor_buildings`(GiST 인덱스, pg_cron `activate-ads`), `ad_impressions`
@@ -208,10 +209,10 @@
     - 배포 빌드와 저장소(이력 포함)에 ref-assets 파일이 없다
 
 - **P2-8.** 실시간 서버 분리 `[BE][Infra]` ([ADR 008](./adr/008-realtime-server-split.md))
-  - socket.io 게이트웨이 셋(`/room`·`/proximity`·`/sector`)을 API 서버에서 떼어 `apps/realtime`(`@owcj/realtime`, 새 포트 9002)으로 옮긴다. API 서버(`apps/api`)는 REST 전용이 되어 포트 9001을 그대로 쓰고(`API_URL` 그대로), socket.io 의존성과 `shared/` 참조를 뺀다
-  - 브라우저 소켓 주소가 9001에서 9002로 바뀐다 — `NEXT_PUBLIC_WS_URL` 기본값(`lib/realtime/relay.ts`·프론트 `Dockerfile`·compose 빌드 인자·루트 `.env.example`)과 ngrok 소켓 upstream을 9002로 바꾼다. 예전 값이 남은 `.env.local`은 9002로 고친다
+  - socket.io 게이트웨이 셋(`/room`·`/proximity`·`/sector`)은 실시간 서버 `apps/realtime`(`@owcj/realtime`, 9002)에 둔다. API 서버(`apps/api`, 9001)는 REST만 맡고 socket.io·`shared/`를 쓰지 않는다
+  - 브라우저 소켓 주소 `NEXT_PUBLIC_WS_URL`의 기본값은 `http://localhost:9002`다(`lib/realtime/relay.ts`·프론트 `Dockerfile`·compose 빌드 인자·루트 `.env.example`). ngrok 소켓 upstream도 9002다
   - 실시간 서버는 DB 없이 뜬다. `/sector` 토큰은 `AccessTokenVerifier`가 API 서버와 같은 `JWT_ACCESS_SECRET`으로 서명·만료·종류만 확인하고, socket.io CORS는 `main.ts`의 어댑터가 설정을 읽은 뒤 `WEB_ORIGIN`으로 넣는다
-  - Docker — `apps/realtime/Dockerfile`(빌드 컨텍스트는 저장소 루트, 전용 `Dockerfile.dockerignore`)과 compose `realtime` 서비스. 프론트 `app`이 `depends_on`으로 함께 띄운다(compose는 서비스를 앱마다 하나씩 — 개발용 `app`·프로덕션용 `app-prod` 둘을 `app` 하나로 합치고 프로필을 없앴다)
+  - Docker — `apps/realtime/Dockerfile`(빌드 컨텍스트는 저장소 루트, 전용 `Dockerfile.dockerignore`)과 compose `realtime` 서비스. 프론트 `app`이 `depends_on`으로 함께 띄운다(compose 서비스는 앱마다 하나이고, 프론트는 프로덕션 빌드 `app` 하나다)
   - 검증
     - 실시간 서버가 환경변수·DB 없이 뜨고, 봇 두 개로 `/room` 중계·퇴장, `/proximity` 200m 안 보임(1km 밖 안 보임)을 확인했다
     - `/sector`는 토큰 없음·다른 시크릿·리프레시 토큰을 끊고 올바른 액세스 토큰만 받으며, 같은 섹터 두 명에게 `positions`를 방송한다
