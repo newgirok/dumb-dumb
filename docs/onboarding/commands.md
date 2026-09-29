@@ -73,7 +73,7 @@ npm run type-check
 
 ## DB 마이그레이션
 
-`apps/api/migrations/`의 SQL을 **번호 순서대로**(`0000`~`0010`) PostgreSQL에 적용한다. 전용 CLI 러너는 없으며 psql로 직접 적용한다(`0000`은 옛 `auth.users` 참조용 스텁이다). 적용 뒤 `app_api` 로그인을 켠다([로컬 환경 세팅](./local-setup.md) 3-2·3-3).
+`apps/api/migrations/`의 SQL을 **번호 순서대로**(`0000`~`0010`) PostgreSQL에 적용한다. 전용 CLI 러너는 없으며 psql로 직접 적용한다(`0000`은 `auth.users` 스텁을 만든다). 적용 뒤 `app_api` 로그인을 켠다([로컬 환경 세팅](./local-setup.md) 3-2·3-3).
 
 ```bash
 # 전체 순서 적용

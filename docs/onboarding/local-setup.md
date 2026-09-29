@@ -71,7 +71,7 @@ CREATE EXTENSION IF NOT EXISTS citext;
 
 ### 3-2. 마이그레이션 적용
 
-`apps/api/migrations/`의 SQL 파일을 **번호 순서대로** psql로 적용한다(전용 CLI 러너는 없다). `0002`·`0004`는 자체 인증 이전에 쓴 마이그레이션이라 옛 `auth.users`를 참조하고, `0006`이 그 참조를 자체 `users` 테이블로 옮긴다. 그 테이블이 없는 PostgreSQL에서도 순서대로 돌도록 `0000_legacy_auth_stub.sql`이 빈 스텁을 먼저 만든다(이미 있으면 아무 일도 하지 않는다).
+`apps/api/migrations/`의 SQL 파일을 **번호 순서대로** psql로 적용한다(전용 CLI 러너는 없다). `0002`·`0004`의 외래 키는 `auth.users`를 가리키고, `0006`이 이 참조를 `users` 테이블로 옮긴다. `0000_auth_users_stub.sql`이 `auth.users` 빈 스텁을 먼저 만들어 어떤 PostgreSQL에서도 순서대로 돈다(이미 있으면 아무 일도 하지 않는다).
 
 ```bash
 for f in apps/api/migrations/*.sql; do
@@ -82,7 +82,7 @@ done
 또는 개별 적용:
 
 ```bash
-psql -U postgres -d postgres -f apps/api/migrations/0000_legacy_auth_stub.sql
+psql -U postgres -d postgres -f apps/api/migrations/0000_auth_users_stub.sql
 psql -U postgres -d postgres -f apps/api/migrations/0001_init.sql
 psql -U postgres -d postgres -f apps/api/migrations/0002_characters.sql
 # ... 0003 ~ 0010 순서대로
@@ -149,7 +149,7 @@ npm run start:dev
 npm run dev
 ```
 
-브라우저는 `NEXT_PUBLIC_WS_URL`(기본 `http://localhost:9002`)의 실시간 서버 소켓에 직접 붙는다. 예전 `.env.example`로 만든 `.env.local`에 `http://localhost:9001`이 남아 있으면 9002로 고친다(9001은 소켓이 없는 API 서버다). 플레이 씬은 `/room`에 토큰 없이 붙어 같은 방 아이들을 받고, 내 주변(베타)은 `/proximity`에 붙어 반경 200m 사람들을 받는다. 실시간 서버를 띄우지 않으면 씬은 혼자 돌고, 브라우저 콘솔에 재시도마다(최대 10초 간격) WebSocket 연결 실패가 남는다. API 서버의 REST 엔드포인트는 지금 브라우저가 부르지 않으므로 `curl`로 확인한다.
+브라우저는 `NEXT_PUBLIC_WS_URL`(기본 `http://localhost:9002`)의 실시간 서버 소켓에 직접 붙는다(9001은 소켓이 없는 API 서버다). 플레이 씬은 `/room`에 토큰 없이 붙어 같은 방 아이들을 받고, 내 주변(베타)은 `/proximity`에 붙어 반경 200m 사람들을 받는다. 실시간 서버를 띄우지 않으면 씬은 혼자 돌고, 브라우저 콘솔에 재시도마다(최대 10초 간격) WebSocket 연결 실패가 남는다. API 서버의 REST 엔드포인트는 지금 브라우저가 부르지 않으므로 `curl`로 확인한다.
 
 ---
 
