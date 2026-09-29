@@ -10,7 +10,7 @@
 
 로컬 개발 환경 세팅은 [로컬 환경 세팅 가이드](./onboarding/local-setup.md)를 참고하라.
 
-프론트엔드와 API 서버(`apps/api`)를 각각 기동하고, `.env.local` 두 개(루트 프론트엔드, `apps/api`)를 준비한다.
+프론트엔드·실시간 서버(`apps/realtime`)·API 서버(`apps/api`)를 각각 기동하고, `.env.local` 두 개(루트 프론트엔드, `apps/api`)를 준비한다(실시간 서버는 설정 없이 뜬다).
 
 ```bash
 # 1. 환경변수 설정 (프론트엔드 + API 서버)
@@ -21,14 +21,17 @@ cp apps/api/.env.example apps/api/.env.local
 #    일반 PostgreSQL이면 먼저 auth.users 스텁을 만들고, 적용 뒤 app_api 로그인을 켠다 (onboarding/local-setup.md 3장)
 for f in supabase/migrations/*.sql; do psql -v ON_ERROR_STOP=1 "$DATABASE_URL_ADMIN" -f "$f"; done
 
-# 3. API 서버 기동 (apps/api)
+# 3. 실시간 서버 기동 (apps/realtime, 9002 — DB·환경변수 없이 뜬다)
+cd apps/realtime && npm install && npm run start:dev
+
+# 4. API 서버 기동 (apps/api, 9001)
 cd apps/api && npm install && npm run start:dev
 
-# 4. 프론트엔드 기동 (루트)
+# 5. 프론트엔드 기동 (루트)
 npm install && npm run dev
 ```
 
-Docker Compose로 프론트엔드를 컨테이너에서 기동할 수도 있다(`docker compose up`, `WATCHPACK_POLLING=true` 핫 리로드). 환경변수 항목별 설명은 [환경변수 가이드](./onboarding/env-vars.md)를 확인하라.
+Docker Compose로 프론트엔드(프로덕션 빌드)와 실시간 서버를 컨테이너로 띄울 수도 있다(`docker compose --env-file .env.local up -d --build` — `app`과 `realtime`이 함께 뜬다). 핫 리로드 개발은 호스트의 `npm run dev`로 한다. 환경변수 항목별 설명은 [환경변수 가이드](./onboarding/env-vars.md)를 확인하라.
 
 ---
 
@@ -40,7 +43,7 @@ Docker Compose로 프론트엔드를 컨테이너에서 기동할 수도 있다(
 | [파이프라인 흐름](./architecture/pipeline-flow.md) | 결제·이동·위치 동기화 등 핵심 데이터 흐름 |
 | [데이터 모델](./architecture/data-model.md) | PostgreSQL + PostGIS 스키마 및 ER 다이어그램 |
 | [프로젝트 구조](./architecture/project-structure.md) | 디렉토리 트리 및 파일별 역할 |
-| [ADR 목록](./adr/README.md) | 주요 기술 결정 기록 7개 |
+| [ADR 목록](./adr/README.md) | 주요 기술 결정 기록 8개 |
 | [비즈니스 규칙](./product/business-rules.md) | 결제·광고·가시거리 라이선스 핵심 도메인 규칙 |
 | [용어 사전](./product/terminology.md) | 프로젝트 도메인 용어 정의 |
 | [PRD](./prd.md) | 제품 요구사항 문서 |
@@ -51,7 +54,7 @@ Docker Compose로 프론트엔드를 컨테이너에서 기동할 수도 있다(
 | 문서 | 설명 |
 |---|---|
 | [클라우드 인프라 초기 셋업](./onboarding/infra-setup.md) | Vercel, LiveKit, 오브젝트 스토리지 최초 1회 설정 |
-| [로컬 환경 세팅](./onboarding/local-setup.md) | Node.js, PostgreSQL, 프론트엔드 + API 서버 초기 설정 |
+| [로컬 환경 세팅](./onboarding/local-setup.md) | Node.js, PostgreSQL, 프론트엔드 + 실시간 서버 + API 서버 초기 설정 |
 | [API 키 설정](./onboarding/api-keys.md) | Mapbox, LiveKit, PG사, OAuth 키 발급 방법 |
 | [환경변수 레퍼런스](./onboarding/env-vars.md) | 전체 환경변수 목록 및 설명 |
 | [개발 명령어](./onboarding/commands.md) | npm / psql / Docker 명령어 레퍼런스 |
@@ -79,7 +82,7 @@ Docker Compose로 프론트엔드를 컨테이너에서 기동할 수도 있다(
 
 | 문서 | 설명 |
 |---|---|
-| [배포 절차](./operations/runbook/deploy.md) | 로컬 → Vercel / API 서버 프로덕션 배포 단계 |
+| [배포 절차](./operations/runbook/deploy.md) | 로컬 → Vercel / API 서버·실시간 서버 프로덕션 배포 단계 |
 | [모니터링](./operations/monitoring.md) | Mapbox·LiveKit·서버 비용 알림 및 대시보드 |
 | [과금 방어 대응](./operations/runbook/billing-guard.md) | API 과금 폭탄 원인 및 즉시 차단 절차 |
 
@@ -93,7 +96,14 @@ npm run dev          # next dev --turbopack
 npm run build
 npm run type-check
 
-# API 서버 (apps/api)
+# 실시간 서버 (apps/realtime, socket.io 9002)
+cd apps/realtime
+npm run start:dev    # watch 모드
+npm run build
+npm run start:prod
+npm run type-check
+
+# API 서버 (apps/api, REST 9001)
 cd apps/api
 npm run start:dev    # watch 모드
 npm run build
@@ -103,8 +113,8 @@ npm run type-check
 # DB 마이그레이션 (관리 롤로, supabase/migrations/ SQL 번호 순서대로)
 for f in supabase/migrations/*.sql; do psql -v ON_ERROR_STOP=1 "$DATABASE_URL_ADMIN" -f "$f"; done
 
-# Docker Compose 프론트엔드 개발 서버
-docker compose up
+# Docker Compose — 프론트 프로덕션 빌드(app) + 실시간 서버(realtime)
+docker compose --env-file .env.local up -d --build
 ```
 
 ---
@@ -125,4 +135,4 @@ docker compose up
 
 ## 인프라 비용 목표
 
-자체 호스팅 기준. DB/API 서버 호스팅 + Mapbox(무료 티어 내) + LiveKit Cloud(무료 티어 내) + Vercel(소규모 무료~소액)로 구성한다. 상세 항목은 [아키텍처 개요 — 비용 목표](./architecture/overview.md#비용-목표)를 확인하라.
+자체 호스팅 기준. DB/API 서버·실시간 서버 호스팅 + Mapbox(무료 티어 내) + LiveKit Cloud(무료 티어 내) + Vercel(소규모 무료~소액)로 구성한다. 상세 항목은 [아키텍처 개요 — 비용 목표](./architecture/overview.md#비용-목표)를 확인하라.

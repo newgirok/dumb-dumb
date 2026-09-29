@@ -30,22 +30,16 @@
 │  배포: Vercel Edge Network                                  │              │
 └───────┬─────────────────────────┼─────────────────────────┼──────────────┘
         │ (BFF → NestJS, 예정)    │                         │
-┌───────▼─────────────────────────▼──────────┐  ┌───────────▼────────┐
-│        NestJS 11 API 서버 (apps/api)        │  │   LiveKit Cloud    │
-│        자체 호스팅                           │  │   (매니지드 SFU)    │
-│  ┌────────────┐  ┌──────────────┐          │  │                    │
-│  │ auth       │  │ world·scene· │          │  │  - 섹터별 음성 룸    │
-│  │ (JWT/OAuth)│  │ neighborhood │          │  │  - 미디어 중계       │
-│  │            │  │ (socket.io)  │          │  │                    │
-│  └────────────┘  └──────────────┘          │  └────────────────────┘
-│  ┌────────────┐  ┌──────────────┐          │
-│  │ billing    │  │ voice        │          │  ▲ 브라우저가 룸에 직접 조인
-│  │ (웹훅/발급) │  │ (토큰 발급)   │          │  │ (voice 모듈이 토큰 발급)
-│  └────────────┘  └──────────────┘          │
-│  ┌────────────┐  ┌──────────────┐          │
-│  │ avatars    │  │ users        │          │
-│  └────────────┘  └──────────────┘          │
-└──────────┬───────────────────┬─────────────┘
+┌───────▼───────────────┐ ┌───────▼───────────────┐ ┌───────▼──────────────┐
+│ NestJS 11 API 서버     │ │ NestJS 11 실시간 서버  │ │   LiveKit Cloud      │
+│ (apps/api, REST)      │ │ (apps/realtime)       │ │   (매니지드 SFU)      │
+│ 자체 호스팅 · 9001      │ │ 자체 호스팅 · 9002     │ │                      │
+│ · auth (JWT/OAuth)    │ │ · scene               │ │  - 섹터별 음성 룸      │
+│ · billing (웹훅/발급)  │ │ · neighborhood        │ │  - 미디어 중계         │
+│ · voice (토큰 발급)    │ │ · world               │ └──────────────────────┘
+│ · avatars · users     │ │ (socket.io, DB 없음)   │  ▲ 브라우저가 룸에 직접 조인
+└──────────┬────────┬───┘ └───────────────────────┘  │ (voice 모듈이 토큰 발급)
+           │        └───────────┐
            │ app_api 롤(RLS)    │ 서버↔외부
 ┌──────────▼──────────┐  ┌──────▼──────────────────────────────────────┐
 │  PostgreSQL          │  │  외부 서비스                                 │
@@ -58,7 +52,7 @@
 ```
 
 화면은 선택 페이지(`/`)에서 고르는 세 곳이고, 내 주변(베타)이 마을 씬의 렌더링을 함께 쓴다. 로그인 유저용 대시보드 월드는
-서버 쪽이 API 서버에 있고, 화면은 로그인·상점 화면과 함께 만든다(예정).
+서버 쪽이 실시간 서버(월드 게이트웨이)와 API 서버(음성 룸 토큰)에 있고, 화면은 로그인·상점 화면과 함께 만든다(예정).
 
 - **선택 페이지**(`/`, `app/page.tsx`)는 여름 오후 풍경 위에 제목 "Dumb Dumb"을 올린 타이틀 화면이다. `lib/routes.ts`의
   `SCENE_ROUTES`(마을 `/village`·내 주변 `/neighborhood`·개발용 `/preview`)를 목적지 버튼 3개로 세로로 쌓아
@@ -76,13 +70,15 @@
 - **대시보드 월드**(`/dashboard`, 예정)는 Mapbox GL 실지형 지도를 베이스로 하고, 캐릭터를 Three.js 커스텀 레이어로
   지도 위에 그리는 멀티플레이 월드다. Three.js 렌더러는 Mapbox 캔버스의 WebGL 컨텍스트를 공유한다. 좌표는
   위경도(EPSG:4326)이며, 위치 브로드캐스트·섹터 판정·속도 검증·근접 음성이 모두 위경도 기준으로 동작한다.
-  서버 쪽 월드 게이트웨이(`/world`)와 음성 룸 토큰 발급은 API 서버에 있다.
+  서버 쪽 월드 게이트웨이(`/world`)는 실시간 서버에, 음성 룸 토큰 발급은 API 서버에 있다.
 
-브라우저가 지금 API 서버에 붙는 길은 씬 소켓뿐이다. 마을 씬은 `NEXT_PUBLIC_WS_URL` 주소의 `/scene` 네임스페이스에,
+서버는 둘로 나뉜다. REST는 API 서버(`apps/api`, 9001)에, 소켓 게이트웨이는 실시간 서버(`apps/realtime`, 9002)에 있고
+DB는 API 서버만 쓴다([ADR 008](../adr/008-realtime-server-split.md)). 브라우저가 지금 서버에 붙는 길은 실시간 서버의
+씬 소켓뿐이다. 마을 씬은 `NEXT_PUBLIC_WS_URL` 주소의 `/scene` 네임스페이스에,
 내 주변(베타)은 `/neighborhood`에 토큰 없이 익명으로 붙는다. Next.js API 라우트는 헬스 체크(`/api/health`)뿐이다.
 로그인·상점·대시보드 화면을 만들 때 REST 호출은 Next.js Route Handler(`/api/auth/*`, `/api/billing/*`, `/api/me/*`,
-`/api/voice/token`)를 얇은 BFF 프록시로 거쳐 NestJS로 전달하고, 프록시가 `Authorization` 헤더를 그대로 넘기며,
-리프레시 토큰은 이 라우트가 httpOnly 쿠키로 관리한다(예정). 대시보드 월드의 위치·채팅 소켓(`/world`)과 공간
+`/api/voice/token`)를 얇은 BFF 프록시로 거쳐 API 서버로 전달하고, 프록시가 `Authorization` 헤더를 그대로 넘기며,
+리프레시 토큰은 이 라우트가 httpOnly 쿠키로 관리한다(예정). 대시보드 월드의 위치·채팅 소켓(실시간 서버 `/world`)과 공간
 음성(LiveKit Cloud 직접 조인, 룸 토큰은 NestJS `voice` 모듈이 발급)에는 액세스 토큰이 필요하다.
 
 페이지 라우트 게이팅은 없어 모든 페이지가 공개다(`middleware.ts`의 `matcher`가 비어 있다). 실제 인가는
@@ -102,9 +98,10 @@ NestJS 가드와 PostgreSQL RLS가 담당한다.
 | **길 데이터** | OpenStreetMap 벡터 타일 (OpenFreeMap, OpenMapTiles 스키마) | 내 주변 바닥. z14 타일을 브라우저 워커가 직접 받아 `@mapbox/vector-tile`·`pbf`로 해석 |
 | **UI 스타일** | Tailwind CSS v4 + oklch 디자인 시스템 | 루트 레이아웃 기본 글꼴 Nunito, 한글 UI 글씨 Pretendard, 선택 페이지 제목 Luckiest Guy, 선택 페이지 버튼 이름·펼침 지도 글씨 Stylish(웹 폰트는 모두 `font-display: block`). 마을 씬 HUD는 `sa-*` 스타일 |
 | **프론트 배포** | Vercel Edge Network | Next.js 서버(`output: 'standalone'`, Route Handler `/api/health`) + ref-assets 정적 파일 |
-| **API 서버** | NestJS 11 (`apps/api`) | 자체 호스팅 |
+| **API 서버** | NestJS 11 (`apps/api`) | 자체 호스팅. REST 전용(9001) |
+| **실시간 서버** | NestJS 11 (`apps/realtime`) | 자체 호스팅. socket.io 게이트웨이 전용(9002), DB 없음 ([ADR 008](../adr/008-realtime-server-split.md)) |
 | **데이터베이스** | PostgreSQL + PostGIS (자체 호스팅, 단일 공유 DB) | 공간 연산 내장 ([ADR 002](../adr/002-self-hosted-backend.md)) |
-| **실시간 소켓** | socket.io 4 (NestJS WebSocket 게이트웨이) | 마을 씬 익명 방 단위 변경분 중계(`/scene`), 내 주변 익명 가까운 사람 중계(`/neighborhood`), 대시보드 월드 섹터 단위 묶음 브로드캐스트(`/world`, 붙는 화면은 예정) |
+| **실시간 소켓** | socket.io 4 (실시간 서버의 NestJS WebSocket 게이트웨이) | 마을 씬 익명 방 단위 변경분 중계(`/scene`), 내 주변 익명 가까운 사람 중계(`/neighborhood`), 대시보드 월드 섹터 단위 묶음 브로드캐스트(`/world`, 붙는 화면은 예정) |
 | **인증** | 자체 JWT + bcrypt, 카카오/구글 OAuth | NestJS `auth` 모듈. 액세스 15분 / 리프레시 30일. 로그인 화면은 예정 |
 | **공간 음성** | LiveKit Cloud SFU (`livekit-server-sdk`) | 대시보드 월드 섹터별 룸. 서버는 룸 토큰을 발급하고, 룸에 붙는 화면은 대시보드 월드와 함께 예정 ([ADR 003](../adr/003-livekit-cloud-sfu.md)) |
 | **PG 결제** | 토스페이먼츠 / 카카오페이 | 원화 직행 ([ADR 004](../adr/004-direct-krw-payment.md)). 승인 웹훅은 API 서버가 받고, 결제창은 상점 화면과 함께 예정 |
@@ -124,7 +121,7 @@ NestJS 가드와 PostgreSQL RLS가 담당한다.
 | **Vercel** | 프론트엔드 배포·CDN | 소규모 무료~소액 |
 | **생성형 AI API** | 아바타 외형 생성 (예정) | 사용량 기반 |
 
-DB(PostgreSQL + PostGIS)와 NestJS API 서버는 자체 호스팅으로 운영한다.
+DB(PostgreSQL + PostGIS)와 NestJS API 서버·실시간 서버는 자체 호스팅으로 운영한다.
 
 ---
 
@@ -170,7 +167,7 @@ DB(PostgreSQL + PostGIS)와 NestJS API 서버는 자체 호스팅으로 운영�
 
 | 항목 | 예상 비용 |
 |---|---|
-| DB / API 서버 호스팅 (자체 호스팅) | 서버 사양에 따른 소액 |
+| DB / API 서버·실시간 서버 호스팅 (자체 호스팅) | 서버 사양에 따른 소액 |
 | LiveKit Cloud (무료 티어 내) | $0 |
 | Vercel (소규모 트래픽) | $0~소액 |
 | Mapbox (20만 건/월 무료 티어 내) | $0 |
@@ -192,3 +189,4 @@ MVP 규모에서는 대부분 무료 티어~소액 수준에서 운영 가능하
 | [ADR 005](../adr/005-postgis-gist-index.md) | PostGIS + GiST 공간 인덱스 |
 | [ADR 006](../adr/006-fog-of-war-business-model.md) | 가시거리 라이선스 BM |
 | [ADR 007](../adr/007-quarter-view-camera-lock.md) | 마을 씬 3인칭 카메라 + 대시보드 월드(예정) 카메라 잠금 |
+| [ADR 008](../adr/008-realtime-server-split.md) | 실시간 서버 분리 — socket.io 게이트웨이를 API 서버에서 떼어 냄 |

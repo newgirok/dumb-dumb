@@ -25,7 +25,30 @@ npm run lint
 
 ---
 
-## API 서버 (NestJS, `apps/api`)
+## 실시간 서버 (NestJS socket.io, `apps/realtime`)
+
+`apps/realtime` 디렉토리에서 실행한다. 환경변수 없이 기본값(포트 9002, 오리진 `http://localhost:3000`)으로 뜬다.
+
+```bash
+# 개발 서버 (watch 모드, 9002 포트)
+npm run start:dev
+
+# 서버 실행 (watch 없음)
+npm run start
+
+# 빌드
+npm run build
+
+# 프로덕션 실행 (dist/apps/realtime/src/main — shared/를 함께 컴파일해 경로가 깊다)
+npm run start:prod
+
+# TypeScript 타입 체크
+npm run type-check
+```
+
+---
+
+## API 서버 (NestJS REST, `apps/api`)
 
 `apps/api` 디렉토리에서 실행한다.
 
@@ -39,7 +62,7 @@ npm run start
 # 빌드
 npm run build
 
-# 프로덕션 실행 (dist/apps/api/src/main — shared/를 함께 컴파일해 경로가 깊다)
+# 프로덕션 실행 (dist/main)
 npm run start:prod
 
 # TypeScript 타입 체크
@@ -66,13 +89,13 @@ psql -U postgres -d postgres -f supabase/migrations/0001_init.sql
 
 ---
 
-## Docker Compose (프론트)
+## Docker Compose (프론트·실시간 서버)
 
-`docker-compose.yml`에는 프론트엔드만 정의되어 있다. 개발용 `app`(`next dev`)과 프로덕션 빌드용 `app-prod`(`profile: prod`, standalone)가 있고 둘 다 호스트 3000 포트를 쓴다.
+`docker-compose.yml`에는 서비스가 둘 있다. 프론트엔드 `app`(프로덕션 빌드 — `Dockerfile` builder → runner, standalone `node server.js`, 3000)과 실시간 서버 `realtime`(9002, `apps/realtime/Dockerfile`)이고, `app`을 띄우면 `depends_on`으로 `realtime`도 함께 뜬다. 핫 리로드 개발은 호스트에서 `npm run dev`로 한다. API 서버와 PostgreSQL은 호스트에서 실행한다.
 
 ```bash
-# 개발 컨테이너 기동
-docker compose up -d
+# 이미지 빌드 + 기동 (app + realtime) — NEXT_PUBLIC_* 빌드 인자를 .env.local에서 채운다
+docker compose --env-file .env.local up -d --build
 
 # 로그 실시간 확인
 docker compose logs -f
@@ -80,14 +103,14 @@ docker compose logs -f
 # 종료
 docker compose down
 
-# 프로덕션 이미지 빌드 + 기동 — NEXT_PUBLIC_* 빌드 인자를 .env.local에서 채운다
-docker compose --env-file .env.local --profile prod up -d --build app-prod
+# 실시간 서버만 다시 빌드 + 기동
+docker compose --env-file .env.local up -d --build realtime
 
 # Docker Desktop 실행 여부 확인
 docker info
 ```
 
-`app-prod`는 `NEXT_PUBLIC_MAPBOX_TOKEN`·`NEXT_PUBLIC_LIVEKIT_URL`·`NEXT_PUBLIC_APP_URL`·`NEXT_PUBLIC_WS_URL`을 빌드 시점에 굽는다. 그중 코드가 읽는 값은 `NEXT_PUBLIC_MAPBOX_TOKEN`(마을 씬·내 주변 펼침 지도)과 `NEXT_PUBLIC_WS_URL`(마을 씬·내 주변 소켓)이고, 나머지는 로그인·대시보드 월드 화면을 다시 만들 때 쓴다. `--env-file .env.local` 없이 빌드하면 빈 값으로 구워지고, `NEXT_PUBLIC_WS_URL`만은 비어 있으면 `http://localhost:9001`로 굽는다. 코드 변경은 `--build`로 이미지를 다시 만들어야 반영된다.
+`app`은 `NEXT_PUBLIC_MAPBOX_TOKEN`·`NEXT_PUBLIC_LIVEKIT_URL`·`NEXT_PUBLIC_APP_URL`·`NEXT_PUBLIC_WS_URL`을 빌드 시점에 굽는다. 그중 코드가 읽는 값은 `NEXT_PUBLIC_MAPBOX_TOKEN`(마을 씬·내 주변 펼침 지도)과 `NEXT_PUBLIC_WS_URL`(마을 씬·내 주변 소켓)이고, 나머지는 로그인·대시보드 월드 화면을 다시 만들 때 쓴다. `--env-file .env.local` 없이 빌드하면 빈 값으로 구워지고, `NEXT_PUBLIC_WS_URL`만은 비어 있으면 `http://localhost:9002`(실시간 서버)로 굽는다. 코드 변경은 `--build`로 이미지를 다시 만들어야 반영된다(실시간 서버 코드도 같다). `realtime`은 `WEB_ORIGIN`(기본 `http://localhost:3000`)과 `JWT_ACCESS_SECRET`(기본 빈 값 — `/world` 접속만 거절)을 셸이나 `--env-file`에서 받는다.
 
 ---
 

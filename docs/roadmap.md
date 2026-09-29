@@ -55,7 +55,7 @@
 - **P0-4.** 배포 및 컨테이너 인프라 `[Infra]`
   - Vercel 프로젝트 생성 + GitHub 연결 + 프론트엔드 환경변수 등록
   - LiveKit Cloud 프로젝트 생성
-  - `Dockerfile` (멀티스테이지 dev / builder / runner) + `docker-compose.yml`(개발 `app`, 프로덕션 `app-prod` 프로필)
+  - `Dockerfile` (멀티스테이지 builder / runner) + `docker-compose.yml`(프론트 프로덕션 빌드 `app` + 실시간 서버 `realtime`, 핫 리로드 개발은 호스트 `npm run dev`)
   - 검증
     - `npm run dev` 정상 기동
     - Vercel Preview 배포 성공
@@ -140,8 +140,8 @@
     - 대시보드 월드 — 캐릭터 이동 확인, 450m 외곽 오브젝트 정리 후 메모리 누수 없음
 
 - **P2-4.** socket.io 섹터 브로드캐스트 + 속도 검증 `[BE]`
-  - NestJS `world` 게이트웨이(`apps/api/src/world/world.gateway.ts`) — 액세스 토큰으로 접속 인증, 500m 섹터(경계 50m 이내면 인접 섹터 포함) 룸 구독, 200ms(5Hz)마다 섹터별 위경도 위치 묶음 브로드캐스트(2명 이상인 섹터만), 30초 무갱신 위치 상태 정리(소켓 유지)
-  - 섹터 계산(`shared/world/sector.ts`)과 이벤트 계약(`shared/world/contract.ts`)을 단일 소스로 두고 백엔드가 재노출한다(`apps/api/src/world/sector.ts`). 서버 속도 검증은 같은 파일의 haversine 거리를 쓴다
+  - NestJS `world` 게이트웨이(`apps/realtime/src/world/world.gateway.ts`) — 액세스 토큰으로 접속 인증, 500m 섹터(경계 50m 이내면 인접 섹터 포함) 룸 구독, 200ms(5Hz)마다 섹터별 위경도 위치 묶음 브로드캐스트(2명 이상인 섹터만), 30초 무갱신 위치 상태 정리(소켓 유지)
+  - 섹터 계산(`shared/world/sector.ts`)과 이벤트 계약(`shared/world/contract.ts`)을 단일 소스로 두고 실시간 서버가 재노출한다(`apps/realtime/src/world/sector.ts`). 서버 속도 검증은 같은 파일의 haversine 거리를 쓴다
   - 서버에서 30km/h 초과 이동 드롭
   - 위치·채팅은 DB에 저장하지 않는 휘발성 브로드캐스트. 채팅은 섹터 즉시 방송(200자)이며 입력·표시 UI는 Phase 5
   - 대시보드 월드 클라이언트(예정) — 브라우저가 `NEXT_PUBLIC_WS_URL`로 `/world`에 socket.io로 직접 붙는다. 전송 전 같은 기준(30km/h, cheap-ruler 거리)으로 사전 검증하고 0.3m 미만 이동은 보내지 않는다
@@ -150,12 +150,12 @@
     - 대시보드 월드 — 여러 브라우저 창에서 상대 위치 지연 500ms 이하 동기화
 
 - **P2-5.** 마을 씬 익명 멀티플레이 `[BE][3D]`
-  - NestJS `scene` 게이트웨이(`/scene`, `apps/api/src/scene/scene.gateway.ts`) — 로그인 없는 익명 연결. 방은 20명까지 먼저 연 방부터 채우고, 다시 붙으면 전에 있던 방을 청한다(전체 1,000명). 들어오면 방 전원의 현재 상태를 받고, 이후 35ms마다 방별로 바뀐 필드만 묶어 방송한다
-  - 필드별 검증, 초당 10m 거리 예산(최대 2m)·순간이동 5초 1회, 초당 60건 초과·330초 무응답 끊기(`apps/api/src/scene/relay.ts`)
+  - NestJS `scene` 게이트웨이(`/scene`, `apps/realtime/src/scene/scene.gateway.ts`) — 로그인 없는 익명 연결. 방은 20명까지 먼저 연 방부터 채우고, 다시 붙으면 전에 있던 방을 청한다(전체 1,000명). 들어오면 방 전원의 현재 상태를 받고, 이후 35ms마다 방별로 바뀐 필드만 묶어 방송한다
+  - 필드별 검증, 초당 10m 거리 예산(최대 2m)·순간이동 5초 1회, 초당 60건 초과·330초 무응답 끊기(`apps/realtime/src/scene/relay.ts`)
   - 소켓 계약 `shared/scene/contract.ts`(위치·방향·모션·색 시드), 연결 `lib/realtime/scene.ts`(35ms마다 바뀐 필드만, 5분 무변화 시 끊기 — 탭을 숨겨도 연결을 둔다), 원격 아이 `app/village/remotes.ts`(2단 보간, 0.35초 등장·0.25초 퇴장, 로컬 아이와 같은 애니메이션 가중치)
   - 검증
     - 두 브라우저에서 상대 아이가 위치·방향·모션·옷 색 그대로 약 0.1초 지연 안에서 따라온다
-    - 방 정원 20명, 속도 초과 이동 드롭, API 서버가 없으면 혼자인 채로 씬이 돈다
+    - 방 정원 20명, 속도 초과 이동 드롭, 실시간 서버가 없으면 혼자인 채로 씬이 돈다
 
 - **P2-6.** 내 주변 — 실제 길을 마을 씬 화풍으로 `[3D][BE]` (1단계 완료 · 2·3단계 예정)
   - 1단계(베타, `/neighborhood`, 완료)
@@ -205,6 +205,17 @@
     - 아이가 서면 목줄이 처지고 멀어지면 팽팽해지며, 동물 친구가 울타리·벽을 뚫지 않는다
     - 회색 박스 월드가 중급 폰에서 30fps 이상이고, 완성 월드가 예산 안에 든다
     - 배포 빌드와 저장소(이력 포함)에 ref-assets 파일이 없다
+
+- **P2-8.** 실시간 서버 분리 `[BE][Infra]` ([ADR 008](./adr/008-realtime-server-split.md))
+  - socket.io 게이트웨이 셋(`/scene`·`/neighborhood`·`/world`)을 API 서버에서 떼어 `apps/realtime`(`@owcj/realtime`, 새 포트 9002)으로 옮긴다. API 서버(`apps/api`)는 REST 전용이 되어 포트 9001을 그대로 쓰고(`API_URL` 그대로), socket.io 의존성과 `shared/` 참조를 뺀다
+  - 브라우저 소켓 주소가 9001에서 9002로 바뀐다 — `NEXT_PUBLIC_WS_URL` 기본값(`lib/realtime/scene.ts`·프론트 `Dockerfile`·compose 빌드 인자·루트 `.env.example`)과 ngrok 소켓 upstream을 9002로 바꾼다. 예전 값이 남은 `.env.local`은 9002로 고친다
+  - 실시간 서버는 DB 없이 뜬다. `/world` 토큰은 `AccessTokenVerifier`가 API 서버와 같은 `JWT_ACCESS_SECRET`으로 서명·만료·종류만 확인하고, socket.io CORS는 `main.ts`의 어댑터가 설정을 읽은 뒤 `WEB_ORIGIN`으로 넣는다
+  - Docker — `apps/realtime/Dockerfile`(빌드 컨텍스트는 저장소 루트, 전용 `Dockerfile.dockerignore`)과 compose `realtime` 서비스. 프론트 `app`이 `depends_on`으로 함께 띄운다(compose는 서비스를 앱마다 하나씩 — 개발용 `app`·프로덕션용 `app-prod` 둘을 `app` 하나로 합치고 프로필을 없앴다)
+  - 검증
+    - 실시간 서버가 환경변수·DB 없이 뜨고, 봇 두 개로 `/scene` 중계·퇴장, `/neighborhood` 200m 안 보임(1km 밖 안 보임)을 확인했다
+    - `/world`는 토큰 없음·다른 시크릿·리프레시 토큰을 끊고 올바른 액세스 토큰만 받으며, 같은 섹터 두 명에게 `positions`를 방송한다
+    - `.env.local`에만 둔 `WEB_ORIGIN`이 socket.io 응답의 `Access-Control-Allow-Origin`에 나온다
+    - API 서버는 REST 경로만 열고 `/socket.io`는 404다
 
 **완료 기준**
 - [x] 마을 씬 로딩·인트로 정상 동작
@@ -372,7 +383,7 @@ Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
 
 ## 구조 방향 (계획)
 
-> 현재 구조는 "루트 Next.js 앱 + `apps/api` NestJS" 코로케이션이며, 공개 진입점은 선택 페이지(`/`)다(모든 페이지 공개, `middleware.ts`는 비어 있다). 아래는 향후 진행 방향으로, 현재 구조로 단정하지 않는다.
+> 현재 구조는 "루트 Next.js 앱 + `apps/api`(REST)·`apps/realtime`(socket.io) NestJS" 코로케이션이며(워크스페이스 도구 없이 패키지마다 따로 설치한다), 공개 진입점은 선택 페이지(`/`)다(모든 페이지 공개, `middleware.ts`는 비어 있다). 아래는 향후 진행 방향으로, 현재 구조로 단정하지 않는다.
 
 - **SaaS 우선 완성** — 인증·실시간·음성·결제·발급 등 서비스 백엔드(SaaS)를 먼저 완성하는 것을 우선순위로 둔다.
 - **인증 게이팅 연결** — 로그인·대시보드 월드·상점 화면을 열 때 `middleware.ts` matcher에 세션 쿠키 기준 라우트 보호를 붙여 `/dashboard`·`/store`·`/admin`을 보호한다. 쿠키가 없으면 `/login`으로 보내고, 진짜 인가는 NestJS 가드와 RLS가 맡는다.
@@ -380,8 +391,9 @@ Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
 - **모노레포 전환** — pnpm workspaces + Turborepo 기반 모노레포로 정리하는 것을 지향한다.
   ```
   apps/
-  ├── app/    ← 게임 클라이언트 (Next.js)
-  ├── web/    ← 마케팅 웹사이트 (추후 제작)
-  └── api/    ← NestJS API 서버
-  packages/   ← 공용 타입·UI·설정 등 공유 패키지
+  ├── app/       ← 게임 클라이언트 (Next.js)
+  ├── web/       ← 마케팅 웹사이트 (추후 제작)
+  ├── api/       ← NestJS API 서버 (REST)
+  └── realtime/  ← NestJS 실시간 서버 (socket.io)
+  packages/      ← 공용 타입·UI·설정 등 공유 패키지
   ```

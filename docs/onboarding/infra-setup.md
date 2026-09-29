@@ -1,6 +1,6 @@
 # 클라우드 인프라 초기 셋업
 
-Phase 0에서 1회 실행하는 인프라 초기 설정 절차. 데이터베이스·API 서버·프론트 배포·실시간 음성·결제·소셜 로그인을 프로비저닝한다.
+Phase 0에서 1회 실행하는 인프라 초기 설정 절차. 데이터베이스·API 서버·실시간 서버·프론트 배포·실시간 음성·결제·소셜 로그인을 프로비저닝한다.
 
 ---
 
@@ -35,7 +35,7 @@ GRANT CONNECT ON DATABASE <db> TO app_api;
 
 ## 2. API 서버 호스팅
 
-NestJS API 서버(`apps/api`)를 호스팅한다.
+NestJS API 서버(`apps/api`, REST)를 호스팅한다.
 
 1. 서버/컨테이너 환경에 Node.js 20 이상 준비, `apps/api`에서 `npm install && npm run build`
 2. `npm run start:prod`로 기동 (기본 `PORT=9001`). 헬스 프로브는 `GET /health`
@@ -43,12 +43,24 @@ NestJS API 서버(`apps/api`)를 호스팅한다.
    `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `HASH_ROUNDS`,
    `PG_WEBHOOK_SECRET`, `KAKAO_CLIENT_ID/SECRET`, `GOOGLE_CLIENT_ID/SECRET`,
    `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
-4. WebSocket(마을 씬 익명 소켓 `/scene`, 내 주변 익명 소켓 `/neighborhood`, 대시보드 월드 소켓 `/world`)이 이 서버에서 함께 서빙되므로 브라우저가 붙을 공개 주소를 확보한다 → 프론트 `NEXT_PUBLIC_WS_URL`에 등록
-5. `WEB_ORIGIN`을 프론트 도메인으로 설정 (HTTP CORS·소켓 CORS 허용 오리진). 소켓 CORS는 게이트웨이 데코레이터가 `.env.local`을 읽기 전에 평가되므로, 파일이 아닌 서버 프로세스 환경변수(호스트·컨테이너 환경)로 넣는다
+4. `WEB_ORIGIN`을 프론트 도메인으로 설정 (HTTP CORS 허용 오리진)
 
 ---
 
-## 3. Vercel 프로젝트 생성 (프론트)
+## 3. 실시간 서버 호스팅
+
+NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 마을 씬 익명 소켓(`/scene`), 내 주변 익명 소켓(`/neighborhood`), 대시보드 월드 소켓(`/world`)이 이 서버에서 서빙되고, DB는 쓰지 않는다([ADR 008](../adr/008-realtime-server-split.md)).
+
+1. 서버/컨테이너 환경에 Node.js 20 이상 준비, `apps/realtime`에서 `npm install && npm run build`(컨테이너는 저장소 루트를 빌드 컨텍스트로 `apps/realtime/Dockerfile`을 쓴다)
+2. `npm run start:prod`로 기동 (기본 `PORT=9002`). 헬스 프로브는 `GET /health`
+3. `WEB_ORIGIN`을 프론트 도메인으로 설정 (socket.io CORS 허용 오리진 — `.env.local`이나 프로세스 환경변수 어느 쪽이든 된다)
+4. `/world`를 쓸 때는 `JWT_ACCESS_SECRET`을 API 서버와 같은 값으로 등록한다(없으면 서버는 뜨고 `/world` 접속만 거절한다)
+5. 브라우저가 붙을 공개 주소(WebSocket)를 확보한다 → 프론트 `NEXT_PUBLIC_WS_URL`에 등록
+6. 인스턴스는 하나로 운영한다 — 방·위치 상태가 프로세스 메모리에 있어 늘리면 인스턴스끼리 서로 안 보인다
+
+---
+
+## 4. Vercel 프로젝트 생성 (프론트)
 
 1. [vercel.com](https://vercel.com) → "Add New Project"
 2. GitHub 저장소 Import
@@ -58,7 +70,7 @@ NestJS API 서버(`apps/api`)를 호스팅한다.
 
 | 변수 | 값 출처 |
 |---|---|
-| `NEXT_PUBLIC_WS_URL` | API 서버 공개 주소 (마을 씬·내 주변 소켓) |
+| `NEXT_PUBLIC_WS_URL` | 실시간 서버 공개 주소 (마을 씬·내 주변 소켓) |
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapbox account.mapbox.com → Tokens (마을 씬·내 주변 펼침 지도) |
 
 로그인·대시보드 월드·상점 화면을 다시 만들면 다음도 등록한다:
@@ -74,7 +86,7 @@ NestJS API 서버(`apps/api`)를 호스팅한다.
 
 ---
 
-## 4. LiveKit Cloud 프로젝트 생성
+## 5. LiveKit Cloud 프로젝트 생성
 
 1. [cloud.livekit.io](https://cloud.livekit.io) → "Create a project"
 2. 프로젝트 이름 설정
@@ -86,7 +98,7 @@ NestJS API 서버(`apps/api`)를 호스팅한다.
 
 ---
 
-## 5. PG(결제) 콘솔
+## 6. PG(결제) 콘솔
 
 결제 완료는 PG 웹훅으로만 반영된다. 웹훅 URL은 BFF를 거치지 않는 API 서버 주소 `POST https://<API 서버>/billing/webhook`이며, `x-pg-signature` 헤더에 raw body의 HMAC-SHA256 hex(키 `PG_WEBHOOK_SECRET`)를 실어 `{ orderId, approvalNumber, amountKrw }`를 보내야 한다. 결제창은 상점 화면과 함께 붙일 예정이라 아래 PG 키들은 지금 어느 코드도 읽지 않는다.
 
@@ -105,7 +117,7 @@ NestJS API 서버(`apps/api`)를 호스팅한다.
 
 ---
 
-## 6. OAuth 앱 등록 (카카오 / 구글)
+## 7. OAuth 앱 등록 (카카오 / 구글)
 
 소셜 로그인은 카카오/구글 OAuth 2.0 Authorization Code 흐름을 사용하며, 코드 교환은 전부 서버에서 처리한다.
 
@@ -131,6 +143,7 @@ NestJS API 서버(`apps/api`)를 호스팅한다.
 - [ ] PostgreSQL 프로비저닝 (확장 4종 + 마이그레이션 0001~0010 적용)
 - [ ] `app_api` 롤 생성 + 권한 부여
 - [ ] API 서버 호스팅 + 서버 시크릿 등록 (LiveKit 키 포함) + `GET /health` 응답 확인
+- [ ] 실시간 서버 호스팅 + `WEB_ORIGIN`(`/world`를 쓰면 `JWT_ACCESS_SECRET`) 등록 + `GET /health` 응답 확인 + 공개 주소를 `NEXT_PUBLIC_WS_URL`로 등록
 - [ ] Vercel 프로젝트 생성 + GitHub 연결 + `NEXT_PUBLIC_*` 등록
 - [ ] LiveKit Cloud 프로젝트 생성 (지역: ap-northeast)
 - [ ] 토스페이먼츠 / 카카오페이 콘솔 + 웹훅 URL + `PG_WEBHOOK_SECRET`

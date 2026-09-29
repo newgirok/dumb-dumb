@@ -76,19 +76,20 @@
 | 레이어 | 기술 | 비고 |
 |---|---|---|
 | 코어 프레임워크 | Next.js 15 (App Router, CSR, Turbopack) + React 19 | |
-| 로컬 개발 환경 | Docker Compose + WATCHPACK_POLLING | WSL/Windows 파일 감지 호환 |
+| 로컬 개발 환경 | 호스트 `npm run dev`(Turbopack 핫 리로드) + Docker Compose(프론트 프로덕션 빌드 `app` + 실시간 서버 `realtime`) | 컨테이너는 배포와 같은 빌드를 확인하는 용도 |
 | 3D 엔진 | Three.js | 마을 씬·내 주변·에셋 미리보기(Draco 압축 `.bin` 지오메트리), 대시보드 월드 캐릭터 렌더링(예정) |
 | 렌더링 파이프라인 | 월드별 WebGL 컨텍스트 구성 | 마을 씬·내 주변은 씬 캔버스와 펼침 지도 캔버스를 분리하고, 대시보드 월드(예정)는 Three.js가 Mapbox 캔버스의 컨텍스트를 공유(커스텀 레이어) |
 | 지도 | Mapbox GL JS v3 | 펼침 지도(마을 씬·내 주변, Streets v8·지형 DEM 타일을 게임 화풍으로 칠한 자체 스타일) + 대시보드 월드 베이스맵(예정). 무료 티어 |
 | 길 데이터 (내 주변) | OpenStreetMap 벡터 타일 (OpenFreeMap, OpenMapTiles 스키마) | z14 타일을 브라우저 워커가 직접 받아 해석. 키 없음, 화면 좌하단에 출처 표기(5초 뒤 (i) 버튼으로 접힌다) |
 | 프론트엔드 배포 | Vercel | Edge Network CDN |
-| API 서버 | NestJS 11 (`apps/api`) | 자체 호스팅 |
+| API 서버 | NestJS 11 (`apps/api`) | 자체 호스팅. REST 전용 |
+| 실시간 서버 | NestJS 11 (`apps/realtime`) | 자체 호스팅. socket.io 게이트웨이 전용, DB 없음 |
 | 데이터베이스 | PostgreSQL + PostGIS (자체 호스팅, 단일 공유 DB) | 공간 연산 내장 |
-| 실시간 소켓 | socket.io (NestJS WebSocket 게이트웨이) | 마을 씬 익명 방 중계(`/scene`), 내 주변 가까운 사람 중계(`/neighborhood`), 대시보드 월드 섹터 단위 위치·채팅 브로드캐스트(`/world`, 붙는 화면은 예정) |
+| 실시간 소켓 | socket.io (실시간 서버의 NestJS WebSocket 게이트웨이) | 마을 씬 익명 방 중계(`/scene`), 내 주변 가까운 사람 중계(`/neighborhood`), 대시보드 월드 섹터 단위 위치·채팅 브로드캐스트(`/world`, 붙는 화면은 예정) |
 | 인증 | 자체 JWT + bcrypt, 카카오/구글 OAuth | 이메일+비밀번호 + 소셜 로그인. 토큰은 API 서버가 발급하고, 로그인 화면은 예정 |
 | 공간 음성 | LiveKit Cloud | 매니지드 SFU, 무료 티어. 룸 토큰은 API 서버가 발급하고, 음성 클라이언트는 대시보드 월드와 함께 붙인다(예정) |
 
-월 고정비: 자체 호스팅 기준(DB/API 서버 호스팅 + Mapbox·LiveKit·Vercel 무료 티어~소액). 상세는 [아키텍처 개요 — 비용 목표](./architecture/overview.md#비용-목표) 참고.
+월 고정비: 자체 호스팅 기준(DB/API 서버·실시간 서버 호스팅 + Mapbox·LiveKit·Vercel 무료 티어~소액). 상세는 [아키텍처 개요 — 비용 목표](./architecture/overview.md#비용-목표) 참고.
 
 ---
 
@@ -216,7 +217,7 @@
 - **근접 구독**: 40m 이내 피어 중 거리 기준 Top-8 트랙만 구독한다 (Subscription Capping)
 - **3D 오디오**: HRTF 패닝 + 거리 감쇠 — 30m까지 최대 볼륨, 40m에서 무음 (위경도 거리·방위 기준)
 - **마이크 송신**: 옵트인 — 권한 거부 시 수신 전용
-- **채팅**: socket.io 무상태 섹터 방송(200자), DB 저장 없음. 방송은 API 서버의 `/world` 게이트웨이가 하고, 입력 UI와 말풍선 표시(7초 후 자동 페이드아웃)는 화면과 함께 붙인다
+- **채팅**: socket.io 무상태 섹터 방송(200자), DB 저장 없음. 방송은 실시간 서버의 `/world` 게이트웨이가 하고, 입력 UI와 말풍선 표시(7초 후 자동 페이드아웃)는 화면과 함께 붙인다
 
 ---
 
