@@ -1,10 +1,14 @@
 import type { CSSProperties, JSX } from 'react'
 import Link from 'next/link'
+import { Luckiest_Guy } from 'next/font/google'
 import { preload } from 'react-dom'
 import { SCENE_ROUTES } from '@/lib/routes'
 
 // 선택 페이지 — 게임 타이틀 화면처럼 여름 오후 풍경 위에서 갈 곳을 고른다.
 // 색은 마을 씬(하늘·잔디·청록 나무·모래길)과 씬 HUD 버튼(크림 #f9efdc·하드 그림자 #716c66)에서 가져왔다.
+
+// 제목 글씨 — 두툼한 만화 로고체라 장난꾸러기 같은 이름과 어울린다(Stylish는 라틴 글자가 가늘다)
+const luckiestGuy = Luckiest_Guy({ subsets: ['latin'], weight: '400', variable: '--font-title', display: 'block' })
 
 type SceneRoute = (typeof SCENE_ROUTES)[number]
 
@@ -24,7 +28,7 @@ const CSS = `
   .home-cloud { position: absolute; left: 0; animation: home-drift linear infinite; will-change: transform; }
   @keyframes home-drift { from { transform: translateX(-35vw); } to { transform: translateX(125vw); } }
   /* 하한은 좁은 휴대폰(폭 320px)에서도 제목이 한 줄에 들 만큼 — 제목 폭은 글자 크기의 5배쯤이다 */
-  .home-title { font-family: Stylish, Pretendard, sans-serif; font-weight: 400; font-size: clamp(44px, min(17vw, 22vh), 156px); line-height: 1;
+  .home-title { font-family: var(--font-title), Pretendard, sans-serif; font-weight: 400; font-size: clamp(44px, min(17vw, 22vh), 156px); line-height: 1;
     color: #fffdf8; text-shadow: 4px 4px 0 #716c66; letter-spacing: 0.02em; }
   /* 버튼 크기는 화면 폭을 따라 늘고 준다 — 가장 긴 이름(에셋 미리보기 + 배지)이 좁은 휴대폰에서도 한 줄에 든다 */
   .home-card { position: relative; display: flex; gap: clamp(12px, 3vw, 18px); align-items: center; width: min(420px, 86vw);
@@ -56,11 +60,11 @@ const CSS = `
 `
 
 export default function Home() {
-  // 제목 폰트는 1MB 가까이 된다 — 펼침 지도도 같은 파일을 쓰니 여기서 먼저 받아 둔다
+  // 버튼 이름 폰트(Stylish)는 1MB 가까이 된다 — 펼침 지도도 같은 파일을 쓰니 여기서 먼저 받아 둔다
   preload('/ref-assets/fonts/Stylish-Regular.woff2', { as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' })
 
   return (
-    <main className="home">
+    <main className={`home ${luckiestGuy.variable}`}>
       <style>{CSS}</style>
 
       <Cloud className="home-cloud" style={{ top: '5vh', width: 'min(190px, 26vw)', animationDuration: '95s', animationDelay: '-30s' }} />
