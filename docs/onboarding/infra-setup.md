@@ -21,7 +21,7 @@ CREATE EXTENSION IF NOT EXISTS citext;
 
 > `pg_cron`은 `shared_preload_libraries`에 등록 후 재시작해야 활성화된다. 광고 활성/비활성 스케줄(`activate-ads`, 매일 15:00 UTC=00:00 KST)에 사용된다.
 
-4. 마이그레이션 적용: `supabase/migrations/`의 SQL을 관리 롤로 `0001`~`0010` 순서대로 psql로 적용한다. Supabase가 아닌 PostgreSQL이면 먼저 `0002`·`0004`가 참조하는 `auth.users` 스텁을 만든다(`CREATE SCHEMA IF NOT EXISTS auth; CREATE TABLE IF NOT EXISTS auth.users (id UUID PRIMARY KEY);` — `0006`이 이 참조를 자체 `users`로 옮긴다)
+4. 마이그레이션 적용: `apps/api/migrations/`의 SQL을 관리 롤로 `0000`~`0010` 순서대로 psql로 적용한다. `0000`은 `0002`·`0004`가 참조하는 옛 `auth.users` 스텁을 만든다(`0006`이 이 참조를 자체 `users`로 옮긴다)
 5. **`app_api` 롤 로그인 활성화**: API 서버는 테이블 소유자가 아닌 이 전용 롤로 접속해야 RLS가 적용된다. 롤과 테이블·시퀀스 권한은 `0007_rls.sql`이 `NOLOGIN`으로 만들어 두므로, 마이그레이션 뒤 로그인만 켠다.
 
 ```sql

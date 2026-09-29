@@ -7,8 +7,8 @@ import type { AuthUser } from '../auth/auth.types'
 /**
  * LiveKit 참가 토큰 발급.
  *
- * 예전엔 Supabase Edge Function이 발급했다. identity 는 클라이언트가 보내는
- * 값이 아니라 액세스 토큰에서 꺼낸다 — 안 그러면 남을 사칭해 룸에 들어간다.
+ * identity 는 클라이언트가 보내는 값이 아니라 액세스 토큰에서 꺼낸다 — 안 그러면
+ * 남을 사칭해 룸에 들어간다.
  */
 @Controller('voice')
 export class VoiceController {

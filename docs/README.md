@@ -17,9 +17,9 @@
 cp .env.example .env.local
 cp apps/api/.env.example apps/api/.env.local
 
-# 2. PostgreSQL 마이그레이션 적용 (관리 롤로, supabase/migrations/ SQL을 번호 순서대로)
-#    일반 PostgreSQL이면 먼저 auth.users 스텁을 만들고, 적용 뒤 app_api 로그인을 켠다 (onboarding/local-setup.md 3장)
-for f in supabase/migrations/*.sql; do psql -v ON_ERROR_STOP=1 "$DATABASE_URL_ADMIN" -f "$f"; done
+# 2. PostgreSQL 마이그레이션 적용 (관리 롤로, apps/api/migrations/ SQL을 번호 순서대로)
+#    0000이 옛 auth.users 참조용 스텁을 만든다. 적용 뒤 app_api 로그인을 켠다 (onboarding/local-setup.md 3장)
+for f in apps/api/migrations/*.sql; do psql -v ON_ERROR_STOP=1 "$DATABASE_URL_ADMIN" -f "$f"; done
 
 # 3. 실시간 서버 기동 (apps/realtime, 9002 — DB·환경변수 없이 뜬다)
 cd apps/realtime && npm install && npm run start:dev
@@ -110,8 +110,8 @@ npm run build
 npm run start:prod
 npm run type-check
 
-# DB 마이그레이션 (관리 롤로, supabase/migrations/ SQL 번호 순서대로)
-for f in supabase/migrations/*.sql; do psql -v ON_ERROR_STOP=1 "$DATABASE_URL_ADMIN" -f "$f"; done
+# DB 마이그레이션 (관리 롤로, apps/api/migrations/ SQL 번호 순서대로)
+for f in apps/api/migrations/*.sql; do psql -v ON_ERROR_STOP=1 "$DATABASE_URL_ADMIN" -f "$f"; done
 
 # Docker Compose — 프론트 프로덕션 빌드(app) + 실시간 서버(realtime)
 docker compose --env-file .env.local up -d --build

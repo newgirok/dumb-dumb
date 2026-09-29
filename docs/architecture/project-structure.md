@@ -67,6 +67,7 @@ project/
 │   ├── voice/                    ← voice.controller, module (LiveKit 토큰 발급)
 │   ├── billing/                  ← controller, service, fulfillment.service, fulfillment.worker, module
 │   └── avatars/                  ← service, module (외형 조합 · 고유 시리얼 발급)
+├── apps/api/migrations/          ← PostgreSQL 마이그레이션 SQL 0000~0010 (PostGIS, pg_cron, pgcrypto, citext · 0000은 옛 auth.users 참조용 스텁)
 │
 ├── apps/realtime/                ← NestJS 실시간 서버 (socket.io, 9002, DB 없음)
 │   ├── src/
@@ -86,10 +87,6 @@ project/
 │   └── grid.ts                   ← 섹터 격자(500m)·거리·이동 검증 계산
 ├── shared/relay/
 │   └── contract.ts               ← 익명 중계 소켓 이벤트 계약 (방 — 플레이 씬, 근접 — 내 주변, socket.io 제네릭 타입)
-│
-├── supabase/migrations/          ← PostgreSQL 마이그레이션 SQL 0001~0010
-│                                    (PostGIS, pg_cron, pgcrypto, citext)
-├── supabase/functions/           ← Supabase Edge Function (livekit-token, spatial-query) — 앱에서 호출하지 않음
 │
 ├── public/
 │   ├── landing/                  ← 랜딩 배경 이미지 (앱 코드에서 참조하지 않음)

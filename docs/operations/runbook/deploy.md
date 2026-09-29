@@ -44,14 +44,14 @@ DB 접속 정보와 API 서버 환경변수가 프로덕션 값으로 준비되�
 
 ## 2. DB 마이그레이션 배포
 
-`supabase/migrations/`의 SQL(`0001`~`0010`)을 파일명 순서대로 프로덕션 PostgreSQL에 적용한다.
+`apps/api/migrations/`의 SQL(`0000`~`0010`)을 파일명 순서대로 프로덕션 PostgreSQL에 적용한다.
 전용 CLI 러너는 없으며 psql로 직접 적용한다. PostGIS / pg_cron / pgcrypto / citext 확장이
-설치되어 있어야 한다. Supabase가 아닌 PostgreSQL에 처음 적용할 때는 `0002`·`0004`가 참조하는 `auth.users` 스텁이
-먼저 있어야 하고, 적용 뒤 `app_api` 로그인을 켠다([로컬 환경 세팅](../../onboarding/local-setup.md) 3-2·3-3).
+설치되어 있어야 한다. 처음 적용할 때는 `0000`(옛 `auth.users` 참조용 스텁)부터
+순서대로 적용하고, 적용 뒤 `app_api` 로그인을 켠다([로컬 환경 세팅](../../onboarding/local-setup.md) 3-2·3-3).
 
 ```bash
 # 예: 아직 적용되지 않은 마이그레이션을 순서대로 적용
-psql "$DATABASE_URL_ADMIN" -f supabase/migrations/0010_bundle_fulfillment.sql
+psql "$DATABASE_URL_ADMIN" -f apps/api/migrations/0010_bundle_fulfillment.sql
 ```
 
 **주의**: 마이그레이션은 테이블 소유자 롤(관리 롤)로 적용한다. 애플리케이션 롤 `app_api`는

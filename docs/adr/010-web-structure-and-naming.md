@@ -52,7 +52,7 @@
 ## 주의
 
 - 저장소를 표준 모노레포 구성(`apps/web`·`packages/shared`)으로 옮기는 일은 따로 한다. 이번에는 웹 패키지 이름만 `@owcj/web`으로 맞췄다.
-- `supabase/` 폴더(마이그레이션·쓰지 않는 Edge Function·CLI 설정)는 이번에 건드리지 않았다. Supabase 흔적(빌드 인자 `NEXT_PUBLIC_SUPABASE_*` 포함)을 정리할 때 함께 다룬다.
+- Supabase 흔적(`supabase/` 폴더·빌드 인자 `NEXT_PUBLIC_SUPABASE_*`)은 [ADR 011](./011-supabase-cleanup.md)에서 정리했다.
 - 선택 페이지의 플레이 버튼 아이콘은 예전 마을 버튼의 집 그림 그대로다.
 - 대소문자만 다른 파일 이름 변경(`Button.tsx` → `button.tsx`)은 윈도우처럼 대소문자를 가리지 않는 파일 시스템에서 git이 바로 알아보지 못한다. 이런 변경은 임시 이름을 한 번 거쳐 `git mv`로 한다.
 

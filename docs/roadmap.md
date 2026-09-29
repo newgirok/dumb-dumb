@@ -39,7 +39,7 @@
     - API 서버 `GET /health` 200 응답
 
 - **P0-3.** PostgreSQL + 마이그레이션 `[DB]`
-  - PostgreSQL 마이그레이션 SQL 작성 (`supabase/migrations/` 경로, `0001`~`0010`)
+  - PostgreSQL 마이그레이션 SQL 작성 (`apps/api/migrations/` 경로, `0001`~`0010`)
     - `0001` — PostGIS, pg_cron, pgcrypto 확장 활성화
     - `0002` — `characters`, `orders`, `user_licenses`(가시거리 기본 25m)
     - `0003`·`0004` — `sponsor_buildings`(GiST 인덱스, pg_cron `activate-ads`), `ad_impressions`

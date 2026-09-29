@@ -14,3 +14,4 @@
 | [ADR 008](./008-realtime-server-split.md) | 실시간 서버 분리 — socket.io 게이트웨이를 API 서버에서 떼어 냄 | Accepted (네임스페이스·폴더 이름은 ADR 009로 대체) |
 | [ADR 009](./009-interest-management-naming.md) | 실시간 이름 — 받는 사람을 고르는 방식(방·근접·섹터)으로 부른다 | Accepted |
 | [ADR 010](./010-web-structure-and-naming.md) | 웹 구조와 이름 — app은 라우트만, 화면 코드는 features, 파일은 kebab-case | Accepted |
+| [ADR 011](./011-supabase-cleanup.md) | Supabase 흔적 정리 — 마이그레이션은 apps/api/migrations로, 안 쓰는 조각은 지운다 | Accepted |

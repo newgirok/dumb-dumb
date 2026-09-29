@@ -42,8 +42,7 @@ export class UsersService {
   }
 
   /**
-   * 가입. 기본 라이선스(반경 25m) 생성까지 한 트랜잭션에서 처리한다 —
-   * 예전에는 Supabase의 on_auth_user_created 트리거가 하던 일이다.
+   * 가입. 기본 라이선스(반경 25m) 생성까지 한 트랜잭션에서 처리한다.
    */
   async create(input: {
     email: string

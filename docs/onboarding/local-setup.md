@@ -71,15 +71,10 @@ CREATE EXTENSION IF NOT EXISTS citext;
 
 ### 3-2. 마이그레이션 적용
 
-`supabase/migrations/`의 SQL 파일을 **번호 순서대로** psql로 적용한다(전용 CLI 러너는 없다). `0002`·`0004`는 Supabase의 `auth.users`를 참조하고, `0006`이 그 참조를 자체 `users` 테이블로 옮긴다. 일반 PostgreSQL에는 `auth.users`가 없으므로 먼저 스텁을 만든다.
-
-```sql
-CREATE SCHEMA IF NOT EXISTS auth;
-CREATE TABLE IF NOT EXISTS auth.users (id UUID PRIMARY KEY);
-```
+`apps/api/migrations/`의 SQL 파일을 **번호 순서대로** psql로 적용한다(전용 CLI 러너는 없다). `0002`·`0004`는 자체 인증 이전에 쓴 마이그레이션이라 옛 `auth.users`를 참조하고, `0006`이 그 참조를 자체 `users` 테이블로 옮긴다. 그 테이블이 없는 PostgreSQL에서도 순서대로 돌도록 `0000_legacy_auth_stub.sql`이 빈 스텁을 먼저 만든다(이미 있으면 아무 일도 하지 않는다).
 
 ```bash
-for f in supabase/migrations/*.sql; do
+for f in apps/api/migrations/*.sql; do
   psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f "$f"
 done
 ```
@@ -87,8 +82,9 @@ done
 또는 개별 적용:
 
 ```bash
-psql -U postgres -d postgres -f supabase/migrations/0001_init.sql
-psql -U postgres -d postgres -f supabase/migrations/0002_characters.sql
+psql -U postgres -d postgres -f apps/api/migrations/0000_legacy_auth_stub.sql
+psql -U postgres -d postgres -f apps/api/migrations/0001_init.sql
+psql -U postgres -d postgres -f apps/api/migrations/0002_characters.sql
 # ... 0003 ~ 0010 순서대로
 ```
 

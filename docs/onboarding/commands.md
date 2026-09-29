@@ -73,16 +73,16 @@ npm run type-check
 
 ## DB 마이그레이션
 
-`supabase/migrations/`의 SQL을 **번호 순서대로**(`0001`~`0010`) PostgreSQL에 적용한다. 전용 CLI 러너는 없으며 psql로 직접 적용한다. 일반 PostgreSQL이면 먼저 `auth.users` 스텁을 만들고, 적용 뒤 `app_api` 로그인을 켠다([로컬 환경 세팅](./local-setup.md) 3-2·3-3).
+`apps/api/migrations/`의 SQL을 **번호 순서대로**(`0000`~`0010`) PostgreSQL에 적용한다. 전용 CLI 러너는 없으며 psql로 직접 적용한다(`0000`은 옛 `auth.users` 참조용 스텁이다). 적용 뒤 `app_api` 로그인을 켠다([로컬 환경 세팅](./local-setup.md) 3-2·3-3).
 
 ```bash
 # 전체 순서 적용
-for f in supabase/migrations/*.sql; do
+for f in apps/api/migrations/*.sql; do
   psql -U postgres -d postgres -f "$f"
 done
 
 # 개별 적용
-psql -U postgres -d postgres -f supabase/migrations/0001_init.sql
+psql -U postgres -d postgres -f apps/api/migrations/0001_init.sql
 ```
 
 확장(PostGIS / pg_cron / pgcrypto / citext)이 먼저 활성화되어 있어야 한다. 자세한 준비 절차는 [로컬 환경 세팅](./local-setup.md) 참고.

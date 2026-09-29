@@ -53,7 +53,7 @@ CREATE OR REPLACE FUNCTION nearby_sponsor_buildings(
 | 반경 내 활성 스폰서 랜드마크 탐지 | `ST_DWithin` | 광고 노출 감지 |
 | 거리 기준 정렬 | `ST_Distance` | 근접순 정렬 |
 
-두 연산은 `nearby_sponsor_buildings` 함수로 제공된다. 앱(프론트엔드·NestJS)에는 이 함수를 호출하는 코드가 없고, 저장소의 Supabase Edge Function `supabase/functions/spatial-query`만 RPC로 호출한다. 광고 노출 감지는 Phase 5에서 구현한다.
+두 연산은 `nearby_sponsor_buildings` 함수로 제공된다. 앱(프론트엔드·NestJS)에는 아직 이 함수를 호출하는 코드가 없고, 호출할 API는 Phase 5에서 API 서버에 만든다. 광고 노출 감지는 Phase 5에서 구현한다.
 
 ## 주의
 

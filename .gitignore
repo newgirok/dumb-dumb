@@ -12,10 +12,6 @@
 .env.local
 .env*.local
 
-# Supabase 로컬 볼륨 및 임시 파일
-supabase/.temp/
-supabase/volumes/
-
 # 기타
 .DS_Store
 *.pem
