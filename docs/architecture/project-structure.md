@@ -112,7 +112,7 @@ project/
 
 | 파일 | 역할 |
 |---|---|
-| `app/page.tsx` | 선택 페이지 — 여름 오후 풍경 위 제목 "Dumb Dumb"과 세로로 쌓은 목적지 버튼 3개(마을·내 주변·에셋 미리보기, 이름·배지·아이콘은 `PLACES`). Stylish 폰트 파일을 `preload`로 미리 받는다 |
+| `app/page.tsx` | 선택 페이지 — 여름 오후 풍경 위 제목 "Dumb Dumb"과 세로로 쌓은 목적지 버튼 3개(마을·내 주변·에셋 미리보기, 이름·배지·아이콘은 `PLACES`). 제목은 Luckiest Guy(`next/font/google`), 버튼 이름의 Stylish 폰트 파일은 `preload`로 미리 받는다 |
 | `lib/routes.ts` | `SCENE_ROUTES`(`/village`, `/neighborhood`, `/preview`) — 선택 페이지만 쓰는 경로 목록(카드 문구 `PLACES`와 타입으로 묶인다) |
 | `app/village/scene.tsx` | 마을 씬 — ref-assets 로드·씬 조립·렌더 루프, 우상단 HUD(사운드·옷 색·지도, 위치를 못 잡으면 지도 버튼 구석에 "!")와 단축키(M·Esc·Ctrl+M), 펼침 지도 마운트(지도가 다 접혀 배경이 걷힐 때까지 캐릭터 조작을 끈다), GPS 추적기(이미 허용된 사이트면 씬 시작 때 바로, 아니면 지도를 처음 펼칠 때 권한을 묻는다) |
 | `app/village/thirdPerson.ts` | 마을 씬 3인칭 조작(키보드·마우스·터치·게임패드)·캡슐 충돌·카메라 리그와 화면 비율 반응형 구도(`framingFor`) ([ADR 007](../adr/007-quarter-view-camera-lock.md)) |
