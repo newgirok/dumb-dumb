@@ -1,4 +1,4 @@
-import type { MapWay } from '@/lib/geo/vectorTiles'
+import type { MapWay } from '@/lib/geo/vector-tiles'
 
 /**
  * 차도 폭(m) — 도로명 끝 글자로 정한다(도로명주소 부여 기준: 대로 폭 40m 이상, 로 12~40m,

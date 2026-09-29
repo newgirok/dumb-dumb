@@ -15,13 +15,13 @@
 NEXT_PUBLIC_MAPBOX_TOKEN=pk.eyJ1...
 ```
 
-이 토큰 하나를 펼침 지도(마을 씬·내 주변)가 쓰고, 다시 만들 대시보드 월드 지도도 같은 토큰을 쓴다. 무료 티어: 월 50,000 Map loads 무료. Mapbox 대시보드에서 사용량 알림 3단계 설정 권장.
+이 토큰 하나를 펼침 지도(플레이 씬·내 주변)가 쓰고, 다시 만들 지도 월드 지도도 같은 토큰을 쓴다. 무료 티어: 월 50,000 Map loads 무료. Mapbox 대시보드에서 사용량 알림 3단계 설정 권장.
 
 ---
 
 ## OpenStreetMap 벡터 타일 (OpenFreeMap)
 
-내 주변(베타)의 길 데이터는 OpenFreeMap(`https://tiles.openfreemap.org/planet`)의 z14 벡터 타일을 브라우저가 직접 받는다. 키·가입이 필요 없고 설정할 환경변수도 없다. 대신 화면에 출처(© OpenStreetMap · OpenMapTiles · OpenFreeMap)를 표기해야 하며, `app/neighborhood/scene.tsx` 좌하단에 표기한다.
+내 주변(베타)의 길 데이터는 OpenFreeMap(`https://tiles.openfreemap.org/planet`)의 z14 벡터 타일을 브라우저가 직접 받는다. 키·가입이 필요 없고 설정할 환경변수도 없다. 대신 화면에 출처(© OpenStreetMap · OpenMapTiles · OpenFreeMap)를 표기해야 하며, `features/nearby/nearby-scene.tsx` 좌하단에 표기한다.
 
 ---
 
@@ -67,10 +67,10 @@ JWT_REFRESH_SECRET=<다른 32바이트 랜덤 hex>
 ```
 LIVEKIT_API_KEY=APIxxxx           ← 서버 전용 (API 서버 환경변수)
 LIVEKIT_API_SECRET=xxxx           ← 서버 전용 (API 서버 환경변수)
-NEXT_PUBLIC_LIVEKIT_URL=wss://your-project.livekit.cloud   ← 프론트 공개 (대시보드 월드를 다시 만들 때)
+NEXT_PUBLIC_LIVEKIT_URL=wss://your-project.livekit.cloud   ← 프론트 공개 (지도 월드를 다시 만들 때)
 ```
 
-룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급한다(TTL 1시간). `LIVEKIT_API_KEY`·`LIVEKIT_API_SECRET`은 `apps/api/.env.example`에 없으므로 `apps/api/.env.local`에 직접 추가한다. 음성은 대시보드 월드에서만 쓰이며, 화면을 다시 만들기 전에는 룸에 붙는 클라이언트가 없다. 무료 티어: 월 일정 분(分) 무료. 대시보드 사용량 알림 3단계 설정 권장.
+룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급한다(TTL 1시간). `LIVEKIT_API_KEY`·`LIVEKIT_API_SECRET`은 `apps/api/.env.example`에 없으므로 `apps/api/.env.local`에 직접 추가한다. 음성은 지도 월드에서만 쓰이며, 화면을 다시 만들기 전에는 룸에 붙는 클라이언트가 없다. 무료 티어: 월 일정 분(分) 무료. 대시보드 사용량 알림 3단계 설정 권장.
 
 ---
 

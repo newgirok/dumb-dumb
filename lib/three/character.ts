@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { loadBinGeometry, createSkin, createSkinAnimation } from './binLoader'
+import { loadBinGeometry, createSkin, createSkinAnimation } from './bin-loader'
 
 /**
  * 절차적 로우폴리 캐릭터 메시 (ref-assets 로드 실패 시 폴백)

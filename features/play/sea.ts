@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { SharedUniforms } from './rampShader'
+import type { SharedUniforms } from '@/lib/three/ramp-shader'
 
 /**
  * 원본 sea — 동쪽 바다(x 62~562)에만 500×500 평면을 깔고, 하늘만 비추는 평면

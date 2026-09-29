@@ -1,16 +1,16 @@
 'use client'
 
-// 에셋 미리보기(/preview) — 지도와 무관하게 ref-assets 캐릭터/소품 에셋만 띄워 확인하는 개발용
+// 에셋 미리보기(/asset-viewer) — 지도와 무관하게 ref-assets 캐릭터/소품 에셋만 띄워 확인하는 개발용
 // 페이지. 자체 제작 에셋으로 교체할 때 규격(크기·본·애니메이션·인스턴스)을
 // 눈으로 대조하는 용도로도 쓴다.
 
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { loadBinGeometry, createInstancedLOD } from '@/lib/three/binLoader'
+import { loadBinGeometry, createInstancedLOD } from '@/lib/three/bin-loader'
 import { loadCharacter, type Character } from '@/lib/three/character'
-import { framingFor } from '@/app/village/thirdPerson'
-import Loader, { waitSpinTurn } from '@/components/transition/Loader'
+import { framingFor } from '@/lib/three/third-person'
+import Loader, { waitSpinTurn } from '@/components/ui/loader'
 
 // 원본 셰이더의 팔레트 규약 — ramps.png는 100행짜리 팔레트고,
 // colorInfo.r이 행 번호, x축은 음영 정도다.
@@ -62,7 +62,7 @@ const PROPS = [
   { name: 'bush', lods: ['bush', 'bush-lod2', 'bush-lod3'], distances: [0, 40, 90] },
 ]
 
-export default function PreviewScene() {
+export default function AssetViewer() {
   const mountRef = useRef<HTMLDivElement>(null)
   const charRef = useRef<Character | null>(null)
   const [moving, setMoving] = useState(true)

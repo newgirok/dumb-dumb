@@ -1,7 +1,7 @@
 import * as THREE from 'three'
-import { createSkin } from '@/lib/three/binLoader'
+import { createSkin } from './bin-loader'
 import type { RelayPeerUpdate, RelayPlayerState } from '@/shared/relay/contract'
-import { blendKidAnimation, createKidAnimation, type KidAnimation, type KidClips } from './kidAnimation'
+import { blendKidAnimation, createKidAnimation, type KidAnimation, type KidClips } from './kid-animation'
 
 /** 원본 characters 보간 — 60fps 한 프레임 기준 비율 */
 const POSITION_LERP = 0.4

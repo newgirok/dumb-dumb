@@ -12,7 +12,7 @@
  * digits는 p를 반올림하는 소수 자리다(둘 다 약 1cm).
  */
 export const RELAYS = {
-  /** 방 — p는 씬 로컬 [x, y, z](m). 먼저 온 순서대로 20명씩 방을 채운다. 마을 씬이 쓴다 */
+  /** 방 — p는 씬 로컬 [x, y, z](m). 먼저 온 순서대로 20명씩 방을 채운다. 플레이 씬이 쓴다 */
   room: { namespace: '/room', digits: [2, 2, 2] },
   /** 근접 — p는 실제 좌표 [경도, 위도, 높이(m)]. 저마다 가까운 사람만 본다. 내 주변이 쓴다 */
   proximity: { namespace: '/proximity', digits: [7, 7, 2] },

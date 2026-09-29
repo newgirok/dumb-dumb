@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { CSM_LEVELS, type SharedUniforms } from './rampShader'
+import { CSM_LEVELS, type SharedUniforms } from './ramp-shader'
 
 /**
  * 원본 followCSMLight — 그림자를 두 겹으로 그린다.

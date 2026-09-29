@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import Loader, { SPIN_MS } from './Loader'
+import Loader, { SPIN_MS } from '@/components/ui/loader'
 
 /**
  * 가는 곳마다 로딩 안내 — 씬으로 갈 때는 도착한 씬 로더의 첫 문구와 같아, 씬 로더가 넘겨받아도 글이 바뀌지 않는다.
@@ -10,9 +10,9 @@ import Loader, { SPIN_MS } from './Loader'
  */
 const DESTINATION_MESSAGES: Record<string, string> = {
   '/': '처음 화면으로 가고 있어요. 잠시만요.',
-  '/village': '마을을 불러오고 있어요. 잠시만 기다려 주세요.',
-  '/neighborhood': '위치를 찾고 있어요…',
-  '/preview': '에셋을 불러오고 있어요. 잠시만 기다려 주세요.',
+  '/play': '게임을 불러오고 있어요. 잠시만 기다려 주세요.',
+  '/nearby': '위치를 찾고 있어요…',
+  '/asset-viewer': '에셋을 불러오고 있어요. 잠시만 기다려 주세요.',
 }
 const DEFAULT_MESSAGE = '화면을 준비하고 있어요. 잠시만 기다려 주세요.'
 

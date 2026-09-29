@@ -1,6 +1,6 @@
 'use client'
 
-// 원본(Summer Afternoon) 재현 — /village 3D 씬. 씬 구성·셰이딩·조작·UI·오디오를
+// 원본(Summer Afternoon) 재현 — /play 3D 씬. 씬 구성·셰이딩·조작·UI·오디오를
 // 원본 코드에서 그대로 옮겼다. 원본: https://summer-afternoon.vlucendo.com/
 
 import {
@@ -22,7 +22,7 @@ import {
   createSkinAnimation,
   createInstancedMesh,
   createInstancedPatches,
-} from '@/lib/three/binLoader'
+} from '@/lib/three/bin-loader'
 import {
   createSharedUniforms,
   createRampMaterial,
@@ -30,21 +30,21 @@ import {
   createTerrainMaterial,
   createSkyMaterial,
   loadKtx2Lut,
-} from './rampShader'
-import { createThirdPerson, type ThirdPerson } from './thirdPerson'
+} from '@/lib/three/ramp-shader'
+import { createThirdPerson, type ThirdPerson } from '@/lib/three/third-person'
 import { createSceneAudio, type SceneAudio } from './audio'
-import { createSunLight, bakeStaticShadows } from './shadows'
+import { createSunLight, bakeStaticShadows } from '@/lib/three/shadows'
 import { createSea } from './sea'
 import { createBirds, type Birds } from './birds'
-import { createFinalPass } from './postprocess'
-import { createTouchCircles } from './touchCircles'
-import { blendKidAnimation, createKidAnimation, type KidAnimation } from './kidAnimation'
-import { createRemotes, type Remotes } from './remotes'
-import { baseDevicePixelRatio, configure, isMobileDevice } from './setup'
+import { createFinalPass } from '@/lib/three/postprocess'
+import { createTouchCircles } from '@/lib/three/touch-circles'
+import { blendKidAnimation, createKidAnimation, type KidAnimation } from '@/lib/three/kid-animation'
+import { createRemotes, type Remotes } from '@/lib/three/remote-players'
+import { baseDevicePixelRatio, configure, isMobileDevice } from '@/lib/three/setup'
 import { connectRelay, type RelayConnection } from '@/lib/realtime/relay'
 import type { RelayMotion } from '@/shared/relay/contract'
-import PaperMap, { GpsBadge, MapIcon, useMapHotkey } from '@/components/world/PaperMap'
-import Loader, { SPIN_MS, waitSpinTurn } from '@/components/transition/Loader'
+import PaperMap, { GpsBadge, MapIcon, useMapHotkey } from '@/components/map/paper-map'
+import Loader, { SPIN_MS, waitSpinTurn } from '@/components/ui/loader'
 import { createGpsTracker, useGpsSnapshot, type GpsTracker } from '@/lib/geo/gps'
 
 /**
@@ -171,7 +171,7 @@ function motionOf(controller: ThirdPerson): RelayMotion {
   return controller.airborne ? 1 : controller.bored ? 2 : 0
 }
 
-export default function SummerAfternoonPage() {
+export default function PlayScene() {
   const mountRef = useRef<HTMLDivElement>(null)
   // 'loading' → 에셋 로드 중, 'fading' → 로더가 사라지는 중, 'playing' → 인트로·조작 시작
   const [phase, setPhase] = useState<'loading' | 'fading' | 'playing'>('loading')
@@ -912,7 +912,7 @@ export default function SummerAfternoonPage() {
         {unsupported && phase === 'playing' && (
           <Loader
             spinning={false}
-            message="이 브라우저에서는 마을을 열 수 없어요"
+            message="이 브라우저에서는 게임을 열 수 없어요"
             hint="WebGL2를 지원하는 최신 브라우저(Chrome·Safari·Edge)로 열어 주세요"
           />
         )}
@@ -925,7 +925,7 @@ export default function SummerAfternoonPage() {
         {/* 로딩 화면 — 로더(스피너 + 안내 한 줄, 버튼 없이 자동 진입) */}
         {phase !== 'playing' &&
           (error ? (
-            <Loader spinning={false} message="마을을 불러오지 못했어요" hint="잠시 후 새로고침해 주세요">
+            <Loader spinning={false} message="게임을 불러오지 못했어요" hint="잠시 후 새로고침해 주세요">
               <button
                 type="button"
                 className="rounded-full bg-[#f9efdc] px-5 py-2 text-[#716c66] shadow-[2px_2px_0_0_#716c66]"
@@ -935,7 +935,7 @@ export default function SummerAfternoonPage() {
               </button>
             </Loader>
           ) : (
-            <Loader fading={phase === 'fading'} message="마을을 불러오고 있어요. 잠시만 기다려 주세요." />
+            <Loader fading={phase === 'fading'} message="게임을 불러오고 있어요. 잠시만 기다려 주세요." />
           ))}
 
         {/* 우상단 버튼 — 원본 사운드 / 옷 색에 지도를 더했다 */}

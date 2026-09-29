@@ -1,7 +1,7 @@
 import * as THREE from 'three'
-import { createSpacedCurvePoints, createVertexAnimation } from '@/lib/three/binLoader'
-import { createBirdMaterial, type SharedUniforms } from './rampShader'
-import { sineNoise1 } from './noise'
+import { createSpacedCurvePoints, createVertexAnimation } from '@/lib/three/bin-loader'
+import { createBirdMaterial, type SharedUniforms } from '@/lib/three/ramp-shader'
+import { sineNoise1 } from '@/lib/three/noise'
 
 /**
  * 갈매기 떼 — 원본 birds의 GPGPU 비행 계산을 CPU로 옮겼다(25마리라 CPU가 더 단순하다).

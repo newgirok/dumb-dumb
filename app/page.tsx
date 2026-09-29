@@ -5,7 +5,7 @@ import { preload } from 'react-dom'
 import { SCENE_ROUTES } from '@/lib/routes'
 
 // 선택 페이지 — 게임 타이틀 화면처럼 여름 오후 풍경 위에서 갈 곳을 고른다.
-// 색은 마을 씬(하늘·잔디·청록 나무·모래길)과 씬 HUD 버튼(크림 #f9efdc·하드 그림자 #716c66)에서 가져왔다.
+// 색은 플레이 씬(하늘·잔디·청록 나무·모래길)과 씬 HUD 버튼(크림 #f9efdc·하드 그림자 #716c66)에서 가져왔다.
 
 // 제목 글씨 — 두툼한 만화 로고체라 장난꾸러기 같은 이름과 어울린다(Stylish는 라틴 글자가 가늘다)
 const luckiestGuy = Luckiest_Guy({ subsets: ['latin'], weight: '400', variable: '--font-title', display: 'block' })
@@ -14,9 +14,9 @@ type SceneRoute = (typeof SCENE_ROUTES)[number]
 
 /** 갈 곳마다 버튼 한 장(아이콘·이름) — 위에서 아래로 쌓고, 번갈아 살짝 기울인다 */
 const PLACES: Record<SceneRoute, { title: string; badge?: string; tilt: number; Icon: () => JSX.Element }> = {
-  '/village': { title: '마을', tilt: -2, Icon: VillageIcon },
-  '/neighborhood': { title: '내 주변', badge: '베타', tilt: 1.5, Icon: NeighborhoodIcon },
-  '/preview': { title: '에셋 미리보기', badge: '개발용', tilt: -1, Icon: PreviewIcon },
+  '/play': { title: '플레이', tilt: -2, Icon: PlayIcon },
+  '/nearby': { title: '내 주변', badge: '베타', tilt: 1.5, Icon: NearbyIcon },
+  '/asset-viewer': { title: '에셋 미리보기', badge: '개발용', tilt: -1, Icon: AssetViewerIcon },
 }
 
 const CSS = `
@@ -167,7 +167,7 @@ function Cloud({ className, style }: { className: string; style: CSSProperties }
   )
 }
 
-function VillageIcon() {
+function PlayIcon() {
   return (
     <svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true" className="shrink-0">
       <path d="M7 19 L20 8 L33 19" stroke="#716c66" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -179,7 +179,7 @@ function VillageIcon() {
 }
 
 /** 에셋 상자 — 밝은 윗면·어두운 오른쪽 면의 두 톤 상자와 반짝임 */
-function PreviewIcon() {
+function AssetViewerIcon() {
   return (
     <svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true" className="shrink-0">
       <path d="M20 7 L32 13.5 L20 20 L8 13.5 Z" fill="#fbeed3" />
@@ -191,7 +191,7 @@ function PreviewIcon() {
   )
 }
 
-function NeighborhoodIcon() {
+function NearbyIcon() {
   return (
     <svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true" className="shrink-0">
       <path d="M4 30 L36 22 M10 10 L16 36 M26 6 L30 34" stroke="#d9c39a" strokeWidth="3" strokeLinecap="round" />

@@ -4,12 +4,13 @@
 
 | ADR | 제목 | 상태 |
 |---|---|---|
-| [ADR 001](./001-webgl-context-sharing.md) | WebGL 컨텍스트 구성 — 마을 씬·펼침 지도 분리, 대시보드 월드 공유 | Accepted |
+| [ADR 001](./001-webgl-context-sharing.md) | WebGL 컨텍스트 구성 — 플레이 씬·펼침 지도 분리, 지도 월드 공유 | Accepted |
 | [ADR 002](./002-self-hosted-backend.md) | 자체 백엔드 (NestJS + 공유 Postgres) | Accepted (실시간 게이트웨이 배치는 ADR 008로 대체) |
 | [ADR 003](./003-livekit-cloud-sfu.md) | LiveKit Cloud 매니지드 SFU 선택 | Accepted |
 | [ADR 004](./004-direct-krw-payment.md) | 원화 직행 결제 — 가상 화폐 없는 구조 | Accepted |
 | [ADR 005](./005-postgis-gist-index.md) | PostGIS + GiST 인덱스 공간 연산 | Accepted |
 | [ADR 006](./006-fog-of-war-business-model.md) | 가시거리 안개를 BM과 연동하는 설계 | Accepted |
-| [ADR 007](./007-quarter-view-camera-lock.md) | 카메라 잠금 — 3인칭 추적 · 대시보드 쿼터뷰 | Accepted |
+| [ADR 007](./007-quarter-view-camera-lock.md) | 카메라 잠금 — 3인칭 추적 · 지도 월드 쿼터뷰 | Accepted |
 | [ADR 008](./008-realtime-server-split.md) | 실시간 서버 분리 — socket.io 게이트웨이를 API 서버에서 떼어 냄 | Accepted (네임스페이스·폴더 이름은 ADR 009로 대체) |
 | [ADR 009](./009-interest-management-naming.md) | 실시간 이름 — 받는 사람을 고르는 방식(방·근접·섹터)으로 부른다 | Accepted |
+| [ADR 010](./010-web-structure-and-naming.md) | 웹 구조와 이름 — app은 라우트만, 화면 코드는 features, 파일은 kebab-case | Accepted |

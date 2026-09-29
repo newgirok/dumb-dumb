@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { MeshBVH } from 'three-mesh-bvh'
 import { sineNoise1 } from './noise'
-import type { TouchState } from './touchCircles'
+import type { TouchState } from './touch-circles'
 
 /**
  * 원본과 같은 3인칭 조작 — 원본 controls·collisionPhysics·followCamera를 뜯어

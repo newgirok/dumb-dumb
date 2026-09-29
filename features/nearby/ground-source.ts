@@ -1,5 +1,5 @@
-import type { LocalFrame } from '@/lib/geo/localFrame'
-import { fetchTileWays, tileBounds, tilesCovering } from '@/lib/geo/vectorTiles'
+import type { LocalFrame } from '@/lib/geo/local-frame'
+import { fetchTileWays, tileBounds, tilesCovering } from '@/lib/geo/vector-tiles'
 import { drawGround, toLocalWay, WAY_MARGIN, type Context2D, type GroundPixels, type LocalWay } from './ground'
 
 /** 구역 한 변(m)과 마스크 해상도 — 약 0.33m/px */

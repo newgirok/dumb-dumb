@@ -1,8 +1,8 @@
 import * as THREE from 'three'
-import type { LocalFrame } from '@/lib/geo/localFrame'
-import { createTerrainMaterial, type SharedUniforms } from '../village/rampShader'
+import type { LocalFrame } from '@/lib/geo/local-frame'
+import { createTerrainMaterial, type SharedUniforms } from '@/lib/three/ramp-shader'
 import type { GroundPixels } from './ground'
-import { CHUNK, createGroundSource, RESOLUTION, type GroundSource } from './groundSource'
+import { CHUNK, createGroundSource, RESOLUTION, type GroundSource } from './ground-source'
 import type { GroundWorkerRequest, GroundWorkerResponse } from './ground.worker'
 
 /** 캐릭터가 선 구역 둘레 이만큼(구역 수)을 깔아 둔다 — 가장자리에 서도 앞쪽 256m가 깔려 있다(보이는 거리 175m) */

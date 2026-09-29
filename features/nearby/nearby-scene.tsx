@@ -1,6 +1,6 @@
 'use client'
 
-// 내 주변(베타) — 내 위치 주변의 실제 길(OpenStreetMap)을 여름 마을 화풍으로 깔고,
+// 내 주변(베타) — 내 위치 주변의 실제 길(OpenStreetMap)을 플레이 씬 화풍으로 깔고,
 // 1m = 1m로 걸으며 펼침 지도(M)와 맞춰 본다. 걷는 만큼 앞쪽 구역을 이어 깐다(끝이 없다).
 // 같은 동네(반경 200m)에 들른 사람이 실제 자리에 보인다. 건물·소품은 아직 없다.
 
@@ -11,22 +11,22 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js'
-import PaperMap, { GpsBadge, MapIcon, useMapHotkey, type MapTrack } from '@/components/world/PaperMap'
-import Loader, { waitSpinTurn } from '@/components/transition/Loader'
-import GpsSteps from '@/components/world/GpsSteps'
+import PaperMap, { GpsBadge, MapIcon, useMapHotkey, type MapTrack } from '@/components/map/paper-map'
+import Loader, { waitSpinTurn } from '@/components/ui/loader'
+import GpsSteps from '@/components/location/gps-steps'
 import { createGpsTracker, isWalkableFix, useGpsSnapshot, waitForStartFix, type GpsTracker } from '@/lib/geo/gps'
-import { detectGpsEnv, startWaitNote, walkNote, type GpsEnv } from '@/lib/geo/gpsMessages'
-import { createLocalFrame, type LocalFrame } from '@/lib/geo/localFrame'
-import { createSkin, createSkinAnimation, loadBinGeometry } from '@/lib/three/binLoader'
-import { createRampMaterial, createSharedUniforms, createSkyMaterial, loadKtx2Lut } from '../village/rampShader'
-import { createThirdPerson, type ThirdPerson } from '../village/thirdPerson'
-import { createSunLight } from '../village/shadows'
-import { createFinalPass } from '../village/postprocess'
-import { blendKidAnimation, createKidAnimation, type KidAnimation } from '../village/kidAnimation'
-import { createRemotes, type Remotes } from '../village/remotes'
-import { baseDevicePixelRatio, configure, isMobileDevice } from '../village/setup'
+import { detectGpsEnv, startWaitNote, walkNote, type GpsEnv } from '@/lib/geo/gps-messages'
+import { createLocalFrame, type LocalFrame } from '@/lib/geo/local-frame'
+import { createSkin, createSkinAnimation, loadBinGeometry } from '@/lib/three/bin-loader'
+import { createRampMaterial, createSharedUniforms, createSkyMaterial, loadKtx2Lut } from '@/lib/three/ramp-shader'
+import { createThirdPerson, type ThirdPerson } from '@/lib/three/third-person'
+import { createSunLight } from '@/lib/three/shadows'
+import { createFinalPass } from '@/lib/three/postprocess'
+import { blendKidAnimation, createKidAnimation, type KidAnimation } from '@/lib/three/kid-animation'
+import { createRemotes, type Remotes } from '@/lib/three/remote-players'
+import { baseDevicePixelRatio, configure, isMobileDevice } from '@/lib/three/setup'
 import { connectRelay, type RelayConnection } from '@/lib/realtime/relay'
-import { createGroundStream, type GroundStream } from './stream'
+import { createGroundStream, type GroundStream } from './ground-stream'
 
 /** 원점은 0.001° 격자에 맞춘다 — 정확한 내 위치를 원점으로 두지 않고, 같은 동네면 같은 바닥이 나온다 */
 const ORIGIN_GRID = 0.001
@@ -44,7 +44,7 @@ function motionOf(controller: ThirdPerson) {
   return controller.airborne ? 1 : controller.bored ? 2 : 0
 }
 
-export default function NeighborhoodScene() {
+export default function NearbyScene() {
   const mountRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<MapTrack | null>(null)
   const [phase, setPhase] = useState<Phase>('locating')
@@ -87,7 +87,7 @@ export default function NeighborhoodScene() {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     mount.appendChild(renderer.domElement)
 
-    // 여름 마을과 같은 후처리 — LUT만 쓰고 인트로 가림막은 없다
+    // 플레이 씬과 같은 후처리 — LUT만 쓰고 인트로 가림막은 없다
     const composer = new EffectComposer(
       renderer,
       new THREE.WebGLRenderTarget(1, 1, { type: THREE.UnsignedByteType, colorSpace: THREE.SRGBColorSpace }),
@@ -172,7 +172,7 @@ export default function NeighborhoodScene() {
       const [skyGeo, kidGeo, kidBones, kidIdle, kidRun, kidAir, kidBored] = await bins
       if (destroyed) return
 
-      // 여름 마을과 같은 텍스처 옵션
+      // 플레이 씬과 같은 텍스처 옵션
       configure(rampTex, { srgb: true, colordata: true })
       configure(noisesTex, { repeat: true })
       configure(detailsTex, { repeat: true })

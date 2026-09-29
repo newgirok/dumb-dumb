@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import NeighborhoodScene from './scene'
+import NearbyScene from '@/features/nearby/nearby-scene'
 
 export const metadata: Metadata = {
   title: '내 주변',
@@ -12,6 +12,6 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 }
 
-export default function NeighborhoodPage() {
-  return <NeighborhoodScene />
+export default function NearbyPage() {
+  return <NearbyScene />
 }

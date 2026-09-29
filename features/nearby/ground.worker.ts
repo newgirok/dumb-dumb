@@ -1,8 +1,8 @@
 // 내 주변 바닥 워커 — 타일 받기·해석과 구역 마스크 그리기를 메인 스레드 밖에서 한다.
 // 메인 스레드는 돌려받은 픽셀로 텍스처만 만든다(멈칫하지 않게).
 
-import { createLocalFrame } from '@/lib/geo/localFrame'
-import { createGroundSource, type GroundSource } from './groundSource'
+import { createLocalFrame } from '@/lib/geo/local-frame'
+import { createGroundSource, type GroundSource } from './ground-source'
 
 export type GroundWorkerRequest = { type: 'init'; lng0: number; lat0: number } | { type: 'build'; id: number; cx: number; cz: number }
 

@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { PAPER, PAPER_STYLE, PATTERNS } from './paperMapStyle'
+import { PAPER, PAPER_STYLE, PATTERNS } from './paper-map-style'
 import { formatAccuracy, isGpsBlocked, useGpsSnapshot, type GpsSnapshot, type GpsTracker } from '@/lib/geo/gps'
-import { detectGpsEnv, gpsNote, type GpsEnv } from '@/lib/geo/gpsMessages'
-import { LoaderSpinner } from '@/components/transition/Loader'
-import GpsSteps from './GpsSteps'
+import { detectGpsEnv, gpsNote, type GpsEnv } from '@/lib/geo/gps-messages'
+import { LoaderSpinner } from '@/components/ui/loader'
+import GpsSteps from '@/components/location/gps-steps'
 
 /** 씬이 매 프레임 채워 주는 캐릭터 위치와 화면 방향(북쪽 기준 시계방향 도) */
 export interface MapTrack {
@@ -245,7 +245,7 @@ function zoomToFit(meters: number, lat: number, viewPx: number): number {
 
 /**
  * M 키로 지도를 펼치고 접는다(Esc는 접기만). 글자 입력 중이거나 Ctrl·Alt·Cmd와 함께 누르면 무시한다
- * — Ctrl+M은 마을 씬의 음소거다. 한글 입력 상태에서도 되도록 물리 키(code)로 본다.
+ * — Ctrl+M은 플레이 씬의 음소거다. 한글 입력 상태에서도 되도록 물리 키(code)로 본다.
  */
 export function useMapHotkey(enabled: boolean, setOpen: Dispatch<SetStateAction<boolean>>) {
   useEffect(() => {
@@ -302,7 +302,7 @@ export function GpsBadge({ snapshot }: { snapshot: GpsSnapshot | null }) {
  * 이음매 없이 바뀐다. Mapbox는 컨테이너 조상의 CSS 변환을 읽어 크기를 재므로, 접혀 있을 때는
  * 애니메이션을 모두 걷어 변환이 없게 두고, 크기 재기는 애니메이션이 끝난 뒤에만 한다.
  *
- * track을 주면 캐릭터 자리(내 주변)가, 없으면 GPS 위치(마을 씬)가 '나'다. 마을 씬에서 위치를 아직
+ * track을 주면 캐릭터 자리(내 주변)가, 없으면 GPS 위치(플레이 씬)가 '나'다. 플레이 씬에서 위치를 아직
  * 모르면 엉뚱한 곳을 보여 주지 않도록 지도를 가리고 빈 종이에 상태만 띄운다.
  * GPS 상태(찾는 중·흐림·멈춤·거부 등)는 쪽지·도장·정확도 원·음파 효과로 보여 준다.
  */
@@ -571,7 +571,7 @@ export default function PaperMap({
     let last = gps.snapshot.status
     let hadFix = !!gps.snapshot.fix
     return gps.subscribe((s) => {
-      // 마을 씬(GPS가 '나')에서 펼쳐 둔 채 첫 위치가 오면 그리로 간다
+      // 플레이 씬(GPS가 '나')에서 펼쳐 둔 채 첫 위치가 오면 그리로 간다
       const map = mapRef.current
       if (map && s.fix && !hadFix && !track) map.jumpTo({ center: [s.fix.lng, s.fix.lat], zoom: openZoom(s) })
       hadFix = !!s.fix
@@ -815,7 +815,7 @@ export default function PaperMap({
   const off = note?.tone === 'off'
   const searching = snapshot?.status === 'searching' || snapshot?.status === 'prompt' || snapshot?.status === 'unavailable'
   const hasFix = !!snapshot?.fix
-  // 보여 줄 곳이 없다 — 캐릭터도(내 주변) GPS 위치도(마을 씬) 없으면 지도를 가린다
+  // 보여 줄 곳이 없다 — 캐릭터도(내 주변) GPS 위치도(플레이 씬) 없으면 지도를 가린다
   const nowhere = !track && !hasFix
 
   return (
