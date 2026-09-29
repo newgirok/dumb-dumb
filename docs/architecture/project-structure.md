@@ -67,7 +67,7 @@ project/
 │   ├── voice/                    ← voice.controller, module (LiveKit 토큰 발급)
 │   ├── billing/                  ← controller, service, fulfillment.service, fulfillment.worker, module
 │   └── avatars/                  ← service, module (외형 조합 · 고유 시리얼 발급)
-├── apps/api/migrations/          ← PostgreSQL 마이그레이션 SQL 0000~0010 (PostGIS, pg_cron, pgcrypto, citext · 0000은 옛 auth.users 참조용 스텁)
+├── apps/api/migrations/          ← PostgreSQL 마이그레이션 SQL 0000~0010 (PostGIS, pg_cron, pgcrypto, citext · 0000은 auth.users 스텁)
 │
 ├── apps/realtime/                ← NestJS 실시간 서버 (socket.io, 9002, DB 없음)
 │   ├── src/

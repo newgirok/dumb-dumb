@@ -189,4 +189,7 @@ MVP 규모에서는 대부분 무료 티어~소액 수준에서 운영 가능하
 | [ADR 005](../adr/005-postgis-gist-index.md) | PostGIS + GiST 공간 인덱스 |
 | [ADR 006](../adr/006-fog-of-war-business-model.md) | 가시거리 라이선스 BM |
 | [ADR 007](../adr/007-quarter-view-camera-lock.md) | 플레이 씬 3인칭 카메라 + 지도 월드(예정) 카메라 잠금 |
-| [ADR 008](../adr/008-realtime-server-split.md) | 실시간 서버 분리 — socket.io 게이트웨이를 API 서버에서 떼어 냄 |
+| [ADR 008](../adr/008-realtime-server-split.md) | 실시간 서버 분리 — socket.io 게이트웨이는 API 서버와 따로 둔다 |
+| [ADR 009](../adr/009-interest-management-naming.md) | 실시간 이름 — 받는 사람을 고르는 방식(방·근접·섹터) |
+| [ADR 010](../adr/010-web-structure-and-naming.md) | 웹 구조와 이름 — app은 라우트만, 화면 코드는 features, 파일은 kebab-case |
+| [ADR 011](../adr/011-db-migrations.md) | DB 마이그레이션 — apps/api/migrations, 번호 순서대로 적용 |
