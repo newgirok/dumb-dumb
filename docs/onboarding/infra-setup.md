@@ -73,7 +73,7 @@ NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 플레�
 | `NEXT_PUBLIC_WS_URL` | 실시간 서버 공개 주소 (플레이 씬·내 주변 소켓) |
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapbox account.mapbox.com → Tokens (플레이 씬·내 주변 펼침 지도) |
 
-로그인·지도 월드·상점 화면을 다시 만들면 다음도 등록한다:
+로그인·지도 월드·상점 화면을 붙이면 다음도 등록한다:
 
 | 변수 | 값 출처 |
 |---|---|
@@ -94,7 +94,7 @@ NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 플레�
 4. "Settings" → "Keys" → API Key + API Secret 발급
 5. WebSocket URL 확인: `wss://your-project.livekit.cloud`
 
-→ `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`은 **API 서버 환경변수**에 등록한다(룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급). `NEXT_PUBLIC_LIVEKIT_URL`은 지도 월드 화면을 다시 만들 때 프론트에 등록한다.
+→ `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`은 **API 서버 환경변수**에 등록한다(룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급). `NEXT_PUBLIC_LIVEKIT_URL`은 지도 월드 화면을 붙일 때 프론트에 등록한다.
 
 ---
 
@@ -134,7 +134,7 @@ NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 플레�
 3. Client ID/Secret → `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
 4. **Authorized redirect URI 등록**: `http://localhost:3000/api/auth/oauth/google/callback` (프로덕션은 실제 도메인)
 
-> 리다이렉트 URI는 로그인 화면과 함께 다시 만들 BFF 콜백 라우트이며, 콘솔 등록값과 정확히 일치해야 한다. OAuth 관련 클라이언트 ID/시크릿은 모두 API 서버 환경변수로 관리한다.
+> 리다이렉트 URI는 로그인 화면과 함께 만들 BFF 콜백 라우트이며, 콘솔 등록값과 정확히 일치해야 한다. OAuth 관련 클라이언트 ID/시크릿은 모두 API 서버 환경변수로 관리한다.
 
 ---
 

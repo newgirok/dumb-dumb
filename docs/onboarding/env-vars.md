@@ -15,9 +15,9 @@
 
 `NEXT_PUBLIC_*` 값은 빌드 시점에 번들에 구워진다. 값을 바꾸면 프론트엔드를 다시 빌드해야 한다.
 
-### 다시 만들 화면이 쓸 변수
+### 예정 화면이 쓸 변수
 
-로그인·지도 월드·상점 화면과 BFF 라우트를 다시 만들면 필요하다. 지금은 어느 코드도 읽지 않는다.
+로그인·지도 월드·상점 화면과 BFF 라우트를 붙이면 필요하다. 지금은 어느 코드도 읽지 않는다.
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
@@ -102,7 +102,7 @@
 | `GOOGLE_CLIENT_ID` | 선택 | 구글 OAuth Client ID. 미설정이면 API 서버가 구글 인가 URL 요청을 `400`으로 거절한다 |
 | `GOOGLE_CLIENT_SECRET` | 선택 | 구글 OAuth Client Secret |
 
-> 리다이렉트 URI는 로그인 화면과 함께 다시 만들 BFF 콜백 라우트다. 공급자 콘솔에 등록하고, 등록값과 정확히 일치해야 한다:
+> 리다이렉트 URI는 로그인 화면과 함께 만들 BFF 콜백 라우트다. 공급자 콘솔에 등록하고, 등록값과 정확히 일치해야 한다:
 > `http://localhost:3000/api/auth/oauth/kakao/callback`,
 > `http://localhost:3000/api/auth/oauth/google/callback`
 

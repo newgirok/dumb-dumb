@@ -99,7 +99,7 @@ WHERE ST_Distance(geom, ST_MakePoint($lon, $lat)) < $r;
 
 ## socket.io 게이트웨이 규칙
 
-게이트웨이는 셋이다. 로그인 유저 전용 `/sector`는 지도 월드용이고(화면은 다시 만들 예정이라 지금 붙는 클라이언트는 없다), 플레이 씬은 익명 `/room`, 내 주변(베타)은
+게이트웨이는 셋이다. 로그인 유저 전용 `/sector`는 지도 월드용이고(화면은 예정이라 지금 붙는 클라이언트는 없다), 플레이 씬은 익명 `/room`, 내 주변(베타)은
 익명 `/proximity`에 붙는다. 세 게이트웨이는 모두 실시간 서버(`apps/realtime`, 9002)에 있고, 그 포트의 socket.io 서버 하나를 네임스페이스로 나눠 쓴다.
 CORS 같은 서버 옵션은 게이트웨이 데코레이터에 두지 않고, `main.ts`의 어댑터(`CorsIoAdapter`)가 설정을 읽은 뒤 `WEB_ORIGIN`으로 한 번 넣는다.
 실시간 서버에는 전역 가드가 없으므로(Nest는 `APP_GUARD`를 WebSocket 핸들러에 적용하지도 않는다), 인증이 필요한 게이트웨이는 `handleConnection`에서

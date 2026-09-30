@@ -2,7 +2,7 @@
 
 프론트엔드(Next.js)와 실시간 서버·API 서버(NestJS), 그리고 자체 PostgreSQL을 로컬에서 함께 띄우는 절차다.
 
-플레이 씬(`/play`)·내 주변(`/nearby`)·에셋 미리보기(`/asset-viewer`)만 볼 때는 서버가 필요 없다(씬은 혼자 돈다). 의존성 설치 후 프론트엔드만 띄우면 되고, 펼침 지도(M)에 지도를 그리려면 `.env.local`에 `NEXT_PUBLIC_MAPBOX_TOKEN`만 넣으면 된다(없으면 지도 대신 "지도를 그릴 수 없어요" 쪽지가 뜨고 씬은 그대로 돈다). 같은 방·같은 동네의 다른 방문자를 보려면 실시간 서버(`apps/realtime`)를 띄운다(DB·환경변수 없이 뜬다). PostgreSQL은 API 서버(`apps/api`)의 인증·결제·발급 API에 필요하다(이 API를 쓰는 로그인·상점·지도 월드 화면은 다시 만들 예정이다).
+플레이 씬(`/play`)·내 주변(`/nearby`)·에셋 미리보기(`/asset-viewer`)만 볼 때는 서버가 필요 없다(씬은 혼자 돈다). 의존성 설치 후 프론트엔드만 띄우면 되고, 펼침 지도(M)에 지도를 그리려면 `.env.local`에 `NEXT_PUBLIC_MAPBOX_TOKEN`만 넣으면 된다(없으면 지도 대신 "지도를 그릴 수 없어요" 쪽지가 뜨고 씬은 그대로 돈다). 같은 방·같은 동네의 다른 방문자를 보려면 실시간 서버(`apps/realtime`)를 띄운다(DB·환경변수 없이 뜬다). PostgreSQL은 API 서버(`apps/api`)의 인증·결제·발급 API에 필요하다(이 API를 쓰는 로그인·상점·지도 월드 화면은 예정이다).
 
 ---
 
@@ -116,7 +116,7 @@ cp apps/api/.env.example apps/api/.env.local
 cp apps/realtime/.env.example apps/realtime/.env.local
 ```
 
-`apps/api/.env.local`의 `DATABASE_URL`은 반드시 `app_api` 롤을 사용한다. 음성 룸 토큰 발급(`POST /voice/token`)을 쓰려면 `apps/api/.env.example`에 없는 `LIVEKIT_API_KEY`·`LIVEKIT_API_SECRET`을 `apps/api/.env.local`에 직접 추가한다(룸에 붙는 지도 월드 화면은 다시 만들 예정이다).
+`apps/api/.env.local`의 `DATABASE_URL`은 반드시 `app_api` 롤을 사용한다. 음성 룸 토큰 발급(`POST /voice/token`)을 쓰려면 `apps/api/.env.example`에 없는 `LIVEKIT_API_KEY`·`LIVEKIT_API_SECRET`을 `apps/api/.env.local`에 직접 추가한다(룸에 붙는 지도 월드 화면은 예정이다).
 
 ```env
 DATABASE_URL=postgresql://app_api:<비밀번호>@localhost:5432/postgres

@@ -110,7 +110,7 @@ docker compose --env-file .env.local up -d --build realtime
 docker info
 ```
 
-`app`은 `NEXT_PUBLIC_MAPBOX_TOKEN`·`NEXT_PUBLIC_LIVEKIT_URL`·`NEXT_PUBLIC_APP_URL`·`NEXT_PUBLIC_WS_URL`을 빌드 시점에 굽는다. 그중 코드가 읽는 값은 `NEXT_PUBLIC_MAPBOX_TOKEN`(플레이 씬·내 주변 펼침 지도)과 `NEXT_PUBLIC_WS_URL`(플레이 씬·내 주변 소켓)이고, 나머지는 로그인·지도 월드 화면을 다시 만들 때 쓴다. `--env-file .env.local` 없이 빌드하면 빈 값으로 구워지고, `NEXT_PUBLIC_WS_URL`만은 비어 있으면 `http://localhost:9002`(실시간 서버)로 굽는다. 코드 변경은 `--build`로 이미지를 다시 만들어야 반영된다(실시간 서버 코드도 같다). `realtime`은 `WEB_ORIGIN`(기본 `http://localhost:3000`)과 `JWT_ACCESS_SECRET`(기본 빈 값 — `/sector` 접속만 거절)을 셸이나 `--env-file`에서 받는다.
+`app`은 `NEXT_PUBLIC_MAPBOX_TOKEN`·`NEXT_PUBLIC_LIVEKIT_URL`·`NEXT_PUBLIC_APP_URL`·`NEXT_PUBLIC_WS_URL`을 빌드 시점에 굽는다. 그중 코드가 읽는 값은 `NEXT_PUBLIC_MAPBOX_TOKEN`(플레이 씬·내 주변 펼침 지도)과 `NEXT_PUBLIC_WS_URL`(플레이 씬·내 주변 소켓)이고, 나머지는 로그인·지도 월드 화면을 붙일 때 쓴다. `--env-file .env.local` 없이 빌드하면 빈 값으로 구워지고, `NEXT_PUBLIC_WS_URL`만은 비어 있으면 `http://localhost:9002`(실시간 서버)로 굽는다. 코드 변경은 `--build`로 이미지를 다시 만들어야 반영된다(실시간 서버 코드도 같다). `realtime`은 `WEB_ORIGIN`(기본 `http://localhost:3000`)과 `JWT_ACCESS_SECRET`(기본 빈 값 — `/sector` 접속만 거절)을 셸이나 `--env-file`에서 받는다.
 
 ---
 
