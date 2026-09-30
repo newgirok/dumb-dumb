@@ -48,7 +48,7 @@ NestJS API 서버(`apps/api`, REST)를 호스팅한다.
 
 ## 3. 실시간 서버 호스팅
 
-NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 플레이 씬 익명 소켓(`/room`), 내 주변 익명 소켓(`/proximity`), 맵 섹터 소켓(`/sector`)이 이 서버에서 서빙되고, DB는 쓰지 않는다([ADR 008](../adr/008-realtime-server-split.md)).
+NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 플레이 씬 익명 소켓(`/room`), 내 주변 익명 소켓(`/proximity`), 맵 섹터 소켓(`/sector`)이 이 서버에서 서빙되고, DB는 쓰지 않는다([ADR 007](../adr/007-realtime-server-split.md)).
 
 1. 서버/컨테이너 환경에 Node.js 20 이상 준비, `apps/realtime`에서 `npm install && npm run build`(컨테이너는 저장소 루트를 빌드 컨텍스트로 `apps/realtime/Dockerfile`을 쓴다)
 2. `npm run start:prod`로 기동 (기본 `PORT=9002`). 헬스 프로브는 `GET /health`

@@ -73,7 +73,7 @@
   서버 쪽 섹터 게이트웨이(`/sector`)는 실시간 서버에 있다.
 
 서버는 둘로 나뉜다. REST는 API 서버(`apps/api`, 9001)에, 소켓 게이트웨이는 실시간 서버(`apps/realtime`, 9002)에 있고
-DB는 API 서버만 쓴다([ADR 008](../adr/008-realtime-server-split.md)). 브라우저가 지금 서버에 붙는 길은 실시간 서버의
+DB는 API 서버만 쓴다([ADR 007](../adr/007-realtime-server-split.md)). 브라우저가 지금 서버에 붙는 길은 실시간 서버의
 씬 소켓뿐이다. 플레이 씬은 `NEXT_PUBLIC_WS_URL` 주소의 `/room` 네임스페이스에,
 내 주변(베타)은 `/proximity`에 토큰 없이 익명으로 붙는다. Next.js API 라우트는 헬스 체크(`/api/health`)뿐이다.
 로그인·상점·맵 화면을 만들 때 REST 호출은 Next.js Route Handler(`/api/auth/*`, `/api/billing/*`, `/api/me/*`)를
@@ -99,11 +99,11 @@ NestJS 가드와 PostgreSQL RLS가 담당한다.
 | **UI 스타일** | Tailwind CSS v4 + oklch 디자인 시스템 | 루트 레이아웃 기본 글꼴 Nunito, 한글 UI 글씨 Pretendard, 선택 페이지 제목 Luckiest Guy, 선택 페이지 버튼 이름·펼침 지도 글씨 Stylish(웹 폰트는 모두 `font-display: block`). 플레이 씬 HUD는 `sa-*` 스타일 |
 | **프론트 배포** | Vercel Edge Network | Next.js 서버(`output: 'standalone'`, Route Handler `/api/health`) + ref-assets 정적 파일 |
 | **API 서버** | NestJS 11 (`apps/api`) | 자체 호스팅. REST 전용(9001) |
-| **실시간 서버** | NestJS 11 (`apps/realtime`) | 자체 호스팅. socket.io 게이트웨이 전용(9002), DB 없음 ([ADR 008](../adr/008-realtime-server-split.md)) |
+| **실시간 서버** | NestJS 11 (`apps/realtime`) | 자체 호스팅. socket.io 게이트웨이 전용(9002), DB 없음 ([ADR 007](../adr/007-realtime-server-split.md)) |
 | **데이터베이스** | PostgreSQL + PostGIS (자체 호스팅, 단일 공유 DB) | 공간 연산 내장 ([ADR 002](../adr/002-self-hosted-backend.md)) |
 | **실시간 소켓** | socket.io 4 (실시간 서버의 NestJS WebSocket 게이트웨이) | 플레이 씬 익명 방 단위 변경분 중계(`/room`), 내 주변 익명 가까운 사람 중계(`/proximity`), 맵 섹터 단위 묶음 브로드캐스트(`/sector`, 붙는 화면은 예정) |
 | **인증** | 자체 JWT + bcrypt, 카카오/구글 OAuth | NestJS `auth` 모듈. 액세스 15분 / 리프레시 30일. 로그인 화면은 예정 |
-| **PG 결제** | 토스페이먼츠 / 카카오페이 | 원화 직행 ([ADR 004](../adr/004-direct-krw-payment.md)). 승인 웹훅은 API 서버가 받고, 결제창은 상점 화면과 함께 예정 |
+| **PG 결제** | 토스페이먼츠 / 카카오페이 | 원화 직행 ([ADR 003](../adr/003-direct-krw-payment.md)). 승인 웹훅은 API 서버가 받고, 결제창은 상점 화면과 함께 예정 |
 | **아바타 외형** | 서버 팔레트 조합 + 난수 시드 | `appearance_hash`(SHA-256) UNIQUE로 중복 차단. 생성형 AI로 교체 예정 |
 
 ---
@@ -144,14 +144,14 @@ DB(PostgreSQL + PostGIS)와 NestJS API 서버·실시간 서버는 자체 호스
 | Three.js Prune 임계값 | 반경 450m 외곽 | 맵(예정) 피어 오브젝트 메모리 해제 기준 |
 | Prune 트리거 | 50m 이동마다 | 맵(예정), 비동기 배치 실행 |
 | 에셋 프리로드 바운더리 | 전방 350~400m | 스폰서 텍스처 사전 다운로드 (Phase 4 예정) |
-| 플레이 씬 카메라 | 3인칭 구면 리그 | 16:9 이상은 시선 목표점 기준 반경 5.836m·앙각 9.866°·세로 화각 45°. 세로로 긴 화면일수록 화각(최대 66°)·반경(최대 ×1.3)·앙각(최대 +8°)을 키운다(`framingFor`) ([ADR 007](../adr/007-quarter-view-camera-lock.md)) |
+| 플레이 씬 카메라 | 3인칭 구면 리그 | 16:9 이상은 시선 목표점 기준 반경 5.836m·앙각 9.866°·세로 화각 45°. 세로로 긴 화면일수록 화각(최대 66°)·반경(최대 ×1.3)·앙각(최대 +8°)을 키운다(`framingFor`) ([ADR 006](../adr/006-quarter-view-camera-lock.md)) |
 | 맵 카메라 | pitch 45°·bearing 45° 고정 | 드래그·회전 잠금, 줌 14~20만 허용, 이동할 때마다 캐릭터 중심으로 맞춤 (예정) |
 | 펼침 지도 카메라 | 북쪽이 위인 평면 | 끌기·확대/축소만 받고 회전·기울이기는 막는다. 줌 11~18.5(처음 16), 펼칠 때 '나'를 가운데로 맞춘다 |
 | 액세스 토큰 만료 | 15분 | 브라우저 메모리 보관 |
 | 리프레시 토큰 만료 | 30일 | httpOnly 쿠키 보관 |
 
 라이선스 가시거리는 DB에 저장되고 NestJS `GET /me/license`로 조회하며, 씬 렌더링에는 아직 적용하지 않는다
-([ADR 006](../adr/006-fog-of-war-business-model.md)).
+([ADR 005](../adr/005-fog-of-war-business-model.md)).
 
 ---
 
@@ -177,11 +177,11 @@ MVP 규모에서는 대부분 무료 티어~소액 수준에서 운영 가능하
 |---|---|
 | [ADR 001](../adr/001-webgl-context-sharing.md) | WebGL 컨텍스트 구성 — 플레이 씬·펼침 지도 분리, 맵(예정) Mapbox 공유 |
 | [ADR 002](../adr/002-self-hosted-backend.md) | 자체 백엔드(NestJS + 공유 Postgres) |
-| [ADR 004](../adr/004-direct-krw-payment.md) | 원화 직행 결제 구조 |
-| [ADR 005](../adr/005-postgis-gist-index.md) | PostGIS + GiST 공간 인덱스 |
-| [ADR 006](../adr/006-fog-of-war-business-model.md) | 가시거리 라이선스 BM |
-| [ADR 007](../adr/007-quarter-view-camera-lock.md) | 플레이 씬 3인칭 카메라 + 맵(예정) 카메라 잠금 |
-| [ADR 008](../adr/008-realtime-server-split.md) | 실시간 서버 분리 — socket.io 게이트웨이는 API 서버와 따로 둔다 |
-| [ADR 009](../adr/009-interest-management-naming.md) | 실시간 이름 — 받는 사람을 고르는 방식(방·근접·섹터) |
-| [ADR 010](../adr/010-web-structure-and-naming.md) | 웹 구조와 이름 — app은 라우트만, 화면 코드는 features, 파일은 kebab-case |
-| [ADR 011](../adr/011-db-migrations.md) | DB 마이그레이션 — apps/api/migrations, 번호 순서대로 적용 |
+| [ADR 003](../adr/003-direct-krw-payment.md) | 원화 직행 결제 구조 |
+| [ADR 004](../adr/004-postgis-gist-index.md) | PostGIS + GiST 공간 인덱스 |
+| [ADR 005](../adr/005-fog-of-war-business-model.md) | 가시거리 라이선스 BM |
+| [ADR 006](../adr/006-quarter-view-camera-lock.md) | 플레이 씬 3인칭 카메라 + 맵(예정) 카메라 잠금 |
+| [ADR 007](../adr/007-realtime-server-split.md) | 실시간 서버 분리 — socket.io 게이트웨이는 API 서버와 따로 둔다 |
+| [ADR 008](../adr/008-interest-management-naming.md) | 실시간 이름 — 받는 사람을 고르는 방식(방·근접·섹터) |
+| [ADR 009](../adr/009-web-structure-and-naming.md) | 웹 구조와 이름 — app은 라우트만, 화면 코드는 features, 파일은 kebab-case |
+| [ADR 010](../adr/010-db-migrations.md) | DB 마이그레이션 — apps/api/migrations, 번호 순서대로 적용 |

@@ -1,4 +1,4 @@
-# ADR 011: DB 마이그레이션 — apps/api/migrations에 두고 번호 순서대로 적용한다
+# ADR 010: DB 마이그레이션 — apps/api/migrations에 두고 번호 순서대로 적용한다
 
 **상태:** Accepted
 
@@ -17,7 +17,7 @@
 | 마이그레이션 폴더는 하는 일로 부른다 — dbmate 기본 `db/migrations`, node-pg-migrate 기본 `migrations` | dbmate·node-pg-migrate | `migrations/` |
 | 파일 이름은 `[버전]_[설명].sql` | dbmate | `0001_init.sql` 등 |
 
-- **위치는 API 서버 아래다.** DB를 쓰는 앱은 API 서버 하나고([ADR 008](./008-realtime-server-split.md)), 루트에는 워크스페이스 설정만 두는 표준 모노레포 구성(예정)과도 맞는다.
+- **위치는 API 서버 아래다.** DB를 쓰는 앱은 API 서버 하나고([ADR 007](./007-realtime-server-split.md)), 루트에는 워크스페이스 설정만 두는 표준 모노레포 구성(예정)과도 맞는다.
 - **스텁은 두 번 돌려도 된다.** `CREATE … IF NOT EXISTS`라서 이미 스텁이 있는 DB에서는 아무 일도 하지 않는다.
 
 ## 적용
@@ -34,8 +34,8 @@
 ## 관련
 
 - [ADR 002: 자체 백엔드 — NestJS + 공유 Postgres](./002-self-hosted-backend.md)
-- [ADR 005: PostGIS + GiST 인덱스](./005-postgis-gist-index.md)
-- [ADR 008: 실시간 서버 분리](./008-realtime-server-split.md)
+- [ADR 004: PostGIS + GiST 인덱스](./004-postgis-gist-index.md)
+- [ADR 007: 실시간 서버 분리](./007-realtime-server-split.md)
 - [데이터 모델](../architecture/data-model.md)
 - [Prisma — About migration histories](https://www.prisma.io/docs/concepts/components/prisma-migrate/migration-histories)
 - [Flyway 마이그레이션 가이드 (DeployHQ)](https://www.deployhq.com/blog/master-your-database-migrations-with-flyway-a-comprehensive-guide-for-all-projects)

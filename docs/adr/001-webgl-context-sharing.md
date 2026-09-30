@@ -125,4 +125,4 @@ map.on('load', () => map.addLayer({ ...customLayer, slot: 'top' }))
 ## 관련
 
 - [아키텍처 개요 — 시스템 다이어그램](../architecture/overview.md)
-- [ADR 007 — 카메라 잠금](./007-quarter-view-camera-lock.md)
+- [ADR 006 — 카메라 잠금](./006-quarter-view-camera-lock.md)

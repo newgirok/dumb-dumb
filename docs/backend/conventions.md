@@ -154,5 +154,5 @@ CORS 같은 서버 옵션은 게이트웨이 데코레이터에 두지 않고, `
 
 - [보안 규격](./security/encryption.md)
 - [ADR 002 — 자체 백엔드(NestJS + 공유 Postgres)](../adr/002-self-hosted-backend.md)
-- [ADR 008 — 실시간 서버 분리](../adr/008-realtime-server-split.md)
+- [ADR 007 — 실시간 서버 분리](../adr/007-realtime-server-split.md)
 - [아키텍처 개요 — API 원칙](../architecture/overview.md)

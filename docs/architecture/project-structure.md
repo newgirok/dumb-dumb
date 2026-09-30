@@ -125,12 +125,12 @@ project/
 API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/마케팅 웹은 추후 별도 앱으로 분리한다(로드맵 참고).
 
 현재 구조는 루트 Next.js 앱과 `apps/api`(REST)·`apps/realtime`(socket.io) NestJS를 한 저장소에 코로케이션한 형태다
-([ADR 008](../adr/008-realtime-server-split.md)). 워크스페이스 도구 없이 패키지마다 따로 설치하고, 두 서버는 서로 부르지 않는다.
+([ADR 007](../adr/007-realtime-server-split.md)). 워크스페이스 도구 없이 패키지마다 따로 설치하고, 두 서버는 서로 부르지 않는다.
 맵의 섹터 계산과 소켓 이벤트 계약은 `shared/sector/`에 단일 소스로 두고, 실시간 서버(`apps/realtime/src/sector/`)가
 이를 재노출해 쓴다. 익명 멀티플레이 소켓 계약은 `shared/relay/contract.ts` 하나를 프론트(`lib/realtime/relay.ts`)와
 실시간 서버(`apps/realtime/src/room/`·`proximity/`의 두 게이트웨이)가 직접 import한다. API 서버는 `shared/`를 쓰지 않는다.
-실시간 서버의 폴더·네임스페이스는 화면 이름 대신 받는 사람을 고르는 방식(방·근접·섹터)으로 부른다([ADR 009](../adr/009-interest-management-naming.md)).
-웹은 `app/`에 라우트만 두고, 화면별 코드는 `features/`, 여러 화면이 같이 쓰는 코드는 `components/`·`lib/`에 두며, 파일 이름은 kebab-case다([ADR 010](../adr/010-web-structure-and-naming.md)).
+실시간 서버의 폴더·네임스페이스는 화면 이름 대신 받는 사람을 고르는 방식(방·근접·섹터)으로 부른다([ADR 008](../adr/008-interest-management-naming.md)).
+웹은 `app/`에 라우트만 두고, 화면별 코드는 `features/`, 여러 화면이 같이 쓰는 코드는 `components/`·`lib/`에 두며, 파일 이름은 kebab-case다([ADR 009](../adr/009-web-structure-and-naming.md)).
 
 ---
 
@@ -141,7 +141,7 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 | `app/page.tsx` | 선택 페이지 — 여름 오후 풍경 위 제목 "Dumb Dumb"과 세로로 쌓은 목적지 버튼 3개(플레이·내 주변·에셋 미리보기, 이름·배지·아이콘은 `PLACES`). 제목은 Luckiest Guy(`next/font/google`), 버튼 이름의 Stylish 폰트 파일은 `preload`로 미리 받는다 |
 | `lib/routes.ts` | `SCENE_ROUTES`(`/play`, `/nearby`, `/asset-viewer`) — 선택 페이지만 쓰는 경로 목록(카드 문구 `PLACES`와 타입으로 묶인다) |
 | `features/play/play-scene.tsx` | 플레이 씬 — ref-assets 로드·씬 조립·렌더 루프, 우상단 HUD(사운드·옷 색·지도, 위치를 못 잡으면 지도 버튼 구석에 "!")와 단축키(M·Esc·Ctrl+M), 펼침 지도 마운트(지도가 다 접혀 배경이 걷힐 때까지 캐릭터 조작을 끈다), GPS 추적기(이미 허용된 사이트면 씬 시작 때 바로, 아니면 지도를 처음 펼칠 때 권한을 묻는다) |
-| `lib/three/third-person.ts` | 플레이 씬 3인칭 조작(키보드·마우스·터치·게임패드)·캡슐 충돌·카메라 리그와 화면 비율 반응형 구도(`framingFor`) ([ADR 007](../adr/007-quarter-view-camera-lock.md)) |
+| `lib/three/third-person.ts` | 플레이 씬 3인칭 조작(키보드·마우스·터치·게임패드)·캡슐 충돌·카메라 리그와 화면 비율 반응형 구도(`framingFor`) ([ADR 006](../adr/006-quarter-view-camera-lock.md)) |
 | `lib/three/shadows.ts` | 동적 그림자(시선 앞 ±12m) + 정적 그림자(CSM) 굽기 |
 | `features/play/sea.ts` · `birds.ts` | 하늘을 비추는 바다, 갈매기 무리 비행 |
 | `lib/three/postprocess.ts` · `touch-circles.ts` | 최종 화면 패스(LUT·인트로), 터치 원 UI |
@@ -156,7 +156,7 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 | `components/map/paper-map.tsx` | 펼침 지도 — 씬과 분리된 독립 Mapbox GL 캔버스([ADR 001](../adr/001-webgl-context-sharing.md)). 씬이 시작되면 한 번 만들고 접혀 있는 동안은 숨겨 둔다. 종이 폭에 따라 3단·반 접기·바로 펼침, GPS 상태 쪽지·도장·정확도 원·'나' 표시(DOM 마커). `MapIcon`·`GpsBadge`·`useMapHotkey`(M·Esc)·`MapTrack`도 내보낸다 |
 | `components/map/paper-map-style.ts` | 펼침 지도 스타일 `PAPER_STYLE` — Mapbox Streets v8 + 지형 DEM을 게임 화풍으로 칠한다. 무늬 `PATTERNS`(나무·풀포기·물결)는 `styleimagemissing`에서 캔버스로 그려 넣는다 |
 | `lib/realtime/relay.ts` | socket.io 익명 멀티플레이 연결(플레이 씬 `/room`·내 주변 `/proximity`) — 35ms마다 바뀐 필드만 전송, 5분 무변화 시 끊기(탭을 숨겨도 연결을 둔다), 재접속 때 전에 있던 방 요청 |
-| `lib/three/fog.ts` | Fog of War CSS 비네트 반경 헬퍼 — 어느 화면에도 연결되어 있지 않다 ([ADR 006](../adr/006-fog-of-war-business-model.md)) |
+| `lib/three/fog.ts` | Fog of War CSS 비네트 반경 헬퍼 — 어느 화면에도 연결되어 있지 않다 ([ADR 005](../adr/005-fog-of-war-business-model.md)) |
 | `apps/realtime/src/main.ts` | 실시간 서버 부트스트랩 — 설정을 읽은 뒤 socket.io CORS(`WEB_ORIGIN`)를 넣는 어댑터(`CorsIoAdapter`), 포트 9002 |
 | `apps/realtime/src/auth/access-token.ts` | `AccessTokenVerifier` — `/sector` 접속 토큰의 서명·만료·종류를 API 서버와 같은 `JWT_ACCESS_SECRET`으로 확인(DB 조회 없음, 시크릿이 없으면 거절) |
 | `apps/realtime/src/room/room.gateway.ts` | 방 중계 익명 socket.io 게이트웨이(`/room`, 플레이 씬) — 방 배정(20명)·35ms 방 단위 변경분 방송 |

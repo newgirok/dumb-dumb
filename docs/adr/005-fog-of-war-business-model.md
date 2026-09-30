@@ -1,4 +1,4 @@
-# ADR 006: 가시거리 안개를 BM과 연동하는 설계
+# ADR 005: 가시거리 안개를 BM과 연동하는 설계
 
 **상태:** Accepted
 
@@ -30,7 +30,7 @@
 
 | 영역 | 상태 |
 |---|---|
-| 판매 | `license_100m`(4,900원)·`license_300m`(9,900원)을 원화 정가로 판매한다([ADR 004](./004-direct-krw-payment.md)) |
+| 판매 | `license_100m`(4,900원)·`license_300m`(9,900원)을 원화 정가로 판매한다([ADR 003](./003-direct-krw-payment.md)) |
 | 저장 | `user_licenses.visibility_radius_m`(기본 25). 발급 워커가 보유값과 상품 반경 중 큰 값으로 올린다(`GREATEST`) |
 | 조회 | NestJS `GET /me/license`가 `visibilityRadiusM`을 돌려준다(행이 없으면 25). 상점 화면(`/store`, 예정)이 이 값을 표시한다. 가시거리는 JWT에 담지 않는다 |
 | 렌더링 | 플레이 씬·내 주변 모두 가시거리 반경을 렌더링에 적용하지 않는다. `lib/three/fog.ts`(CSS radial-gradient 비네트, `--fog-radius`)는 마운트되는 곳이 없다 |
@@ -58,4 +58,4 @@
 ## 관련
 
 - [비즈니스 규칙 — 가시거리 규칙](../product/business-rules.md)
-- [ADR 004 — 원화 직행 결제](./004-direct-krw-payment.md)
+- [ADR 003 — 원화 직행 결제](./003-direct-krw-payment.md)

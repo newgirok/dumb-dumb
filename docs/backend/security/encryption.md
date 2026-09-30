@@ -127,5 +127,5 @@ CREATE POLICY sponsor_owner_write ON sponsor_buildings
 ## 관련 문서
 
 - [개발 컨벤션](../conventions.md)
-- [ADR 004 — 결제 구조](../../adr/004-direct-krw-payment.md)
+- [ADR 003 — 결제 구조](../../adr/003-direct-krw-payment.md)
 - [비즈니스 규칙 — 결제 규칙](../../product/business-rules.md)

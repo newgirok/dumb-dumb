@@ -1,6 +1,6 @@
 # 데이터 모델
 
-PostgreSQL + PostGIS 기반 단일 공유 스키마. 공간 연산 상세는 [ADR 005](../adr/005-postgis-gist-index.md)를 참고하세요.
+PostgreSQL + PostGIS 기반 단일 공유 스키마. 공간 연산 상세는 [ADR 004](../adr/004-postgis-gist-index.md)를 참고하세요.
 
 마이그레이션 SQL은 `apps/api/migrations/`의 `0000`~`0010` 파일로 관리하며(`0000`은 `0002`·`0004`가 참조하는 `auth.users` 스텁), PostGIS·pg_cron·pgcrypto·citext
 확장을 사용한다. 사용자 소유 데이터의 외래 키는 애플리케이션 테이블 `users`를 참조하고, `characters.order_id`는 `orders`, `ad_impressions.building_id`는 `sponsor_buildings`를 참조한다.
@@ -282,12 +282,12 @@ ORDER BY dist_m;
 같은 조회를 DB 함수 `nearby_sponsor_buildings(p_lng, p_lat, p_radius_m = 500)`로 제공한다(마이그레이션 `0005`).
 앱(프론트엔드·NestJS)에서 이 함수를 호출하는 API는 Phase 4에서 구현하며, 지금은 부르는 곳이 없다.
 함수는 `geom::geography` 식으로 조회하므로 `geom` GiST 인덱스를
-태우려면 `((geom::geography))` 표현식 인덱스가 필요하다([ADR 005](../adr/005-postgis-gist-index.md)).
+태우려면 `((geom::geography))` 표현식 인덱스가 필요하다([ADR 004](../adr/004-postgis-gist-index.md)).
 
 ---
 
 ## 관련 문서
 
-- [ADR 005 — PostGIS GiST 인덱스](../adr/005-postgis-gist-index.md)
+- [ADR 004 — PostGIS GiST 인덱스](../adr/004-postgis-gist-index.md)
 - [파이프라인 흐름](./pipeline-flow.md)
 - [비즈니스 규칙](../product/business-rules.md)

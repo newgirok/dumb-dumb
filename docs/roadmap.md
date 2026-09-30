@@ -122,7 +122,7 @@
     - 선택 페이지가 휴대폰 세로·가로·데스크톱에서 스크롤 없이 한 화면에 담긴다
 
 - **P2-2.** 캐릭터 + 카메라 `[3D]`
-  - 플레이 씬 — kid 스킨드 메시(idle/run/air/bored 애니메이션), 3인칭 추적 카메라(`lib/three/third-person.ts`, 화면 비율 16:9 이상에서 세로 화각 45°·시선 목표점 중심 반경 5.836m·앙각 9.866°) ([ADR 007](./adr/007-quarter-view-camera-lock.md))
+  - 플레이 씬 — kid 스킨드 메시(idle/run/air/bored 애니메이션), 3인칭 추적 카메라(`lib/three/third-person.ts`, 화면 비율 16:9 이상에서 세로 화각 45°·시선 목표점 중심 반경 5.836m·앙각 9.866°) ([ADR 006](./adr/006-quarter-view-camera-lock.md))
     - 반응형 구도(플레이 씬·내 주변 공통, `framingFor(aspect)`) — 16:9에서 9:19.5로 좁아질수록(smoothstep) 세로 화각 45°→66°, 반경 ×1→×1.3, 앙각 +0→+8°, 시선 들기 0→5°로 넓혀 가장 긴 세로 화면에서 하늘·앞길·발밑이 대략 3분의 1씩 보인다. 창 크기·회전으로 비율이 달라지면 줌 스무딩으로 부드럽게 따라간다
     - 마우스 가상 조이스틱의 고정점은 구도에 맞춰 발끝을 따라가고(16:9에서는 화면 위 72.5%), 최대 세기 거리는 짧은 변 × 0.23(90~200px)이다
   - 맵(예정) — ref-assets kid 스킨드 메시를 Mapbox 커스텀 레이어로 그리고(캐릭터 로더 `lib/three/character.ts`, 내 캐릭터만 로드 실패 시 절차적 메시 폴백), pitch 45°·bearing 45° 고정 쿼터뷰에 줌 14~20만 허용한다
@@ -208,7 +208,7 @@
     - 회색 박스 씬이 중급 폰에서 30fps 이상이고, 완성 씬이 예산 안에 든다
     - 배포 빌드와 저장소(이력 포함)에 ref-assets 파일이 없다
 
-- **P2-8.** 실시간 서버 분리 `[BE][Infra]` ([ADR 008](./adr/008-realtime-server-split.md))
+- **P2-8.** 실시간 서버 분리 `[BE][Infra]` ([ADR 007](./adr/007-realtime-server-split.md))
   - socket.io 게이트웨이 셋(`/room`·`/proximity`·`/sector`)은 실시간 서버 `apps/realtime`(`@owcj/realtime`, 9002)에 둔다. API 서버(`apps/api`, 9001)는 REST만 맡고 socket.io·`shared/`를 쓰지 않는다
   - 브라우저 소켓 주소 `NEXT_PUBLIC_WS_URL`의 기본값은 `http://localhost:9002`다(`lib/realtime/relay.ts`·프론트 `Dockerfile`·compose 빌드 인자·루트 `.env.example`). ngrok 소켓 upstream도 9002다
   - 실시간 서버는 DB 없이 뜬다. `/sector` 토큰은 `AccessTokenVerifier`가 API 서버와 같은 `JWT_ACCESS_SECRET`으로 서명·만료·종류만 확인하고, socket.io CORS는 `main.ts`의 어댑터가 설정을 읽은 뒤 `WEB_ORIGIN`으로 넣는다
@@ -233,7 +233,7 @@
 > 원화 결제로 유니크 아바타를 발급하고 가시거리 라이선스를 영구 확장한다.
 
 - **P3-1.** PG 결제 웹훅 연동 `[BE]`
-  - NestJS `billing` 모듈 `POST /billing/webhook` ([ADR 004](./adr/004-direct-krw-payment.md)) — raw body HMAC-SHA256 서명 검증(`x-pg-signature`, `PG_WEBHOOK_SECRET`), 주문 금액은 서버가 정한다
+  - NestJS `billing` 모듈 `POST /billing/webhook` ([ADR 003](./adr/003-direct-krw-payment.md)) — raw body HMAC-SHA256 서명 검증(`x-pg-signature`, `PG_WEBHOOK_SECRET`), 주문 금액은 서버가 정한다
   - 멱등성은 DB 제약으로 보장 (`orders_pg_approval_uniq`)
   - 주문서(`PENDING`)는 API 서버 `POST /billing/orders`가 발행하고, 결제 승인은 웹훅으로 반영한다
   - 상점 결제창(토스페이먼츠 / 카카오페이) — 예정(상점 화면과 함께)
@@ -274,7 +274,7 @@
 
 - **P4-1.** PostGIS 공간 쿼리 `[DB]`
   - `ST_DWithin` 기반 반경 내 활성 스폰서 랜드마크 조회 함수 `nearby_sponsor_buildings(lng, lat, radius_m = 500)` (`geom::geography` 캐스팅, 마이그레이션 `0005`)
-  - GiST 인덱스(`idx_sponsor_buildings_geom`) 기반 성능 튜닝 ([ADR 005](./adr/005-postgis-gist-index.md))
+  - GiST 인덱스(`idx_sponsor_buildings_geom`) 기반 성능 튜닝 ([ADR 004](./adr/004-postgis-gist-index.md))
   - 검증
     - 10개 스폰서 랜드마크 감지 쿼리가 10ms 이하
 

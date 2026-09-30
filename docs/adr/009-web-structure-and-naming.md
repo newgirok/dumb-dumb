@@ -1,4 +1,4 @@
-# ADR 010: 웹 구조와 이름 — app은 라우트만, 화면 코드는 features, 파일은 kebab-case
+# ADR 009: 웹 구조와 이름 — app은 라우트만, 화면 코드는 features, 파일은 kebab-case
 
 **상태:** Accepted
 
@@ -54,7 +54,7 @@
 
 ## 관련
 
-- [ADR 009: 실시간 이름 — 받는 사람을 고르는 방식으로 부른다](./009-interest-management-naming.md)
+- [ADR 008: 실시간 이름 — 받는 사람을 고르는 방식으로 부른다](./008-interest-management-naming.md)
 - [프로젝트 구조](../architecture/project-structure.md)
 - [프론트엔드 컨벤션](../frontend/conventions.md)
 - [Next.js — Project structure and organization](https://nextjs.org/docs/app/getting-started/project-structure)

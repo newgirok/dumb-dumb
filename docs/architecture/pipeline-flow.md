@@ -278,4 +278,4 @@ localhost가 아닌 곳에서 열렸으면(소켓 주소 없이 빌드한 배포
 
 - [아키텍처 개요](./overview.md)
 - [데이터 모델](./data-model.md)
-- [ADR 005 — PostGIS](../adr/005-postgis-gist-index.md)
+- [ADR 004 — PostGIS](../adr/004-postgis-gist-index.md)

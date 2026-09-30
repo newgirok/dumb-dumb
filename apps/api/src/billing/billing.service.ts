@@ -5,7 +5,7 @@ import { DatabaseService } from '../database/database.service'
 import type { AuthUser } from '../auth/auth.types'
 
 /**
- * 원화 직행 결제 (ADR 004).
+ * 원화 직행 결제 (ADR 003).
  * 가상 화폐를 두지 않으므로 충전·소모·환불 로직이 없고, 주문 하나가 곧
  * 상품 하나다.
  */

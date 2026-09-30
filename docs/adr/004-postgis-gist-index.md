@@ -1,4 +1,4 @@
-# ADR 005: PostGIS + GiST 인덱스 공간 연산
+# ADR 004: PostGIS + GiST 인덱스 공간 연산
 
 **상태:** Accepted
 

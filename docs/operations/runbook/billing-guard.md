@@ -33,7 +33,7 @@ Mapbox 요청은 플레이 씬·내 주변의 펼침 지도(Streets v8·지형 D
 ## socket.io 실시간 연결 과부하 (실시간 서버 부하)
 
 소켓 게이트웨이는 모두 실시간 서버(`apps/realtime`)에 있고 API 서버와 프로세스가 나뉘어 있어, 여기서의 과부하는
-REST·결제 웹훅·발급 워커로 번지지 않는다([ADR 008](../../adr/008-realtime-server-split.md)).
+REST·결제 웹훅·발급 워커로 번지지 않는다([ADR 007](../../adr/007-realtime-server-split.md)).
 맵의 위치·채팅 브로드캐스트는 섹터 게이트웨이(`apps/realtime/src/sector/sector.gateway.ts`)가
 처리한다(화면이 예정이라 지금은 붙는 클라이언트가 없다). 플레이 씬의 익명 멀티플레이는 같은 서버의 방 게이트웨이(`apps/realtime/src/room/room.gateway.ts`)가
 방(20명)마다 35ms로 묶어 중계하며, 로그인 없는 공개 트래픽이라 전체 정원(1,000명)과 초당 60건 제한으로
@@ -100,4 +100,4 @@ WHERE id = '<user_id>';
 
 - [모니터링](../monitoring.md)
 - [API 키 설정](../../onboarding/api-keys.md)
-- [ADR 007 — 카메라 잠금](../../adr/007-quarter-view-camera-lock.md)
+- [ADR 006 — 카메라 잠금](../../adr/006-quarter-view-camera-lock.md)

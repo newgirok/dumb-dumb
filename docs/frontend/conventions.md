@@ -110,7 +110,7 @@ const nunito = Nunito({ subsets: ['latin'], variable: '--font-display', display:
 - **터치**: 첫 손가락은 처음 누른 자리 기준 조이스틱이다(75px 끌면 최대). 누른 자리에 이동 원이 나타나고 안쪽 손잡이가 끄는 방향으로 밀린다(`touch-circles.ts`). 짧게(15px·0.75초 미만) 탭하면 점프하고, 두 번째 손가락 탭은 점프하면서 그 자리에 점프 원을 퍼뜨린다. 휴대폰은 위아래 커서 패럴랙스가 없다.
 - **GPS**: 실제 위치는 펼침 지도의 '나' 표시에만 쓰이고 씬 이동을 직접 구동하지 않는다. 사이트 권한이 이미 허용돼 있으면(Permissions API `granted`) 씬 페이지를 열 때 바로 추적하고, 아니면 지도를 처음 펼칠 때 권한을 묻는다([GPS 상태](#gps-상태) 절).
 - **시작 위치**: 원본 오프닝 좌표(12.2, 2.25, −58) 주변 ±4m에서 무작위로 고른 점을 collider 표면에 세운다.
-- **카메라**: 3인칭 추적 카메라로 씬 안을 이동한다(`lib/three/third-person.ts`). 화면 중심 주체는 캐릭터이며, 이동 좌표는 씬 로컬 좌표다(같은 방 사람에게 보이도록 씬 소켓으로 보낼 뿐 서버가 물리를 계산하지 않는다). 카메라는 화면 비율 16:9 이상에서 원본 구도(세로 화각 45°, 시선 목표점(발 위 1.1m·정면 0.5m) 중심 반경 5.836m·앙각 9.866°)의 고정 각도로 서고, 그보다 좁은 화면에서는 아래 반응형 구도를 따른다. 리그 세부는 [ADR 007](../adr/007-quarter-view-camera-lock.md)을 따른다.
+- **카메라**: 3인칭 추적 카메라로 씬 안을 이동한다(`lib/three/third-person.ts`). 화면 중심 주체는 캐릭터이며, 이동 좌표는 씬 로컬 좌표다(같은 방 사람에게 보이도록 씬 소켓으로 보낼 뿐 서버가 물리를 계산하지 않는다). 카메라는 화면 비율 16:9 이상에서 원본 구도(세로 화각 45°, 시선 목표점(발 위 1.1m·정면 0.5m) 중심 반경 5.836m·앙각 9.866°)의 고정 각도로 서고, 그보다 좁은 화면에서는 아래 반응형 구도를 따른다. 리그 세부는 [ADR 006](../adr/006-quarter-view-camera-lock.md)을 따른다.
 - **반응형 구도**(`third-person.ts`의 `framingFor(aspect)`): 화면 비율(가로/세로)이 16:9에서 9:19.5로 좁아질수록(smoothstep) 세로 화각 45°→66°, 반경 ×1→×1.3, 앙각 +0°→+8°, 시선 들기 0°→5°로 옮겨 가 캐릭터가 화면 아래쪽에 선다. 가장 긴 세로 화면에서 하늘·앞길·발밑이 대략 3분의 1씩 보인다. 처음에는 곧장 맞추고, 창 크기·회전으로 비율이 달라지면 화각·극각·시선각·반경이 모두 줌 스무딩 비율(`lerpZoom`, 60fps 한 프레임당 0.05)로 부드럽게 따라간다. 컨트롤러가 `camera.aspect`를 보고 스스로 맞추므로 씬은 aspect만 갱신한다. 벽 충돌로 줄이는 반경의 상한과 인트로 줌 시작 반경은 구도 반경 기준이고, 패럴랙스·흔들림은 원본 값 그대로 얹는다. 마우스 조이스틱 고정점(`mouseCenterY`)도 구도가 정한다. 두 씬(플레이·내 주변)이 같은 컨트롤러라 둘 다 적용되고, 에셋 미리보기도 세로 화면에서 같은 기준으로 화각을 넓힌다.
 - 캐릭터는 캡슐(반경 = 키 × 0.2)로 충돌 메시(`collider.bin`, `three-mesh-bvh`)와 부딪친다. 벽에서는 벽을 따라 미끄러지고, 캡슐이 타고 넘을 수 있는 낮은 턱만 오르며, 난간에서는 떨어진다.
 
@@ -453,7 +453,7 @@ components/
 ```
 
 - `app/`에는 라우트 파일(`page.tsx`·`layout.tsx`·`route.ts`)만 둔다. 화면별 코드는 `features/<화면>/`(`play`·`nearby`·`asset-viewer`)에, 여러 화면이 같이 쓰는 UI는 `components/`에, 로직은 `lib/`(3D 엔진은 `lib/three/`)에 둔다. 화면끼리는 서로 가져다 쓰지 않는다 — 둘 이상이 쓰면 `components/`나 `lib/`로 옮긴다
-- 파일·폴더 이름은 kebab-case(`paper-map.tsx`, `third-person.ts`)이고, 컴포넌트·타입 이름은 PascalCase(`PaperMap`)다. 같은 폴더 안은 `./파일`, 다른 폴더는 `@/…` 별칭으로 가져온다([ADR 010](../adr/010-web-structure-and-naming.md))
+- 파일·폴더 이름은 kebab-case(`paper-map.tsx`, `third-person.ts`)이고, 컴포넌트·타입 이름은 PascalCase(`PaperMap`)다. 같은 폴더 안은 `./파일`, 다른 폴더는 `@/…` 별칭으로 가져온다([ADR 009](../adr/009-web-structure-and-naming.md))
 
 ### 캔버스·DOM 이벤트 규칙
 
@@ -468,7 +468,7 @@ components/
 ## 관련 문서
 
 - [ADR 001 — WebGL 컨텍스트 구성](../adr/001-webgl-context-sharing.md)
-- [ADR 007 — 카메라 잠금](../adr/007-quarter-view-camera-lock.md)
+- [ADR 006 — 카메라 잠금](../adr/006-quarter-view-camera-lock.md)
 - [백엔드 컨벤션 — 4대 하네스](../backend/conventions.md)
 - [보안 규격 — JWT·RLS](../backend/security/encryption.md)
 - [프로젝트 구조](../architecture/project-structure.md)

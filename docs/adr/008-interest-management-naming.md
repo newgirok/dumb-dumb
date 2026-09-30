@@ -1,4 +1,4 @@
-# ADR 009: 실시간 이름 — 받는 사람을 고르는 방식으로 부른다
+# ADR 008: 실시간 이름 — 받는 사람을 고르는 방식으로 부른다
 
 **상태:** Accepted
 
@@ -43,7 +43,7 @@
 
 ## 관련
 
-- [ADR 008: 실시간 서버 분리](./008-realtime-server-split.md)
+- [ADR 007: 실시간 서버 분리](./007-realtime-server-split.md)
 - [용어 사전 — 관심 영역 관리](../product/terminology.md)
 - [Mirror — Interest Management](https://mirror-networking.gitbook.io/docs/manual/interest-management)
 - [Unreal Engine — Replication Graph](https://dev.epicgames.com/documentation/en-us/unreal-engine/replication-graph-in-unreal-engine)
