@@ -91,7 +91,6 @@ project/
 │   ├── landing/                  ← 랜딩 배경 이미지 (앱 코드에서 참조하지 않음)
 │   │   ├── hero.jpg
 │   │   ├── explore.jpg
-│   │   ├── voice.jpg
 │   │   └── social.jpg
 │   └── ref-assets/               ← 플레이 씬·내 주변·에셋 미리보기가 쓰는 에셋 (kid 캐릭터 포함)
 │       ├── geometries/           ← .bin 지오메트리·본·애니메이션·인스턴스·충돌 메시
