@@ -82,7 +82,7 @@ try {
 - 반경 탐지는 반드시 `ST_DWithin`을 사용하며 `geom::geography` 캐스팅 필수 (미터 단위)
 - 거리 정렬은 `ST_Distance` 사용, `ORDER BY ST_Distance` + `LIMIT` 조합으로 풀스캔 방지
 - `geom` 컬럼에 GiST 인덱스 없이 `ST_DWithin` 쿼리 실행 금지
-- 스폰서 반경 조회는 마이그레이션 `0005`의 `nearby_sponsor_buildings(p_lng, p_lat, p_radius_m = 500)` 함수가 이 규칙대로 구현한다. API에는 아직 공간 쿼리 엔드포인트가 없다(스폰서 기능은 Phase 5)
+- 스폰서 반경 조회는 마이그레이션 `0005`의 `nearby_sponsor_buildings(p_lng, p_lat, p_radius_m = 500)` 함수가 이 규칙대로 구현한다. API에는 아직 공간 쿼리 엔드포인트가 없다(스폰서 기능은 Phase 4)
 
 ```sql
 -- 올바른 예

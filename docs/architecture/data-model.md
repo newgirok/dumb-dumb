@@ -200,8 +200,8 @@ CREATE TABLE user_licenses (
 
 ### `sponsor_buildings`
 
-B2B 광고 랜드마크 마스터 테이블. Phase 5에서 씬에 배치할 브랜드 텍스처 에셋과 펼침 지도 좌표 마커의
-원천이며, `geom` 컬럼에 GiST 인덱스가 있다. 이 테이블을 읽는 API·프론트엔드 코드는 Phase 5에서 구현한다.
+B2B 광고 랜드마크 마스터 테이블. Phase 4에서 씬에 배치할 브랜드 텍스처 에셋과 펼침 지도 좌표 마커의
+원천이며, `geom` 컬럼에 GiST 인덱스가 있다. 이 테이블을 읽는 API·프론트엔드 코드는 Phase 4에서 구현한다.
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
@@ -240,7 +240,7 @@ $$);
 
 ### `ad_impressions`
 
-유효 노출 로그. 1초 이상 뷰포트 내 완전 진입한 경우만 기록한다(기록 경로는 Phase 5에서 구현).
+유효 노출 로그. 1초 이상 뷰포트 내 완전 진입한 경우만 기록한다(기록 경로는 Phase 4에서 구현).
 
 | 컬럼 | 타입 | 설명 |
 |---|---|---|
@@ -260,14 +260,14 @@ API 서버(가드 + 리포지토리)가 1차 방어, PostgreSQL RLS가 2차 방�
   금지한다(커넥션 풀에 컨텍스트가 남아 유출될 수 있음).
 - API는 테이블 소유자가 아닌 전용 롤 `app_api`로 접속해야 RLS가 적용된다.
 - 핵심은 광고주 간 테넌시 격리(`sponsor_buildings`, `ad_impressions`)다. 활성 광고(`is_active=true`)는
-  누구나 SELECT할 수 있다(`sponsor_public_active_select`, Phase 5 렌더링용).
+  누구나 SELECT할 수 있다(`sponsor_public_active_select`, Phase 4 렌더링용).
 - 서버 전용 작업(결제 웹훅·발급 워커)은 admin 컨텍스트(`withAdmin`)로 RLS를 우회한다.
 
 ---
 
 ## 주요 쿼리
 
-### 반경 내 스폰서 랜드마크 탐지 (Phase 5 예정 기능)
+### 반경 내 스폰서 랜드마크 탐지 (Phase 4 예정 기능)
 
 ```sql
 -- 유저 위경도 반경 R미터 이내의 활성 스폰서 랜드마크
@@ -280,7 +280,7 @@ ORDER BY dist_m;
 ```
 
 같은 조회를 DB 함수 `nearby_sponsor_buildings(p_lng, p_lat, p_radius_m = 500)`로 제공한다(마이그레이션 `0005`).
-앱(프론트엔드·NestJS)에서 이 함수를 호출하는 API는 Phase 5에서 구현하며, 지금은 부르는 곳이 없다.
+앱(프론트엔드·NestJS)에서 이 함수를 호출하는 API는 Phase 4에서 구현하며, 지금은 부르는 곳이 없다.
 함수는 `geom::geography` 식으로 조회하므로 `geom` GiST 인덱스를
 태우려면 `((geom::geography))` 표현식 인덱스가 필요하다([ADR 005](../adr/005-postgis-gist-index.md)).
 

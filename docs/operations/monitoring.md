@@ -120,7 +120,7 @@ ORDER BY completed_at;
 
 ### 광고 노출 이상 감지
 
-스폰서 노출 기록(`ad_impressions`)은 Phase 5 스폰서 기능과 함께 쌓이기 시작한다. 그 뒤 광고주별
+스폰서 노출 기록(`ad_impressions`)은 Phase 4 스폰서 기능과 함께 쌓이기 시작한다. 그 뒤 광고주별
 일일 노출을 이 쿼리로 본다.
 
 ```sql

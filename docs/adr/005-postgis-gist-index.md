@@ -10,7 +10,7 @@
 
 ## 배경
 
-스폰서 랜드마크는 Mapbox 실지형 건물 ID(`mapbox_feature_id`)와 위경도 포인트(`geom`)로 등록된다. 광고 노출 감지(Phase 5)에는 "특정 좌표 반경 R미터 이내에 있는 활성 스폰서 랜드마크를 가까운 순으로 찾아라"는 공간 연산이 필요하다. 이 연산의 특성은 다음과 같다.
+스폰서 랜드마크는 Mapbox 실지형 건물 ID(`mapbox_feature_id`)와 위경도 포인트(`geom`)로 등록된다. 광고 노출 감지(Phase 4)에는 "특정 좌표 반경 R미터 이내에 있는 활성 스폰서 랜드마크를 가까운 순으로 찾아라"는 공간 연산이 필요하다. 이 연산의 특성은 다음과 같다.
 
 - 반경 기반 포인트 쿼리 (`ST_DWithin`)
 - 거리 정렬 (`ORDER BY ST_Distance`)
@@ -53,16 +53,16 @@ CREATE OR REPLACE FUNCTION nearby_sponsor_buildings(
 | 반경 내 활성 스폰서 랜드마크 탐지 | `ST_DWithin` | 광고 노출 감지 |
 | 거리 기준 정렬 | `ST_Distance` | 근접순 정렬 |
 
-두 연산은 `nearby_sponsor_buildings` 함수로 제공된다. 앱(프론트엔드·NestJS)에는 아직 이 함수를 호출하는 코드가 없고, 호출할 API는 Phase 5에서 API 서버에 만든다. 광고 노출 감지는 Phase 5에서 구현한다.
+두 연산은 `nearby_sponsor_buildings` 함수로 제공된다. 앱(프론트엔드·NestJS)에는 아직 이 함수를 호출하는 코드가 없고, 호출할 API는 Phase 4에서 API 서버에 만든다. 광고 노출 감지는 Phase 4에서 구현한다.
 
 ## 주의
 
 - `geom` 컬럼은 반드시 `GEOMETRY(Point, 4326)` 타입으로 정의
 - 거리 계산 시 `::geography` 캐스팅 필수 (미터 단위, 구면 보정)
 - `GEOMETRY`로 비교하면 평면 좌표계 기준으로 미터 환산 오차 발생
-- 현재 함수는 `geom::geography` 식으로 조회하므로 `geom`(geometry)에 걸린 GiST 인덱스와 식이 달라 인덱스를 타지 않는다. 광고 노출 감지를 붙이는 Phase 5에서 `((geom::geography))` 표현식 GiST 인덱스를 추가한다
+- 현재 함수는 `geom::geography` 식으로 조회하므로 `geom`(geometry)에 걸린 GiST 인덱스와 식이 달라 인덱스를 타지 않는다. 광고 노출 감지를 붙이는 Phase 4에서 `((geom::geography))` 표현식 GiST 인덱스를 추가한다
 
 ## 관련
 
 - [데이터 모델 — sponsor_buildings](../architecture/data-model.md)
-- [파이프라인 흐름 — 광고 노출 (Phase 5 예정)](../architecture/pipeline-flow.md)
+- [파이프라인 흐름 — 광고 노출 (Phase 4 예정)](../architecture/pipeline-flow.md)
