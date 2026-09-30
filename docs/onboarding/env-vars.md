@@ -17,12 +17,12 @@
 
 ### 예정 화면이 쓸 변수
 
-로그인·지도 월드·상점 화면과 BFF 라우트를 붙이면 필요하다. 지금은 어느 코드도 읽지 않는다.
+로그인·맵·상점 화면과 BFF 라우트를 붙이면 필요하다. 지금은 어느 코드도 읽지 않는다.
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
 | `API_URL` | `http://localhost:9001` | NestJS API 서버 주소. BFF 라우트(Next Route Handler)에서만 쓰므로 `NEXT_PUBLIC_` 아님 |
-| `NEXT_PUBLIC_LIVEKIT_URL` | — | LiveKit 서버 WebSocket URL (`wss://...livekit.cloud`). 지도 월드 음성이 접속한다. 같은 `NEXT_PUBLIC_WS_URL`의 `/sector` 소켓과 Mapbox 토큰도 지도 월드가 함께 쓴다 |
+| `NEXT_PUBLIC_LIVEKIT_URL` | — | LiveKit 서버 WebSocket URL (`wss://...livekit.cloud`). 맵 음성이 접속한다. 같은 `NEXT_PUBLIC_WS_URL`의 `/sector` 소켓과 Mapbox 토큰도 맵이 함께 쓴다 |
 
 ### `.env.example`에 있으나 프론트엔드 코드가 읽지 않는 항목
 

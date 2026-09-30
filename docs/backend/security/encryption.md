@@ -4,7 +4,7 @@
 
 ## JWT 구조
 
-인증 API(NestJS `auth` 모듈)는 동작하고, 이를 쓰는 로그인 화면·지도 월드·상점과 BFF 라우트(`/api/auth/*`·`/api/me/*`·`/api/billing/*`)는 예정이다. 아래의 브라우저 쪽 규칙은 그 화면들이 따를 규격이다.
+인증 API(NestJS `auth` 모듈)는 동작하고, 이를 쓰는 로그인 화면·맵·상점과 BFF 라우트(`/api/auth/*`·`/api/me/*`·`/api/billing/*`)는 예정이다. 아래의 브라우저 쪽 규칙은 그 화면들이 따를 규격이다.
 
 ### 토큰 이중 구조
 
@@ -119,7 +119,7 @@ CREATE POLICY sponsor_owner_write ON sponsor_buildings
 
 ## Mapbox API 토큰 보안
 
-- `NEXT_PUBLIC_MAPBOX_TOKEN` 하나를 플레이 씬·내 주변의 펼침 지도가 쓰고(예정인 지도 월드의 지도도 같은 토큰을 쓴다), 브라우저에 노출된다.
+- `NEXT_PUBLIC_MAPBOX_TOKEN` 하나를 플레이 씬·내 주변의 펼침 지도가 쓰고(예정인 맵의 베이스맵도 같은 토큰을 쓴다), 브라우저에 노출된다.
 - 웹 토큰: 허가된 도메인(`https://*.서비스주소.com`)으로만 작동하도록 Allowed URLs 락
 - 토큰 노출 시: Mapbox 대시보드에서 즉시 Revoke 후 재발급
 

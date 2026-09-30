@@ -78,11 +78,11 @@ project/
 │   │   ├── room/                 ← room.gateway (방 중계 — 정원 20명 방, 플레이 씬), module
 │   │   ├── proximity/            ← proximity.gateway (근접 중계 — 반경 200m 가까운 19명, 내 주변), module
 │   │   ├── relay/relay.ts        ← 방·근접 중계가 함께 쓰는 상태 보관·검증
-│   │   └── sector/               ← sector.gateway (섹터 중계 — 500m 격자 칸, 지도 월드), grid.ts, module
+│   │   └── sector/               ← sector.gateway (섹터 중계 — 500m 격자 칸, 맵), grid.ts, module
 │   ├── Dockerfile                ← 빌드 컨텍스트는 저장소 루트 (shared/ 함께 컴파일)
 │   └── Dockerfile.dockerignore   ← 이 Dockerfile 전용 — apps/realtime·shared만 보낸다
 │
-├── shared/sector/                ← 프론트·실시간 서버 공유 단일 소스(SSOT) — 섹터 중계(지도 월드)
+├── shared/sector/                ← 프론트·실시간 서버 공유 단일 소스(SSOT) — 섹터 중계(맵)
 │   ├── contract.ts               ← 섹터 중계 소켓 이벤트 계약 (socket.io 제네릭 타입)
 │   └── grid.ts                   ← 섹터 격자(500m)·거리·이동 검증 계산
 ├── shared/relay/
@@ -121,13 +121,13 @@ project/
 함께 쓰고, 씬마다 GPS 추적기(`lib/geo/gps.ts`) 하나를 씬과 지도가 나눠 쓴다. 페이지 라우트 게이팅은 없어
 (`middleware.ts`의 `matcher`가 비어 있음) 모든 페이지가 공개다.
 
-로그인·본인인증·지도 월드·상점 화면과 NestJS로 넘기는 BFF 라우트(`/api/auth/*`, `/api/billing/*`, `/api/me/*`,
+로그인·본인인증·맵·상점 화면과 NestJS로 넘기는 BFF 라우트(`/api/auth/*`, `/api/billing/*`, `/api/me/*`,
 `/api/voice/token`)는 로드맵에 따라 만든다(예정). 이 화면들이 쓰는 서버 쪽은 `auth`·`billing`·`users`·`voice` 모듈이
 API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/마케팅 웹은 추후 별도 앱으로 분리한다(로드맵 참고).
 
 현재 구조는 루트 Next.js 앱과 `apps/api`(REST)·`apps/realtime`(socket.io) NestJS를 한 저장소에 코로케이션한 형태다
 ([ADR 008](../adr/008-realtime-server-split.md)). 워크스페이스 도구 없이 패키지마다 따로 설치하고, 두 서버는 서로 부르지 않는다.
-지도 월드의 섹터 계산과 소켓 이벤트 계약은 `shared/sector/`에 단일 소스로 두고, 실시간 서버(`apps/realtime/src/sector/`)가
+맵의 섹터 계산과 소켓 이벤트 계약은 `shared/sector/`에 단일 소스로 두고, 실시간 서버(`apps/realtime/src/sector/`)가
 이를 재노출해 쓴다. 익명 멀티플레이 소켓 계약은 `shared/relay/contract.ts` 하나를 프론트(`lib/realtime/relay.ts`)와
 실시간 서버(`apps/realtime/src/room/`·`proximity/`의 두 게이트웨이)가 직접 import한다. API 서버는 `shared/`를 쓰지 않는다.
 실시간 서버의 폴더·네임스페이스는 화면 이름 대신 받는 사람을 고르는 방식(방·근접·섹터)으로 부른다([ADR 009](../adr/009-interest-management-naming.md)).
@@ -164,7 +164,7 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 | `apps/realtime/src/proximity/proximity.gateway.ts` | 근접 중계 익명 socket.io 게이트웨이(`/proximity`, 내 주변) — 실제 좌표, 사람마다 반경 200m 가까운 19명 선택·입장 전체 상태·퇴장 `leave` |
 | `apps/realtime/src/relay/relay.ts` | 두 익명 게이트웨이가 함께 쓰는 상태 보관·필드 검증·거리 예산·순간이동·빈도 제한 |
 | `shared/relay/contract.ts` | 익명 멀티플레이 소켓 이벤트 이름·페이로드 계약(위치·방향·모션·색 시드)과 중계별 네임스페이스·위치 자리수(`RELAYS`) — 프론트·실시간 서버 socket.io 제네릭 단일 소스 |
-| `apps/realtime/src/sector/sector.gateway.ts` | 섹터 중계 socket.io 게이트웨이(`/sector`, 지도 월드) — 섹터 판정·속도 검증·5Hz 묶음 브로드캐스트 (`shared/sector/contract` 제네릭 타입). 붙는 화면은 지도 월드와 함께 예정 |
+| `apps/realtime/src/sector/sector.gateway.ts` | 섹터 중계 socket.io 게이트웨이(`/sector`, 맵) — 섹터 판정·속도 검증·5Hz 묶음 브로드캐스트 (`shared/sector/contract` 제네릭 타입). 붙는 화면은 맵과 함께 예정 |
 | `shared/sector/contract.ts` | 섹터 중계 소켓 이벤트 이름·페이로드 계약 — socket.io 제네릭 단일 소스 |
 | `shared/sector/grid.ts` | 섹터 격자(500m)·거리·이동 속도 검증 계산 — 단일 소스 |
 | `apps/api/src/billing/fulfillment.worker.ts` | 결제 완료 주문을 폴링해 아바타·라이선스 발급 |

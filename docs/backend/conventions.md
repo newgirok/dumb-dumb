@@ -99,7 +99,7 @@ WHERE ST_Distance(geom, ST_MakePoint($lon, $lat)) < $r;
 
 ## socket.io 게이트웨이 규칙
 
-게이트웨이는 셋이다. 로그인 유저 전용 `/sector`는 지도 월드용이고(화면은 예정이라 지금 붙는 클라이언트는 없다), 플레이 씬은 익명 `/room`, 내 주변(베타)은
+게이트웨이는 셋이다. 로그인 유저 전용 `/sector`는 맵용이고(화면은 예정이라 지금 붙는 클라이언트는 없다), 플레이 씬은 익명 `/room`, 내 주변(베타)은
 익명 `/proximity`에 붙는다. 세 게이트웨이는 모두 실시간 서버(`apps/realtime`, 9002)에 있고, 그 포트의 socket.io 서버 하나를 네임스페이스로 나눠 쓴다.
 CORS 같은 서버 옵션은 게이트웨이 데코레이터에 두지 않고, `main.ts`의 어댑터(`CorsIoAdapter`)가 설정을 읽은 뒤 `WEB_ORIGIN`으로 한 번 넣는다.
 실시간 서버에는 전역 가드가 없으므로(Nest는 `APP_GUARD`를 WebSocket 핸들러에 적용하지도 않는다), 인증이 필요한 게이트웨이는 `handleConnection`에서
@@ -109,13 +109,13 @@ CORS 같은 서버 옵션은 게이트웨이 데코레이터에 두지 않고, `
 
 - 위치 좌표와 채팅 메시지는 NestJS WebSocket 게이트웨이(`apps/realtime/src/sector/sector.gateway.ts`, 네임스페이스 `/sector`)를 통해서만 브로드캐스트
 - 접속 시 핸드셰이크 `auth.token`의 액세스 토큰을 검증하고, 없거나 무효면 즉시 끊는다. 검증은 `AccessTokenVerifier`(`apps/realtime/src/auth/access-token.ts`)가 API 서버와 같은 `JWT_ACCESS_SECRET`으로 서명·만료와 토큰 종류(`type: 'access'`)만 확인한다(DB 조회 없음). 시크릿이 없으면 모든 접속을 끊는다
-- 소켓 이벤트 이름·페이로드는 `shared/sector/contract.ts`에 정의하고, 게이트웨이의 `Server`/`Socket`을 이 계약 제네릭으로 타입한다. 지도 월드 클라이언트도 같은 계약을 쓰므로 한쪽만 바뀌면 컴파일 단계에서 잡힌다
-- 좌표는 위경도다. `move`마다 서버가 직전 좌표 대비 30km/h 초과 이동을 버리고(`isPlausibleMove`), 500m 섹터와 경계 50m 이내 인접 섹터를 계산해 방을 옮긴다. 섹터 계산은 `shared/sector/grid.ts`(지도 월드 클라이언트와 함께 쓰는 단일 소스, 위도별 경도 폭)를 따른다
+- 소켓 이벤트 이름·페이로드는 `shared/sector/contract.ts`에 정의하고, 게이트웨이의 `Server`/`Socket`을 이 계약 제네릭으로 타입한다. 맵 클라이언트도 같은 계약을 쓰므로 한쪽만 바뀌면 컴파일 단계에서 잡힌다
+- 좌표는 위경도다. `move`마다 서버가 직전 좌표 대비 30km/h 초과 이동을 버리고(`isPlausibleMove`), 500m 섹터와 경계 50m 이내 인접 섹터를 계산해 방을 옮긴다. 섹터 계산은 `shared/sector/grid.ts`(맵 클라이언트와 함께 쓰는 단일 소스, 위도별 경도 폭)를 따른다
 - 서버가 200ms(5Hz)마다 섹터별 위치를 한 묶음(`positions`)으로 방송한다. 2명 이상인 섹터만 보내고, 30초 동안 `move`가 없는 유저의 위치 상태는 메모리에서 지운다(소켓 연결·룸 참여는 유지)
 - 채팅은 묶지 않고 즉시 섹터 방에 흘린다(본문 200자, 닉네임 32자로 자름)
 - 위치·채팅 메시지는 DB에 영구 저장 금지 (무상태 휘발성 브로드캐스트)
 - 섹터 이탈 시 구 섹터 룸 즉시 leave (연결 수 관리)
-- 지도 월드 화면을 닫으면 클라이언트가 소켓을 닫는다
+- 맵 화면을 닫으면 클라이언트가 소켓을 닫는다
 
 ### 방 게이트웨이 (`/room`)
 

@@ -49,7 +49,7 @@ NestJS API 서버(`apps/api`, REST)를 호스팅한다.
 
 ## 3. 실시간 서버 호스팅
 
-NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 플레이 씬 익명 소켓(`/room`), 내 주변 익명 소켓(`/proximity`), 지도 월드 섹터 소켓(`/sector`)이 이 서버에서 서빙되고, DB는 쓰지 않는다([ADR 008](../adr/008-realtime-server-split.md)).
+NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 플레이 씬 익명 소켓(`/room`), 내 주변 익명 소켓(`/proximity`), 맵 섹터 소켓(`/sector`)이 이 서버에서 서빙되고, DB는 쓰지 않는다([ADR 008](../adr/008-realtime-server-split.md)).
 
 1. 서버/컨테이너 환경에 Node.js 20 이상 준비, `apps/realtime`에서 `npm install && npm run build`(컨테이너는 저장소 루트를 빌드 컨텍스트로 `apps/realtime/Dockerfile`을 쓴다)
 2. `npm run start:prod`로 기동 (기본 `PORT=9002`). 헬스 프로브는 `GET /health`
@@ -73,11 +73,11 @@ NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 플레�
 | `NEXT_PUBLIC_WS_URL` | 실시간 서버 공개 주소 (플레이 씬·내 주변 소켓) |
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapbox account.mapbox.com → Tokens (플레이 씬·내 주변 펼침 지도) |
 
-로그인·지도 월드·상점 화면을 붙이면 다음도 등록한다:
+로그인·맵·상점 화면을 붙이면 다음도 등록한다:
 
 | 변수 | 값 출처 |
 |---|---|
-| `NEXT_PUBLIC_LIVEKIT_URL` | LiveKit Settings → Keys (지도 월드 음성) |
+| `NEXT_PUBLIC_LIVEKIT_URL` | LiveKit Settings → Keys (맵 음성) |
 | `API_URL` | NestJS API 서버 주소 (BFF 라우트의 프록시 대상, 서버 전용 — 비우면 `http://localhost:9001`로 프록시) |
 
 > `API_URL`은 BFF 라우트에서만 쓰는 비공개 값이라 `NEXT_PUBLIC_` 접두사를 붙이지 않는다. 브라우저에 노출되면 안 되는 값에는 절대 `NEXT_PUBLIC_` 접두사를 붙이지 않는다. `NEXT_PUBLIC_*` 값은 빌드 시점에 구워지므로 바꾼 뒤에는 재배포한다.
@@ -94,7 +94,7 @@ NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 플레�
 4. "Settings" → "Keys" → API Key + API Secret 발급
 5. WebSocket URL 확인: `wss://your-project.livekit.cloud`
 
-→ `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`은 **API 서버 환경변수**에 등록한다(룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급). `NEXT_PUBLIC_LIVEKIT_URL`은 지도 월드 화면을 붙일 때 프론트에 등록한다.
+→ `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`은 **API 서버 환경변수**에 등록한다(룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급). `NEXT_PUBLIC_LIVEKIT_URL`은 맵 화면을 붙일 때 프론트에 등록한다.
 
 ---
 

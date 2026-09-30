@@ -15,7 +15,7 @@
 NEXT_PUBLIC_MAPBOX_TOKEN=pk.eyJ1...
 ```
 
-이 토큰 하나를 펼침 지도(플레이 씬·내 주변)가 쓰고, 예정인 지도 월드의 지도도 같은 토큰을 쓴다. 무료 티어: 월 50,000 Map loads 무료. Mapbox 대시보드에서 사용량 알림 3단계 설정 권장.
+이 토큰 하나를 펼침 지도(플레이 씬·내 주변)가 쓰고, 예정인 맵의 베이스맵도 같은 토큰을 쓴다. 무료 티어: 월 50,000 Map loads 무료. Mapbox 대시보드에서 사용량 알림 3단계 설정 권장.
 
 ---
 
@@ -67,10 +67,10 @@ JWT_REFRESH_SECRET=<다른 32바이트 랜덤 hex>
 ```
 LIVEKIT_API_KEY=APIxxxx           ← 서버 전용 (API 서버 환경변수)
 LIVEKIT_API_SECRET=xxxx           ← 서버 전용 (API 서버 환경변수)
-NEXT_PUBLIC_LIVEKIT_URL=wss://your-project.livekit.cloud   ← 프론트 공개 (지도 월드를 붙일 때)
+NEXT_PUBLIC_LIVEKIT_URL=wss://your-project.livekit.cloud   ← 프론트 공개 (맵을 붙일 때)
 ```
 
-룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급한다(TTL 1시간). `LIVEKIT_API_KEY`·`LIVEKIT_API_SECRET`은 `apps/api/.env.example`에 없으므로 `apps/api/.env.local`에 직접 추가한다. 음성은 지도 월드에서만 쓰이며, 화면이 예정이라 지금은 룸에 붙는 클라이언트가 없다. 무료 티어: 월 일정 분(分) 무료. 대시보드 사용량 알림 3단계 설정 권장.
+룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급한다(TTL 1시간). `LIVEKIT_API_KEY`·`LIVEKIT_API_SECRET`은 `apps/api/.env.example`에 없으므로 `apps/api/.env.local`에 직접 추가한다. 음성은 맵에서만 쓰이며, 화면이 예정이라 지금은 룸에 붙는 클라이언트가 없다. 무료 티어: 월 일정 분(分) 무료. 대시보드 사용량 알림 3단계 설정 권장.
 
 ---
 
