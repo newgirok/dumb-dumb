@@ -68,7 +68,7 @@
 - **에셋 미리보기**(`/asset-viewer`, `features/asset-viewer/`)는 ref-assets 캐릭터·소품을 지도 없이 띄워 크기·본·애니메이션·인스턴스·LOD
   규격을 확인하는 개발용 페이지다.
 - **맵**(`/map`, 예정)은 Mapbox GL 실지형 지도를 베이스로 하고, 캐릭터를 Three.js 커스텀 레이어로
-  지도 위에 그리는 멀티플레이 월드다. Three.js 렌더러는 Mapbox 캔버스의 WebGL 컨텍스트를 공유한다. 좌표는
+  지도 위에 그리는 멀티플레이 화면이다. Three.js 렌더러는 Mapbox 캔버스의 WebGL 컨텍스트를 공유한다. 좌표는
   위경도(EPSG:4326)이며, 위치 브로드캐스트·섹터 판정·속도 검증·근접 음성이 모두 위경도 기준으로 동작한다.
   서버 쪽 섹터 게이트웨이(`/sector`)는 실시간 서버에, 음성 룸 토큰 발급은 API 서버에 있다.
 
@@ -156,7 +156,7 @@ DB(PostgreSQL + PostGIS)와 NestJS API 서버·실시간 서버는 자체 호스
 | 액세스 토큰 만료 | 15분 | 브라우저 메모리 보관 |
 | 리프레시 토큰 만료 | 30일 | httpOnly 쿠키 보관 |
 
-라이선스 가시거리는 DB에 저장되고 NestJS `GET /me/license`로 조회하며, 월드 렌더링에는 아직 적용하지 않는다
+라이선스 가시거리는 DB에 저장되고 NestJS `GET /me/license`로 조회하며, 씬 렌더링에는 아직 적용하지 않는다
 ([ADR 006](../adr/006-fog-of-war-business-model.md)).
 
 ---

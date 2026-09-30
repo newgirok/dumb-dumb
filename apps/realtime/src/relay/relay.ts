@@ -52,7 +52,7 @@ export function createRelayPlayer(id: string, now: number): RelayPlayer {
   }
 }
 
-/** 월드마다 다른 위치 규칙 — p를 검증·반올림하고, 두 위치 사이 거리(m)를 잰다 */
+/** 중계마다 다른 위치 규칙 — p를 검증·반올림하고, 두 위치 사이 거리(m)를 잰다 */
 export interface PositionRules {
   read(value: unknown): RelayPlayerState['p'] | null
   distance(a: RelayPlayerState['p'], b: RelayPlayerState['p']): number

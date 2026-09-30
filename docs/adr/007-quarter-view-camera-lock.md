@@ -80,7 +80,7 @@ camera.lookAt(swayedLookPoint) // 대기 흔들림·시선 들기(camTilt)는 �
 
 ## 규격 — 맵 쿼터뷰 카메라 (예정)
 
-맵은 Mapbox 지도 카메라를 그대로 월드 카메라로 쓴다(Three.js는 같은 카메라의 MVP 행렬로 그린다 — [ADR 001](./001-webgl-context-sharing.md)).
+맵은 Mapbox 지도 카메라를 그대로 씬 카메라로 쓴다(Three.js는 같은 카메라의 MVP 행렬로 그린다 — [ADR 001](./001-webgl-context-sharing.md)).
 
 | 요소 | 규칙 |
 |---|---|
