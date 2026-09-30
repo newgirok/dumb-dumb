@@ -1,6 +1,6 @@
 # 클라우드 인프라 초기 셋업
 
-Phase 0에서 1회 실행하는 인프라 초기 설정 절차. 데이터베이스·API 서버·실시간 서버·프론트 배포·실시간 음성·결제·소셜 로그인을 프로비저닝한다.
+Phase 0에서 1회 실행하는 인프라 초기 설정 절차. 데이터베이스·API 서버·실시간 서버·프론트 배포·결제·소셜 로그인을 프로비저닝한다.
 
 ---
 
@@ -41,8 +41,7 @@ NestJS API 서버(`apps/api`, REST)를 호스팅한다.
 2. `npm run start:prod`로 기동 (기본 `PORT=9001`). 헬스 프로브는 `GET /health`
 3. **서버 시크릿은 API 서버 환경변수(또는 호스팅 플랫폼의 시크릿 저장소)로 관리**한다:
    `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `HASH_ROUNDS`,
-   `PG_WEBHOOK_SECRET`, `KAKAO_CLIENT_ID/SECRET`, `GOOGLE_CLIENT_ID/SECRET`,
-   `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
+   `PG_WEBHOOK_SECRET`, `KAKAO_CLIENT_ID/SECRET`, `GOOGLE_CLIENT_ID/SECRET`
 4. `WEB_ORIGIN`을 프론트 도메인으로 설정 (HTTP CORS 허용 오리진)
 
 ---
@@ -77,7 +76,6 @@ NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 플레�
 
 | 변수 | 값 출처 |
 |---|---|
-| `NEXT_PUBLIC_LIVEKIT_URL` | LiveKit Settings → Keys (맵 음성) |
 | `API_URL` | NestJS API 서버 주소 (BFF 라우트의 프록시 대상, 서버 전용 — 비우면 `http://localhost:9001`로 프록시) |
 
 > `API_URL`은 BFF 라우트에서만 쓰는 비공개 값이라 `NEXT_PUBLIC_` 접두사를 붙이지 않는다. 브라우저에 노출되면 안 되는 값에는 절대 `NEXT_PUBLIC_` 접두사를 붙이지 않는다. `NEXT_PUBLIC_*` 값은 빌드 시점에 구워지므로 바꾼 뒤에는 재배포한다.
@@ -86,19 +84,7 @@ NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 플레�
 
 ---
 
-## 5. LiveKit Cloud 프로젝트 생성
-
-1. [cloud.livekit.io](https://cloud.livekit.io) → "Create a project"
-2. 프로젝트 이름 설정
-3. 지역: **ap-northeast** (한국 최근접)
-4. "Settings" → "Keys" → API Key + API Secret 발급
-5. WebSocket URL 확인: `wss://your-project.livekit.cloud`
-
-→ `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`은 **API 서버 환경변수**에 등록한다(룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급). `NEXT_PUBLIC_LIVEKIT_URL`은 맵 화면을 붙일 때 프론트에 등록한다.
-
----
-
-## 6. PG(결제) 콘솔
+## 5. PG(결제) 콘솔
 
 결제 완료는 PG 웹훅으로만 반영된다. 웹훅 URL은 BFF를 거치지 않는 API 서버 주소 `POST https://<API 서버>/billing/webhook`이며, `x-pg-signature` 헤더에 raw body의 HMAC-SHA256 hex(키 `PG_WEBHOOK_SECRET`)를 실어 `{ orderId, approvalNumber, amountKrw }`를 보내야 한다. 결제창은 상점 화면과 함께 붙일 예정이라 아래 PG 키들은 지금 어느 코드도 읽지 않는다.
 
@@ -117,7 +103,7 @@ NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 플레�
 
 ---
 
-## 7. OAuth 앱 등록 (카카오 / 구글)
+## 6. OAuth 앱 등록 (카카오 / 구글)
 
 소셜 로그인은 카카오/구글 OAuth 2.0 Authorization Code 흐름을 사용하며, 코드 교환은 전부 서버에서 처리한다.
 
@@ -142,10 +128,9 @@ NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 플레�
 
 - [ ] PostgreSQL 프로비저닝 (확장 4종 + 마이그레이션 0001~0010 적용)
 - [ ] `app_api` 롤 생성 + 권한 부여
-- [ ] API 서버 호스팅 + 서버 시크릿 등록 (LiveKit 키 포함) + `GET /health` 응답 확인
+- [ ] API 서버 호스팅 + 서버 시크릿 등록 + `GET /health` 응답 확인
 - [ ] 실시간 서버 호스팅 + `WEB_ORIGIN`(`/sector`를 쓰면 `JWT_ACCESS_SECRET`) 등록 + `GET /health` 응답 확인 + 공개 주소를 `NEXT_PUBLIC_WS_URL`로 등록
 - [ ] Vercel 프로젝트 생성 + GitHub 연결 + `NEXT_PUBLIC_*` 등록
-- [ ] LiveKit Cloud 프로젝트 생성 (지역: ap-northeast)
 - [ ] 토스페이먼츠 / 카카오페이 콘솔 + 웹훅 URL + `PG_WEBHOOK_SECRET`
 - [ ] 카카오 / 구글 OAuth 앱 등록 + 리다이렉트 URI 등록
 

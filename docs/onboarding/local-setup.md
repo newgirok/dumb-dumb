@@ -116,12 +116,10 @@ cp apps/api/.env.example apps/api/.env.local
 cp apps/realtime/.env.example apps/realtime/.env.local
 ```
 
-`apps/api/.env.local`의 `DATABASE_URL`은 반드시 `app_api` 롤을 사용한다. 음성 룸 토큰 발급(`POST /voice/token`)을 쓰려면 `apps/api/.env.example`에 없는 `LIVEKIT_API_KEY`·`LIVEKIT_API_SECRET`을 `apps/api/.env.local`에 직접 추가한다(룸에 붙는 맵 화면은 예정이다).
+`apps/api/.env.local`의 `DATABASE_URL`은 반드시 `app_api` 롤을 사용한다.
 
 ```env
 DATABASE_URL=postgresql://app_api:<비밀번호>@localhost:5432/postgres
-LIVEKIT_API_KEY=APIxxxx
-LIVEKIT_API_SECRET=xxxx
 ```
 
 전체 항목 설명은 [환경변수 레퍼런스](./env-vars.md)를 참고하라.
@@ -218,7 +216,7 @@ docker compose down
 
 서비스는 앱마다 하나만 둔다. 환경마다 다른 설정이 생기면 override 파일로 나누고(`compose.override.yaml`은 자동으로 합쳐지고, `compose.production.yaml`은 `-f`로 얹는다), 프로필은 디버그 도구·마이그레이션 같은 선택 서비스에만 쓴다(Docker 문서 — 앱의 핵심 서비스에는 프로필을 달지 않는다).
 
-`app`은 `NEXT_PUBLIC_MAPBOX_TOKEN`·`NEXT_PUBLIC_LIVEKIT_URL`·`NEXT_PUBLIC_APP_URL`·`NEXT_PUBLIC_WS_URL`을 **빌드 인자**로 받아 번들에 굽는다. compose는 빌드 인자를 셸 환경변수에서 읽으므로 `--env-file .env.local`로 채워야 하며, 빠뜨리면 빈 값으로 빌드되어 펼침 지도에 지도 대신 "지도를 그릴 수 없어요" 쪽지만 뜬다. `NEXT_PUBLIC_WS_URL`만은 비어 있으면 `http://localhost:9002`로 굽는다 — 함께 뜬 실시간 서버(9002)에 호스트 브라우저가 붙으므로 로컬 확인에는 그대로 쓰면 되고, 공개 도메인에 올릴 이미지는 실시간 서버 공개 주소를 넣어 빌드한다(localhost로 구운 페이지를 다른 주소에서 열면 플레이 씬·내 주변은 소켓에 접속하지 않고 혼자 돈다). 코드를 바꾼 뒤에는(실시간 서버 코드 포함) `--build`로 이미지를 다시 만들어야 반영된다.
+`app`은 `NEXT_PUBLIC_MAPBOX_TOKEN`·`NEXT_PUBLIC_APP_URL`·`NEXT_PUBLIC_WS_URL`을 **빌드 인자**로 받아 번들에 굽는다. compose는 빌드 인자를 셸 환경변수에서 읽으므로 `--env-file .env.local`로 채워야 하며, 빠뜨리면 빈 값으로 빌드되어 펼침 지도에 지도 대신 "지도를 그릴 수 없어요" 쪽지만 뜬다. `NEXT_PUBLIC_WS_URL`만은 비어 있으면 `http://localhost:9002`로 굽는다 — 함께 뜬 실시간 서버(9002)에 호스트 브라우저가 붙으므로 로컬 확인에는 그대로 쓰면 되고, 공개 도메인에 올릴 이미지는 실시간 서버 공개 주소를 넣어 빌드한다(localhost로 구운 페이지를 다른 주소에서 열면 플레이 씬·내 주변은 소켓에 접속하지 않고 혼자 돈다). 코드를 바꾼 뒤에는(실시간 서버 코드 포함) `--build`로 이미지를 다시 만들어야 반영된다.
 
 ---
 

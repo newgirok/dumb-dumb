@@ -10,7 +10,6 @@
 - [x] **Phase 0** — 프로젝트 초기화 및 인프라 셋업
 - [ ] **Phase 1** — UI/UX 기반 구축 (남은 작업: 로그인 화면·인증 BFF 라우트, 게임 셸)
 - [ ] **Phase 2** — 3D 캐릭터 이동 + 실시간 위치 동기화 (남은 작업: 맵 화면, 내 주변 2·3단계, 자체 에셋 교체)
-- [ ] **Phase 3** — LiveKit 공간 음성 (남은 작업: 맵 음성 클라이언트·마이크 옵트인 UI)
 - [ ] **Phase 4** — 인앱 결제 + 아바타 발급 + 가시거리 라이선스 (남은 작업: 상점 화면, PG 결제창 연동, 자동 취소, 발급 대기 연출)
 - [ ] **Phase 5** — B2B 스폰서십 광고 + 씬 뷰 디스턴스 연동 + 채팅 UI
 - [ ] **Phase 6** — 상용화 및 프로덕션 안정화
@@ -22,7 +21,7 @@
 > 코드 작성 전 로컬 개발 환경과 인프라를 완전히 갖춘다.
 
 - **P0-1.** Next.js 프론트엔드 초기화 `[Infra]`
-  - `package.json` — Next.js 15, React 19, Mapbox GL JS v3, Three.js, socket.io-client, livekit-client 의존성 정의
+  - `package.json` — Next.js 15, React 19, Mapbox GL JS v3, Three.js, socket.io-client 의존성 정의
   - `next.config.ts` — `standalone` 출력(컨테이너 배포용)
   - 루트 `.env.example` — 프론트엔드 환경변수 템플릿
   - 검증
@@ -55,7 +54,6 @@
 
 - **P0-4.** 배포 및 컨테이너 인프라 `[Infra]`
   - Vercel 프로젝트 생성 + GitHub 연결 + 프론트엔드 환경변수 등록
-  - LiveKit Cloud 프로젝트 생성
   - `Dockerfile` (멀티스테이지 builder / runner) + `docker-compose.yml`(프론트 프로덕션 빌드 `app` + 실시간 서버 `realtime`, 핫 리로드 개발은 호스트 `npm run dev`)
   - 검증
     - `npm run dev` 정상 기동
@@ -230,31 +228,6 @@
 
 ---
 
-## Phase 3 — LiveKit 공간 음성
-
-> 맵에서 가까운 유저의 목소리가 그 방향·거리에서 들리는 공간 음성.
-
-- **P3-1.** LiveKit 룸 토큰 발급 `[BE]`
-  - NestJS `voice` 모듈이 `livekit-server-sdk`로 룸 토큰 발급 ([ADR 003](./adr/003-livekit-cloud-sfu.md)) — 액세스 토큰 필수, 룸 이름 `voice-sector-{x}-{y}` 형식 검증, identity는 유저 id, TTL 1시간
-  - 브라우저는 BFF `POST /api/voice/token`을 거친다(예정 — 맵과 함께)
-  - 검증
-    - 토큰 발급 API 호출 성공
-
-- **P3-2.** 섹터 음성 룸 + 거리 기반 구독 `[FE]` (예정 — 맵과 함께)
-  - 맵 진입·섹터 이동 시 해당 섹터 룸(`voice-sector-{x}-{y}`)에 자동 조인하고 이전 룸은 disconnect
-  - 위치를 실제로 전송한 틱마다 40m 이내 거리순 상위 8명만 오디오 구독, 나머지는 구독 해제(`autoSubscribe: false`)
-  - HRTF PannerNode 방위 패닝 + 30m까지 풀볼륨·30~40m 선형 감쇠
-  - 마이크 옵트인(거부 시 수신 전용)·AudioContext 재개 UI
-  - 검증
-    - 같은 섹터의 두 기기가 30m 이내에서 서로의 음성을 들음
-    - 40m 이탈 시 오디오 구독 해제
-
-**완료 기준**
-- [ ] 마이크 옵트인 후 같은 섹터의 두 기기가 30m 이내에서 서로의 음성을 들음
-- [ ] 40m 이탈 시 오디오 구독 해제
-
----
-
 ## Phase 4 — 인앱 결제 + 아바타 발급 + 가시거리 라이선스
 
 > 원화 결제로 유니크 아바타를 발급하고 가시거리 라이선스를 영구 확장한다.
@@ -380,7 +353,7 @@
 ## Phase 의존 관계
 
 ```
-Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
+Phase 0 → Phase 1 → Phase 2 → Phase 4 → Phase 5 → Phase 6
 ```
 
 ---
@@ -389,7 +362,7 @@ Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
 
 > 현재 구조는 "루트 Next.js 앱 + `apps/api`(REST)·`apps/realtime`(socket.io) NestJS" 코로케이션이며(워크스페이스 도구 없이 패키지마다 따로 설치한다), 공개 진입점은 선택 페이지(`/`)다(모든 페이지 공개, `middleware.ts`는 비어 있다). 아래는 향후 진행 방향으로, 현재 구조로 단정하지 않는다.
 
-- **SaaS 우선 완성** — 인증·실시간·음성·결제·발급 등 서비스 백엔드(SaaS)를 먼저 완성하는 것을 우선순위로 둔다.
+- **SaaS 우선 완성** — 인증·실시간·결제·발급 등 서비스 백엔드(SaaS)를 먼저 완성하는 것을 우선순위로 둔다.
 - **인증 게이팅 연결** — 로그인·맵·상점 화면을 열 때 `middleware.ts` matcher에 세션 쿠키 기준 라우트 보호를 붙여 `/map`·`/store`·`/admin`을 보호한다. 쿠키가 없으면 `/login`으로 보내고, 진짜 인가는 NestJS 가드와 RLS가 맡는다.
 - **마케팅 웹사이트 별도 앱** — 서비스 소개/전환용 마케팅 웹사이트는 SaaS 완성 이후 별도 앱으로 제작한다.
 - **모노레포 전환** — pnpm workspaces + Turborepo 기반 모노레포로 정리하는 것을 지향한다.

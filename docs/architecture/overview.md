@@ -16,29 +16,29 @@
 │  - 모바일: 터치 가상 조이스틱               - 모바일: 실제 GPS 이동             │
 │  내 주변 (/nearby) — 같은 화풍의 실제 길 + 반경 200m 가까운 사람         │
 │  에셋 미리보기 (/asset-viewer) — ref-assets 캐릭터·소품 확인 (개발용)              │
-└───────┬─────────────────────────┬─────────────────────────┬──────────────┘
-        │ HTTPS                   │ socket.io               │ LiveKit SDK
-        │ (페이지·정적 파일)        │ (씬 → 직접)              │ (예정)
-┌───────▼─────────────────────────┼─────────────────────────┼──────────────┐
-│             Next.js 15 (App Router, CSR)                   │              │
-│  [플레이 씬] Three.js 자체 WebGL 캔버스 (ref-assets 씬)        │              │
-│      + 펼침 지도 — 독립 Mapbox GL 캔버스 (실제 GPS)          │              │
-│  [내 주변] 같은 캔버스 구조 + 바닥 워커(OffscreenCanvas)     │              │
-│  [맵 — 예정] Mapbox GL + Three.js 커스텀 레이어     │              │
-│      (Mapbox의 WebGL 컨텍스트 공유)                         │              │
-│  app/api/health = 헬스 체크 · BFF 프록시는 예정              │              │
-│  배포: Vercel Edge Network                                  │              │
-└───────┬─────────────────────────┼─────────────────────────┼──────────────┘
-        │ (BFF → NestJS, 예정)    │                         │
-┌───────▼───────────────┐ ┌───────▼───────────────┐ ┌───────▼──────────────┐
-│ NestJS 11 API 서버     │ │ NestJS 11 실시간 서버  │ │   LiveKit Cloud      │
-│ (apps/api, REST)      │ │ (apps/realtime)       │ │   (매니지드 SFU)      │
-│ 자체 호스팅 · 9001      │ │ 자체 호스팅 · 9002     │ │                      │
-│ · auth (JWT/OAuth)    │ │ · room                │ │  - 섹터별 음성 룸      │
-│ · billing (웹훅/발급)  │ │ · proximity           │ │  - 미디어 중계         │
-│ · voice (토큰 발급)    │ │ · sector              │ └──────────────────────┘
-│ · avatars · users     │ │ (socket.io, DB 없음)   │  ▲ 브라우저가 룸에 직접 조인
-└──────────┬────────┬───┘ └───────────────────────┘  │ (voice 모듈이 토큰 발급)
+└───────┬─────────────────────────┬────────────────────────────────────────┘
+        │ HTTPS                   │ socket.io
+        │ (페이지·정적 파일)        │ (씬 → 직접)
+┌───────▼─────────────────────────┼─────────────────────────┐
+│             Next.js 15 (App Router, CSR)                   │
+│  [플레이 씬] Three.js 자체 WebGL 캔버스 (ref-assets 씬)        │
+│      + 펼침 지도 — 독립 Mapbox GL 캔버스 (실제 GPS)          │
+│  [내 주변] 같은 캔버스 구조 + 바닥 워커(OffscreenCanvas)     │
+│  [맵 — 예정] Mapbox GL + Three.js 커스텀 레이어              │
+│      (Mapbox의 WebGL 컨텍스트 공유)                         │
+│  app/api/health = 헬스 체크 · BFF 프록시는 예정              │
+│  배포: Vercel Edge Network                                  │
+└───────┬─────────────────────────┼─────────────────────────┘
+        │ (BFF → NestJS, 예정)    │
+┌───────▼───────────────┐ ┌───────▼───────────────┐
+│ NestJS 11 API 서버     │ │ NestJS 11 실시간 서버  │
+│ (apps/api, REST)      │ │ (apps/realtime)       │
+│ 자체 호스팅 · 9001      │ │ 자체 호스팅 · 9002     │
+│ · auth (JWT/OAuth)    │ │ · room                │
+│ · billing (웹훅/발급)  │ │ · proximity           │
+│ · avatars · users     │ │ · sector              │
+│                       │ │ (socket.io, DB 없음)   │
+└──────────┬────────┬───┘ └───────────────────────┘
            │        └───────────┐
            │ app_api 롤(RLS)    │ 서버↔외부
 ┌──────────▼──────────┐  ┌──────▼──────────────────────────────────────┐
@@ -52,14 +52,14 @@
 ```
 
 화면은 선택 페이지(`/`)에서 고르는 세 곳이고, 내 주변(베타)이 플레이 씬의 렌더링을 함께 쓴다. 로그인 유저용 맵은
-서버 쪽이 실시간 서버(섹터 게이트웨이)와 API 서버(음성 룸 토큰)에 있고, 화면은 로그인·상점 화면과 함께 만든다(예정).
+서버 쪽이 실시간 서버(섹터 게이트웨이)에 있고, 화면은 로그인·상점 화면과 함께 만든다(예정).
 
 - **선택 페이지**(`/`, `app/page.tsx`)는 여름 오후 풍경 위에 제목 "Dumb Dumb"을 올린 타이틀 화면이다. `lib/routes.ts`의
   `SCENE_ROUTES`(플레이 `/play`·내 주변 `/nearby`·개발용 `/asset-viewer`)를 목적지 버튼 3개로 세로로 쌓아
   둔다.
 - **플레이 씬**(`/play`, `features/play/`)은 씬이 직접 만든 Three.js WebGL 캔버스에 ref-assets 기반 로우폴리 해변 섬을
   렌더링하는 공개 씬이다. 로그인 없이 열리고, 같은 방(최대 20명)에 든 다른 방문자의 캐릭터가 익명 소켓(`/room`)으로
-  함께 보인다. 채팅·음성은 없고, 서버에 닿지 못하면 혼자인 채로 돈다. 좌표는 씬 로컬 미터 좌표다. 우상단 지도 버튼이나
+  함께 보인다. 채팅은 없고, 서버에 닿지 못하면 혼자인 채로 돈다. 좌표는 씬 로컬 미터 좌표다. 우상단 지도 버튼이나
   M 키로 여는 펼침 지도(`components/map/paper-map.tsx`)는 씬 렌더러와 분리된 독립 Mapbox GL 캔버스로, 유저의 실제
   GPS 위치를 게임 화풍 종이 지도 위에 표시한다. 위치 권한은 지도를 처음 펼칠 때 묻는다(이미 허용된 사이트면 씬 시작 때
   바로 찾는다). 같은 렌더링을 쓰는 **내 주변(베타)**(`/nearby`, `features/nearby/`)은 위치를 받을 때까지 대기
@@ -69,17 +69,17 @@
   규격을 확인하는 개발용 페이지다.
 - **맵**(`/map`, 예정)은 Mapbox GL 실지형 지도를 베이스로 하고, 캐릭터를 Three.js 커스텀 레이어로
   지도 위에 그리는 멀티플레이 화면이다. Three.js 렌더러는 Mapbox 캔버스의 WebGL 컨텍스트를 공유한다. 좌표는
-  위경도(EPSG:4326)이며, 위치 브로드캐스트·섹터 판정·속도 검증·근접 음성이 모두 위경도 기준으로 동작한다.
-  서버 쪽 섹터 게이트웨이(`/sector`)는 실시간 서버에, 음성 룸 토큰 발급은 API 서버에 있다.
+  위경도(EPSG:4326)이며, 위치 브로드캐스트·섹터 판정·속도 검증이 모두 위경도 기준으로 동작한다.
+  서버 쪽 섹터 게이트웨이(`/sector`)는 실시간 서버에 있다.
 
 서버는 둘로 나뉜다. REST는 API 서버(`apps/api`, 9001)에, 소켓 게이트웨이는 실시간 서버(`apps/realtime`, 9002)에 있고
 DB는 API 서버만 쓴다([ADR 008](../adr/008-realtime-server-split.md)). 브라우저가 지금 서버에 붙는 길은 실시간 서버의
 씬 소켓뿐이다. 플레이 씬은 `NEXT_PUBLIC_WS_URL` 주소의 `/room` 네임스페이스에,
 내 주변(베타)은 `/proximity`에 토큰 없이 익명으로 붙는다. Next.js API 라우트는 헬스 체크(`/api/health`)뿐이다.
-로그인·상점·맵 화면을 만들 때 REST 호출은 Next.js Route Handler(`/api/auth/*`, `/api/billing/*`, `/api/me/*`,
-`/api/voice/token`)를 얇은 BFF 프록시로 거쳐 API 서버로 전달하고, 프록시가 `Authorization` 헤더를 그대로 넘기며,
-리프레시 토큰은 이 라우트가 httpOnly 쿠키로 관리한다(예정). 맵의 위치·채팅 소켓(실시간 서버 `/sector`)과 공간
-음성(LiveKit Cloud 직접 조인, 룸 토큰은 NestJS `voice` 모듈이 발급)에는 액세스 토큰이 필요하다.
+로그인·상점·맵 화면을 만들 때 REST 호출은 Next.js Route Handler(`/api/auth/*`, `/api/billing/*`, `/api/me/*`)를
+얇은 BFF 프록시로 거쳐 API 서버로 전달하고, 프록시가 `Authorization` 헤더를 그대로 넘기며,
+리프레시 토큰은 이 라우트가 httpOnly 쿠키로 관리한다(예정). 맵의 위치·채팅 소켓(실시간 서버 `/sector`)에는
+액세스 토큰이 필요하다.
 
 페이지 라우트 게이팅은 없어 모든 페이지가 공개다(`middleware.ts`의 `matcher`가 비어 있다). 실제 인가는
 NestJS 가드와 PostgreSQL RLS가 담당한다.
@@ -103,7 +103,6 @@ NestJS 가드와 PostgreSQL RLS가 담당한다.
 | **데이터베이스** | PostgreSQL + PostGIS (자체 호스팅, 단일 공유 DB) | 공간 연산 내장 ([ADR 002](../adr/002-self-hosted-backend.md)) |
 | **실시간 소켓** | socket.io 4 (실시간 서버의 NestJS WebSocket 게이트웨이) | 플레이 씬 익명 방 단위 변경분 중계(`/room`), 내 주변 익명 가까운 사람 중계(`/proximity`), 맵 섹터 단위 묶음 브로드캐스트(`/sector`, 붙는 화면은 예정) |
 | **인증** | 자체 JWT + bcrypt, 카카오/구글 OAuth | NestJS `auth` 모듈. 액세스 15분 / 리프레시 30일. 로그인 화면은 예정 |
-| **공간 음성** | LiveKit Cloud SFU (`livekit-server-sdk`) | 맵 섹터별 룸. 서버는 룸 토큰을 발급하고, 룸에 붙는 화면은 맵과 함께 예정 ([ADR 003](../adr/003-livekit-cloud-sfu.md)) |
 | **PG 결제** | 토스페이먼츠 / 카카오페이 | 원화 직행 ([ADR 004](../adr/004-direct-krw-payment.md)). 승인 웹훅은 API 서버가 받고, 결제창은 상점 화면과 함께 예정 |
 | **아바타 외형** | 서버 팔레트 조합 + 난수 시드 | `appearance_hash`(SHA-256) UNIQUE로 중복 차단. 생성형 AI로 교체 예정 |
 
@@ -115,7 +114,6 @@ NestJS 가드와 PostgreSQL RLS가 담당한다.
 |---|---|---|
 | **Mapbox** | 펼침 지도 타일(플레이 씬·내 주변 — Streets v8·지형 DEM, 씬을 한 번 열 때 지도 한 번 로드), 맵 베이스 지도 타일(예정) | 무료 20만 건/월, 초과 종량 |
 | **OpenFreeMap** | 내 주변 길 데이터(OpenStreetMap z14 벡터 타일, 브라우저가 직접 호출) | 무료·키 없음. 화면에 출처(OpenStreetMap·OpenMapTiles·OpenFreeMap) 표기 필수 |
-| **LiveKit Cloud** | 맵 공간 음성 SFU (예정) | 무료 티어 내 소진, 초과분 종량 |
 | **토스페이먼츠 / 카카오페이** | 원화 결제 PG | 건당 수수료 |
 | **카카오 / 구글 OAuth** | 소셜 로그인 (Authorization Code 흐름, 코드 교환은 API 서버) | 무료 |
 | **Vercel** | 프론트엔드 배포·CDN | 소규모 무료~소액 |
@@ -145,10 +143,6 @@ DB(PostgreSQL + PostGIS)와 NestJS API 서버·실시간 서버는 자체 호스
 | 플레이 씬 무변화 끊기 | 5분 | 바뀐 게 없으면 클라이언트가 스스로 끊고, 다시 움직이거나 탭으로 돌아오면 붙는다. 탭을 숨겨도(창 최소화·다른 탭) 끊지 않는다 |
 | Three.js Prune 임계값 | 반경 450m 외곽 | 맵(예정) 피어 오브젝트 메모리 해제 기준 |
 | Prune 트리거 | 50m 이동마다 | 맵(예정), 비동기 배치 실행 |
-| 음성 룸 단위 | 섹터당 1개 | 룸 이름 `voice-{sectorId}` |
-| 음성 구독 반경 | 40m | 이 안에서 가까운 순으로 구독 (맵, 예정) |
-| 동시 구독 Capping | Top-8 | 클라이언트 CPU 방어 (맵, 예정) |
-| 공간 음성 감쇠 | 30m까지 최대 → 40m 무음 | 30~40m 구간 선형 감쇠 (맵, 예정) |
 | 에셋 프리로드 바운더리 | 전방 350~400m | 스폰서 텍스처 사전 다운로드 (Phase 5 예정) |
 | 플레이 씬 카메라 | 3인칭 구면 리그 | 16:9 이상은 시선 목표점 기준 반경 5.836m·앙각 9.866°·세로 화각 45°. 세로로 긴 화면일수록 화각(최대 66°)·반경(최대 ×1.3)·앙각(최대 +8°)을 키운다(`framingFor`) ([ADR 007](../adr/007-quarter-view-camera-lock.md)) |
 | 맵 카메라 | pitch 45°·bearing 45° 고정 | 드래그·회전 잠금, 줌 14~20만 허용, 이동할 때마다 캐릭터 중심으로 맞춤 (예정) |
@@ -168,7 +162,6 @@ DB(PostgreSQL + PostGIS)와 NestJS API 서버·실시간 서버는 자체 호스
 | 항목 | 예상 비용 |
 |---|---|
 | DB / API 서버·실시간 서버 호스팅 (자체 호스팅) | 서버 사양에 따른 소액 |
-| LiveKit Cloud (무료 티어 내) | $0 |
 | Vercel (소규모 트래픽) | $0~소액 |
 | Mapbox (20만 건/월 무료 티어 내) | $0 |
 | OpenFreeMap (내 주변 길 타일) | $0 |
@@ -184,7 +177,6 @@ MVP 규모에서는 대부분 무료 티어~소액 수준에서 운영 가능하
 |---|---|
 | [ADR 001](../adr/001-webgl-context-sharing.md) | WebGL 컨텍스트 구성 — 플레이 씬·펼침 지도 분리, 맵(예정) Mapbox 공유 |
 | [ADR 002](../adr/002-self-hosted-backend.md) | 자체 백엔드(NestJS + 공유 Postgres) |
-| [ADR 003](../adr/003-livekit-cloud-sfu.md) | LiveKit Cloud 매니지드 SFU |
 | [ADR 004](../adr/004-direct-krw-payment.md) | 원화 직행 결제 구조 |
 | [ADR 005](../adr/005-postgis-gist-index.md) | PostGIS + GiST 공간 인덱스 |
 | [ADR 006](../adr/006-fog-of-war-business-model.md) | 가시거리 라이선스 BM |

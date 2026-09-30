@@ -30,7 +30,7 @@ socket.io 게이트웨이 셋(`/room`·`/proximity`·`/sector`)은 API 서버(`a
 ## 적용
 
 - **실시간 서버** (`apps/realtime`): `/room`·`/proximity`·`/sector` 게이트웨이와 `GET /health`. 포트 9002(`PORT`)다. 의존성은 Nest 코어·config·jwt·socket.io뿐이다(DB 드라이버·bcrypt 없음). 게이트웨이는 `src/room/`·`src/proximity/`·`src/sector/`에 있다([ADR 009](./009-interest-management-naming.md)).
-- **API 서버** (`apps/api`): 인증·유저·결제(웹훅·아바타 발급 워커 포함)·아바타·음성 토큰 REST. 포트 9001(`PORT`)이다. socket.io와 `shared/`를 쓰지 않고, 빌드 결과는 `dist/main`이다.
+- **API 서버** (`apps/api`): 인증·유저·결제(웹훅·아바타 발급 워커 포함)·아바타 REST. 포트 9001(`PORT`)이다. socket.io와 `shared/`를 쓰지 않고, 빌드 결과는 `dist/main`이다.
 - **`/sector` 인증**: 토큰은 API 서버가 발급하고, 실시간 서버는 `AccessTokenVerifier`(`src/auth/access-token.ts`)로 같은 `JWT_ACCESS_SECRET`의 서명·만료와 토큰 종류(`type: 'access'`)만 확인한다. API 서버의 액세스 토큰 가드처럼 DB는 보지 않는다. 시크릿이 없으면 서버는 뜨고 `/sector` 접속만 거절한다.
 - **CORS**: socket.io CORS는 `main.ts`의 어댑터가 설정 파일을 읽은 뒤 `WEB_ORIGIN`으로 넣는다. 게이트웨이 데코레이터에서 `process.env`를 읽으면 모듈을 불러오는 순간 값이 정해져, `.env.local`에만 둔 `WEB_ORIGIN`이 소켓에 반영되지 않기 때문이다.
 - **계약**: 소켓 이벤트 계약은 `shared/`에 두고 프론트와 실시간 서버가 함께 import한다.

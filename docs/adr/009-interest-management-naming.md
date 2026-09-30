@@ -22,7 +22,7 @@
 | 반경 200m 안 가까운 19명 | 내 주변 | Mirror Distance, Unreal NetCullDistance | `/proximity` |
 | 500m 격자 칸과 경계 옆 칸 | 맵(예정) | Mirror Spatial Hashing, Unreal GridSpatialization2D, WorkAdventure Zone | `/sector` |
 
-- **용어 사전의 말을 쓴다.** 방(Room)과 섹터(Sector)는 용어 사전에 있는 말이다. `grid`도 방식 이름으로 흔하지만, 방 이름(`sector-{gx}-{gy}`)과 음성 룸(`voice-{sectorId}`)이 섹터를 쓴다.
+- **용어 사전의 말을 쓴다.** 방(Room)과 섹터(Sector)는 용어 사전에 있는 말이다. `grid`도 방식 이름으로 흔하지만, 방 이름(`sector-{gx}-{gy}`)이 섹터를 쓴다.
 - **기능 이름으로는 나누지 않는다.** Supabase Realtime처럼 기능(Broadcast·Presence)으로 나누는 방식도 있지만, 셋은 실어 나르는 데이터가 같고 받는 사람만 다르다. 채팅 같은 기능은 네임스페이스 안의 이벤트로 둔다.
 - **화면과 묶이지 않는다.** 새 화면이 생겨도 방식이 같으면 같은 네임스페이스를 쓴다.
 - **공통 코드는 `relay`다.** 방·근접이 함께 쓰는 상태 보관·검증은 Colyseus의 Relay Room처럼 흔히 쓰는 relay라 부른다.

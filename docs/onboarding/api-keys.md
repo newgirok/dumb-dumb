@@ -59,21 +59,6 @@ JWT_REFRESH_SECRET=<다른 32바이트 랜덤 hex>
 
 ---
 
-## LiveKit Cloud
-
-1. https://cloud.livekit.io 접속 → 프로젝트 생성
-2. "Settings" → "Keys" 탭
-
-```
-LIVEKIT_API_KEY=APIxxxx           ← 서버 전용 (API 서버 환경변수)
-LIVEKIT_API_SECRET=xxxx           ← 서버 전용 (API 서버 환경변수)
-NEXT_PUBLIC_LIVEKIT_URL=wss://your-project.livekit.cloud   ← 프론트 공개 (맵을 붙일 때)
-```
-
-룸 토큰은 NestJS `voice` 모듈이 `livekit-server-sdk`로 발급한다(TTL 1시간). `LIVEKIT_API_KEY`·`LIVEKIT_API_SECRET`은 `apps/api/.env.example`에 없으므로 `apps/api/.env.local`에 직접 추가한다. 음성은 맵에서만 쓰이며, 화면이 예정이라 지금은 룸에 붙는 클라이언트가 없다. 무료 티어: 월 일정 분(分) 무료. 대시보드 사용량 알림 3단계 설정 권장.
-
----
-
 ## PG 웹훅
 
 결제 완료는 PG 웹훅으로만 반영된다. API 서버의 `POST /billing/webhook`이 다음 규격을 받는다.

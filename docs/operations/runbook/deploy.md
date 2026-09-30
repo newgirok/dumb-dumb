@@ -110,8 +110,6 @@ DATABASE_URL=postgresql://app_api@<db-host>:5432/<db>
 JWT_ACCESS_SECRET=...
 JWT_REFRESH_SECRET=...      # 액세스와 서로 다른 값
 PG_WEBHOOK_SECRET=...
-LIVEKIT_API_KEY=...
-LIVEKIT_API_SECRET=...
 KAKAO_CLIENT_ID=...
 KAKAO_CLIENT_SECRET=...
 GOOGLE_CLIENT_ID=...
@@ -139,8 +137,7 @@ vercel --prod
 
 Vercel 대시보드 → "Environment Variables"에서 다음이 설정되었는지 확인한다:
 `NEXT_PUBLIC_WS_URL`(실시간 서버 — 플레이 씬·내 주변 소켓), `NEXT_PUBLIC_MAPBOX_TOKEN`(플레이 씬·내 주변 펼침 지도). `NEXT_PUBLIC_*` 값은 빌드 시점에 구워지므로
-바꾼 뒤에는 재배포한다. 로그인·맵·상점 화면을 붙이면 `API_URL`(서버 전용, BFF가 부르는 API 서버 주소)과
-`NEXT_PUBLIC_LIVEKIT_URL`(맵 음성)도 넣는다.
+바꾼 뒤에는 재배포한다. 로그인·맵·상점 화면을 붙이면 `API_URL`(서버 전용, BFF가 부르는 API 서버 주소)도 넣는다.
 
 컨테이너로 배포할 때는 `docker-compose.yml`의 `app`으로 이미지를 만든다.
 `NEXT_PUBLIC_*`는 빌드 인자로 구워지므로 `--env-file`로 채운다. `NEXT_PUBLIC_WS_URL`에는 실시간 서버 공개 주소를
@@ -166,7 +163,6 @@ docker compose --env-file .env.local up -d --build
 - [ ] 내 주변(`/nearby`)에서 위치를 허용하면 대기 화면을 지나 바닥이 깔리고(흐린 위치만 오면 6초 뒤 그 근처에서 시작) 좌하단 출처 표기가 5초 보였다가 (i) 버튼으로 접힘(누르면 다시 보임) (OpenFreeMap 타일을 브라우저가 직접 받는다)
 - [ ] Vercel 빌드 성공 (Vercel 대시보드 "Deployments")
 - [ ] Mapbox 토큰 도메인 락 설정 (프로덕션 도메인만 허용)
-- [ ] LiveKit API 키 유효성 확인 (액세스 토큰으로 API 서버 `POST /voice/token`을 불러 룸 토큰 발급 — 룸 연결 테스트는 맵을 붙인 뒤)
 - [ ] 결제 웹훅 URL이 프로덕션 API 서버 `POST /billing/webhook`으로 등록됨 (PG사 대시보드)
 - [ ] API가 `app_api` 롤로 접속하여 `orders` 등 RLS 정책이 적용됨을 확인
 

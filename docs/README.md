@@ -1,6 +1,6 @@
 # Dumb Dumb (3D 소셜) — 문서 허브
 
-반려동물을 목줄로 데리고 다니는 반려인(유니크 3D 아바타)을 조종하며 다른 유저와 우연히 마주치고 커뮤니티를 형성하는 3D 소셜 서비스. 루트(`/`)는 플레이·내 주변·에셋 미리보기 버튼을 세로로 쌓은 게임 타이틀 화면(선택 페이지)이다. `/play`(플레이 씬)는 로그인 없이 공개되는 3D 씬으로, 같은 방(최대 20명)에 든 다른 방문자의 캐릭터가 익명으로 함께 보이고, 우상단 지도 버튼이나 M 키로 유저의 실제 GPS 위치를 보여 주는 펼침 지도를 펼친다. `/nearby`(내 주변(베타))는 위치를 받을 때까지 기다렸다가 같은 화풍으로 내 위치 주변 실제 길을 깔아 걷는 만큼 이어 깔고, 반경 200m 안 사람의 캐릭터를 실제 자리에 보여 준다. `/asset-viewer`는 ref-assets 규격을 확인하는 개발용 에셋 미리보기다. 로그인·상점 화면과, Mapbox 실지형 지도 위에서 위치를 실시간으로 공유하고 섹터 음성 룸에 접속하는 맵은 예정이다.
+반려동물을 목줄로 데리고 다니는 반려인(유니크 3D 아바타)을 조종하며 다른 유저와 우연히 마주치고 커뮤니티를 형성하는 3D 소셜 서비스. 루트(`/`)는 플레이·내 주변·에셋 미리보기 버튼을 세로로 쌓은 게임 타이틀 화면(선택 페이지)이다. `/play`(플레이 씬)는 로그인 없이 공개되는 3D 씬으로, 같은 방(최대 20명)에 든 다른 방문자의 캐릭터가 익명으로 함께 보이고, 우상단 지도 버튼이나 M 키로 유저의 실제 GPS 위치를 보여 주는 펼침 지도를 펼친다. `/nearby`(내 주변(베타))는 위치를 받을 때까지 기다렸다가 같은 화풍으로 내 위치 주변 실제 길을 깔아 걷는 만큼 이어 깔고, 반경 200m 안 사람의 캐릭터를 실제 자리에 보여 준다. `/asset-viewer`는 ref-assets 규격을 확인하는 개발용 에셋 미리보기다. 로그인·상점 화면과, Mapbox 실지형 지도 위에서 위치를 실시간으로 공유하는 맵은 예정이다.
 
 **GitHub**: https://github.com/newgirok/open-world-casual-journey
 
@@ -53,9 +53,9 @@ Docker Compose로 프론트엔드(프로덕션 빌드)와 실시간 서버를 �
 
 | 문서 | 설명 |
 |---|---|
-| [클라우드 인프라 초기 셋업](./onboarding/infra-setup.md) | Vercel, LiveKit, 오브젝트 스토리지 최초 1회 설정 |
+| [클라우드 인프라 초기 셋업](./onboarding/infra-setup.md) | Vercel, 오브젝트 스토리지 최초 1회 설정 |
 | [로컬 환경 세팅](./onboarding/local-setup.md) | Node.js, PostgreSQL, 프론트엔드 + 실시간 서버 + API 서버 초기 설정 |
-| [API 키 설정](./onboarding/api-keys.md) | Mapbox, LiveKit, PG사, OAuth 키 발급 방법 |
+| [API 키 설정](./onboarding/api-keys.md) | Mapbox, PG사, OAuth 키 발급 방법 |
 | [환경변수 레퍼런스](./onboarding/env-vars.md) | 전체 환경변수 목록 및 설명 |
 | [개발 명령어](./onboarding/commands.md) | npm / psql / Docker 명령어 레퍼런스 |
 
@@ -83,7 +83,7 @@ Docker Compose로 프론트엔드(프로덕션 빌드)와 실시간 서버를 �
 | 문서 | 설명 |
 |---|---|
 | [배포 절차](./operations/runbook/deploy.md) | 로컬 → Vercel / API 서버·실시간 서버 프로덕션 배포 단계 |
-| [모니터링](./operations/monitoring.md) | Mapbox·LiveKit·서버 비용 알림 및 대시보드 |
+| [모니터링](./operations/monitoring.md) | Mapbox·서버 비용 알림 및 대시보드 |
 | [과금 방어 대응](./operations/runbook/billing-guard.md) | API 과금 폭탄 원인 및 즉시 차단 절차 |
 
 ---
@@ -126,7 +126,6 @@ docker compose --env-file .env.local up -d --build
 | Phase 0 | 프로젝트 초기화 및 인프라 셋업 | 완료 |
 | Phase 1 | UI/UX 기반 구축 (API 서버 인증, 공통 컴포넌트) — 남은 작업: 로그인 화면·인증 BFF 라우트, 게임 셸 | 진행 중 |
 | Phase 2 | 3D 캐릭터 이동 + 실시간 동기화 (플레이 씬 익명 방, 내 주변 1단계, 맵 섹터 게이트웨이) — 남은 작업: 맵 화면, 내 주변 2·3단계, 자체 에셋 교체 | 진행 중 |
-| Phase 3 | LiveKit 공간 음성 (룸 토큰 발급) — 남은 작업: 맵 음성 클라이언트·마이크 옵트인 UI | 진행 중 |
 | Phase 4 | 인앱 결제 + 아바타 발급 + 가시거리 라이선스 — 남은 작업: 상점 화면, PG 결제창 연동, 자동 취소, 발급 대기 연출 | 진행 중 |
 | Phase 5 | B2B 스폰서십 광고(브랜드 텍스처 에셋 + 펼침 지도 좌표 마커) + 가시거리 렌더링 연동 + 광고주 포탈 + 채팅 UI | 예정 |
 | Phase 6 | 상용화 (프로덕션 부하 테스트, 동접 200명) | 예정 |
@@ -135,4 +134,4 @@ docker compose --env-file .env.local up -d --build
 
 ## 인프라 비용 목표
 
-자체 호스팅 기준. DB/API 서버·실시간 서버 호스팅 + Mapbox(무료 티어 내) + LiveKit Cloud(무료 티어 내) + Vercel(소규모 무료~소액)로 구성한다. 상세 항목은 [아키텍처 개요 — 비용 목표](./architecture/overview.md#비용-목표)를 확인하라.
+자체 호스팅 기준. DB/API 서버·실시간 서버 호스팅 + Mapbox(무료 티어 내) + Vercel(소규모 무료~소액)로 구성한다. 상세 항목은 [아키텍처 개요 — 비용 목표](./architecture/overview.md#비용-목표)를 확인하라.

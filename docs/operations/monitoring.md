@@ -64,16 +64,6 @@ WHERE usename = 'app_api'
 GROUP BY state;
 ```
 
-### LiveKit Cloud
-
-LiveKit 콘솔 → "Usage" → "Alerts"에서 3단계 알림 설정. 음성은 맵에서만 쓰이며(화면이 예정이라 지금은 룸에 붙는 클라이언트가 없다), 룸은 섹터마다 하나(`voice-sector-<gx>-<gy>`)다.
-
-| 단계 | 조치 |
-|---|---|
-| 무료 티어 50% | 음성 활성화 유저 분포·섹터별 룸 인원 확인 |
-| 무료 티어 80% | 구독 상한(가까운 8명·40m 이내) 동작 확인. 세션 길이 상한은 코드에 없으므로 필요 시 [과금 방어 대응](./runbook/billing-guard.md) 절차로 건다 |
-| 무료 티어 100% | 음성 기능 일시 제한 또는 유료 전환 |
-
 ---
 
 ## 헬스체크
@@ -88,7 +78,6 @@ LiveKit 콘솔 → "Usage" → "Alerts"에서 3단계 알림 설정. 음성은 �
 | socket.io 방 게이트웨이 | 실시간 서버 `/room` 네임스페이스에 토큰 없이 두 클라이언트를 붙여 `welcome` 수신과, 한쪽이 보낸 `state`가 35ms 틱 안에 다른 쪽 `states`로 오는지 확인 | 이상 시 즉시 |
 | socket.io 근접 게이트웨이 | 실시간 서버 `/proximity`에 두 클라이언트를 붙여 서로 200m 안의 실제 좌표를 보낸 뒤 다음 틱에 상대의 전체 상태가 `states`로 오는지 확인 | 이상 시 즉시 |
 | API 서버 에러율 | API 서버 로그의 5xx 비율 | 이상 시 즉시 |
-| LiveKit 룸 상태 | LiveKit 콘솔 → "Rooms" | 이상 시 즉시 |
 | Mapbox 타일 요청 수 | Mapbox 대시보드 → "Analytics" | 주 1회 |
 | Vercel 빌드 상태 | Vercel 대시보드 → "Deployments" | 배포 시마다 |
 

@@ -22,13 +22,13 @@
 | 변수 | 기본값 | 설명 |
 |---|---|---|
 | `API_URL` | `http://localhost:9001` | NestJS API 서버 주소. BFF 라우트(Next Route Handler)에서만 쓰므로 `NEXT_PUBLIC_` 아님 |
-| `NEXT_PUBLIC_LIVEKIT_URL` | — | LiveKit 서버 WebSocket URL (`wss://...livekit.cloud`). 맵 음성이 접속한다. 같은 `NEXT_PUBLIC_WS_URL`의 `/sector` 소켓과 Mapbox 토큰도 맵이 함께 쓴다 |
+
+맵은 같은 `NEXT_PUBLIC_WS_URL`의 `/sector` 소켓과 Mapbox 토큰도 함께 쓴다.
 
 ### `.env.example`에 있으나 프론트엔드 코드가 읽지 않는 항목
 
 | 변수 | 비고 |
 |---|---|
-| `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | 음성 룸 토큰은 API 서버가 발급하므로 **API 서버 환경변수**로 넣는다(아래 API 서버 절) |
 | `TOSS_CLIENT_KEY`, `TOSS_SECRET_KEY`, `KAKAO_PAY_CID`, `KAKAO_PAY_SECRET` | 상점 화면과 함께 붙일 PG 결제창 연동용 키(결제 완료는 PG 웹훅으로만 반영) |
 | `AI_API_KEY`, `AI_API_URL` | 생성형 AI 아바타 외형 생성용. 외형은 API 서버가 팔레트 조합 + 난수 시드로 만든다 |
 | `NEXT_PUBLIC_APP_URL` | 서비스 도메인. Docker `app` 빌드 인자로만 전달되고 코드는 읽지 않는다 |
@@ -77,15 +77,6 @@
 |---|---|---|
 | `PG_WEBHOOK_SECRET` | 필수 | PG 웹훅 서명 검증 키. `x-pg-signature` 헤더를 raw body의 HMAC-SHA256 hex와 대조한다. 없으면 모든 웹훅이 서명 검증에 실패한다 |
 
-### 음성 (LiveKit)
-
-`apps/api/.env.example`에는 없으므로 `apps/api/.env.local`에 직접 추가한다.
-
-| 변수 | 필수 | 설명 |
-|---|---|---|
-| `LIVEKIT_API_KEY` | 필수 | LiveKit Cloud API Key. `POST /voice/token`이 룸 토큰을 서명할 때 쓴다 (서버 전용) |
-| `LIVEKIT_API_SECRET` | 필수 | LiveKit Cloud API Secret (서버 전용, Git 커밋 금지). 두 값이 없으면 음성 토큰 발급이 실패한다 |
-
 ### 아바타 발급 워커
 
 | 변수 | 필수 | 기본값 | 설명 |
@@ -111,7 +102,7 @@
 ## 보안 주의사항
 
 - `_SECRET`, `_KEY` 접미사 변수는 `.gitignore`에 포함된 `.env.local`에만 저장
-- API 서버 시크릿(`DATABASE_URL`, `JWT_*`, `PG_WEBHOOK_SECRET`, OAuth·LiveKit 시크릿)은 API 서버 환경변수 또는 호스팅 플랫폼의 시크릿 저장소에서 관리. API 서버는 `apps/api/.env.local` → `.env` 순으로 읽는다. 실시간 서버에 넣는 시크릿은 `JWT_ACCESS_SECRET` 하나뿐이다
+- API 서버 시크릿(`DATABASE_URL`, `JWT_*`, `PG_WEBHOOK_SECRET`, OAuth 시크릿)은 API 서버 환경변수 또는 호스팅 플랫폼의 시크릿 저장소에서 관리. API 서버는 `apps/api/.env.local` → `.env` 순으로 읽는다. 실시간 서버에 넣는 시크릿은 `JWT_ACCESS_SECRET` 하나뿐이다
 - `NEXT_PUBLIC_` 접두사 변수는 브라우저에 노출되므로 시크릿 값 절대 사용 금지
 
 ---
