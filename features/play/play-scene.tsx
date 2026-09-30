@@ -561,7 +561,7 @@ export default function PlayScene() {
       kid.receiveShadow = true
       kid.frustumCulled = false
       scene.add(kid)
-      // 클립은 같은 방 다른 아이들과 함께 쓴다
+      // 클립은 같은 방 다른 캐릭터들과 함께 쓴다
       const kidClips = {
         idle: createSkinAnimation('idle', kidIdle),
         run: createSkinAnimation('run', kidRun),
@@ -653,7 +653,7 @@ export default function PlayScene() {
       })
       disposables.push(...shadowMaps)
 
-      // 같은 방 다른 아이들 — 로그인 없는 익명 소켓으로 주고받는다(원본 멀티플레이).
+      // 같은 방 다른 캐릭터들 — 로그인 없는 익명 소켓으로 주고받는다(원본 멀티플레이).
       // 서버에 닿지 못하면 소켓이 뒤에서 재시도할 뿐 씬은 혼자인 채로 돈다.
       const peers = createRemotes({
         scene,

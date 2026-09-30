@@ -6,7 +6,7 @@ import { blendKidAnimation, createKidAnimation, type KidAnimation, type KidClips
 /** 원본 characters 보간 — 60fps 한 프레임 기준 비율 */
 const POSITION_LERP = 0.4
 const ROTATION_LERP = 0.4
-/** 원격 아이 속도 감쇠(원본 remoteDamp) — 이 속도로 idle↔run을 섞는다 */
+/** 원격 캐릭터 속도 감쇠(원본 remoteDamp) — 이 속도로 idle↔run을 섞는다 */
 const REMOTE_DAMP = 0.625
 /** 이보다 멀리 뛰면 보간하지 않고 그 자리로 옮긴다(원본 positionDeltaLimitSnap) */
 const SNAP_DISTANCE = 10
@@ -24,7 +24,7 @@ interface View {
   targetPosition: THREE.Vector3
   targetRotation: THREE.Quaternion
   velocity: THREE.Vector3
-  /** 원본 animationOffset — 전역 시간에 더해 아이마다 다른 박자로 움직인다 */
+  /** 원본 animationOffset — 전역 시간에 더해 캐릭터마다 다른 박자로 움직인다 */
   offset: number
   bornAt: number
 }
@@ -37,7 +37,7 @@ interface Remote {
 }
 
 export interface Remotes {
-  /** 서버가 보낸 필드를 합친다. 네 필드가 다 모이면 아이를 세운다 */
+  /** 서버가 보낸 필드를 합친다. 네 필드가 다 모이면 캐릭터를 세운다 */
   apply(update: RelayPeerUpdate): void
   remove(id: string): void
   /** 방에 (다시) 들어갔거나 끊겼다 — 원본 _removeAllCharacters처럼 곧바로 지운다 */
@@ -67,9 +67,9 @@ function quaternionFromSpherical([phi, theta]: [number, number], target: THREE.Q
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3)
 
 /**
- * 같은 방 다른 아이들 — 원본 characters의 원격 인스턴스를 스킨드 메시 한 벌씩으로 그린다.
+ * 같은 방 다른 캐릭터들 — 원본 characters의 원격 인스턴스를 스킨드 메시 한 벌씩으로 그린다.
  * 받은 위치를 목표점이, 목표점을 몸이 한 번 더 따라가 35ms 간격 갱신을 매끄럽게 잇고,
- * 움직인 거리로 속도를 다시 만들어 로컬 아이와 같은 규칙으로 idle·run·air·bored를 섞는다.
+ * 움직인 거리로 속도를 다시 만들어 로컬 캐릭터와 같은 규칙으로 idle·run·air·bored를 섞는다.
  */
 export function createRemotes({
   scene,
@@ -148,7 +148,7 @@ export function createRemotes({
         remotes.set(id, remote)
       }
       if (remote.leftAt >= 0) {
-        // 사라지던 아이가 다시 보인다(내 주변에서 멀어졌다 돌아왔다) — 지금 크기에서 다시 커진다
+        // 사라지던 캐릭터가 다시 보인다(내 주변에서 멀어졌다 돌아왔다) — 지금 크기에서 다시 커진다
         remote.leftAt = -1
         if (remote.view) {
           const u = 1 - Math.cbrt(1 - remote.view.mesh.scale.x)

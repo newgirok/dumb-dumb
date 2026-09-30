@@ -20,10 +20,10 @@ export const RELAYS = {
 
 export type RelayName = keyof typeof RELAYS
 
-/** 아이 모션 — 원본 userData.a (0 기본(idle·run) · 1 공중 · 2 심심함) */
+/** 캐릭터 모션 — 원본 userData.a (0 기본(idle·run) · 1 공중 · 2 심심함) */
 export type RelayMotion = 0 | 1 | 2
 
-/** 아이 한 명의 상태 — 원본 RealmData */
+/** 캐릭터 한 명의 상태 — 원본 RealmData */
 export interface RelayPlayerState {
   /** 발 위치 — 방은 씬 로컬 [x, y, z](m), 근접은 [경도, 위도, 높이(m)] */
   p: [number, number, number]
@@ -34,7 +34,7 @@ export interface RelayPlayerState {
   s: number
 }
 
-/** 서버가 내려주는 다른 아이의 변경분 — 처음 보는 아이는 네 필드가 다 모여야 그린다 */
+/** 서버가 내려주는 다른 캐릭터의 변경분 — 처음 보는 캐릭터는 네 필드가 다 모여야 그린다 */
 export type RelayPeerUpdate = { id: string } & Partial<RelayPlayerState>
 
 /** 방 배정 — id는 내 변경분을 거르는 데, room은 다시 붙을 때 같은 방을 청하는 데 쓴다(근접은 방이 없어 '') */
