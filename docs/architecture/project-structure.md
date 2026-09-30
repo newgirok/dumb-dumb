@@ -47,8 +47,8 @@ project/
 │   │   ├── touch-circles.ts      ← 터치 조작 원 (씬 안 화면 공간 메시)
 │   │   ├── shadows.ts            ← 해와 동적 그림자(시선 앞 ±12m)·정적 그림자(CSM) 굽기
 │   │   ├── postprocess.ts        ← 최종 화면 패스 (LUT·인트로)
-│   │   ├── kid-animation.ts      ← 아이 idle·run·air·bored 가중치 규칙 (내 아이·다른 아이 공통)
-│   │   ├── remote-players.ts     ← 함께 보이는 다른 아이들 — 2단 보간·등장·퇴장 크기 연출
+│   │   ├── kid-animation.ts      ← 캐릭터 idle·run·air·bored 가중치 규칙 (내 캐릭터·다른 캐릭터 공통)
+│   │   ├── remote-players.ts     ← 함께 보이는 다른 캐릭터들 — 2단 보간·등장·퇴장 크기 연출
 │   │   ├── setup.ts              ← 기기(모바일·픽셀 비율)·텍스처 준비
 │   │   ├── noise.ts              ← 사인 노이즈
 │   │   ├── character.ts          ← kid 스킨드 캐릭터(idle/run) + 절차적 폴백 메시 (에셋 미리보기)
@@ -116,7 +116,7 @@ project/
 제품 진입은 선택 페이지(`/`)다. `app/page.tsx`가 `lib/routes.ts`의 `SCENE_ROUTES`(`/play`·`/nearby`·`/asset-viewer`)를
 목적지 버튼 3개로 세로로 쌓아 보여 주고, 세 페이지 모두 로그인 없이 동작한다. 플레이 씬
 (`/play`)은 같은 방 다른 방문자를 익명 소켓(`/room`)으로 받아 그리고, 실시간 서버에 닿지 못하면 혼자인 채로 돈다.
-내 주변(베타)(`/nearby`)은 공유 3D 엔진(`lib/three/`의 셰이더·조작·그림자·후처리·원격 아이)을 플레이 씬과 함께 쓰고,
+내 주변(베타)(`/nearby`)은 공유 3D 엔진(`lib/three/`의 셰이더·조작·그림자·후처리·원격 캐릭터)을 플레이 씬과 함께 쓰고,
 같은 계약으로 `/proximity`에 붙어 반경 200m 사람을 받는다. 두 씬은 펼침 지도(`components/map/paper-map.tsx`)를
 함께 쓰고, 씬마다 GPS 추적기(`lib/geo/gps.ts`) 하나를 씬과 지도가 나눠 쓴다. 페이지 라우트 게이팅은 없어
 (`middleware.ts`의 `matcher`가 비어 있음) 모든 페이지가 공개다.
@@ -146,7 +146,7 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 | `lib/three/shadows.ts` | 동적 그림자(시선 앞 ±12m) + 정적 그림자(CSM) 굽기 |
 | `features/play/sea.ts` · `birds.ts` | 하늘을 비추는 바다, 갈매기 무리 비행 |
 | `lib/three/postprocess.ts` · `touch-circles.ts` | 최종 화면 패스(LUT·인트로), 터치 원 UI |
-| `lib/three/remote-players.ts` · `kid-animation.ts` | 같은 방 다른 아이들 — 받은 상태를 2단 보간해 그리고 등장·퇴장 크기 연출. 로컬·원격 아이가 함께 쓰는 idle·run·air·bored 가중치 규칙 |
+| `lib/three/remote-players.ts` · `kid-animation.ts` | 같은 방 다른 캐릭터들 — 받은 상태를 2단 보간해 그리고 등장·퇴장 크기 연출. 로컬·원격 캐릭터가 함께 쓰는 idle·run·air·bored 가중치 규칙 |
 | `features/nearby/ground-stream.ts` | 걷는 만큼 이어지는 바닥 — 256m 구역을 캐릭터 둘레 3×3으로 깔고 멀어진 구역은 치운다, 워커가 그린 마스크로 텍스처·메시 생성, 잔디 받침 바닥 |
 | `features/nearby/ground.worker.ts` · `ground-source.ts` | 워커에서 z14 타일 받기·해석(12장 캐시)과 구역 마스크 그리기(OffscreenCanvas) — 워커가 없으면 같은 코드를 메인 스레드에서 |
 | `features/nearby/nearby-scene.tsx` · `ground.ts` | 내 주변(베타) — 위치를 받을 때까지 대기 화면에서 기다렸다가(`waitForStartFix`) 그 주변 실제 길(OpenStreetMap)을 플레이 씬 지형 셰이더 마스크로 그려 1m = 1m로 걷는다. 휴대폰은 ±50m 안 GPS를 따라 걷는다. 우상단 지도 버튼 하나(M·Esc), 펼침 지도의 '나'는 캐릭터 자리와 화면이 보는 방향(`MapTrack`)이다. 반경 200m 사람이 실제 자리에 보인다. `ground.ts`는 도로 폭 규칙·타일 경계에 맞춘 점선 박자·마스크 그리기 |

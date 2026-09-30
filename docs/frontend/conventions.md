@@ -70,8 +70,8 @@ const nunito = Nunito({ subsets: ['latin'], variable: '--font-display', display:
 | 경로·진입점 | `/play` · `features/play/play-scene.tsx` | `/nearby` · `features/nearby/nearby-scene.tsx` |
 | 베이스 | 베이크드 로우폴리 3D 씬 (`/ref-assets` 참조 에셋, 해변 섬) | 실제 길(OpenStreetMap 벡터 타일)을 그린 바닥 구역 |
 | 좌표계 | 씬 로컬 미터 (Y-up) | GPS 위치를 0.001° 격자에 맞춘 원점 기준 로컬 미터. 다른 사람과는 위경도로 주고받는다 |
-| 렌더러 | 씬 전용 `WebGLRenderer` 단일 캔버스 | 같은 구조 — 플레이 씬과 같은 공유 3D 엔진(`lib/three/`의 셰이더·3인칭 조작·그림자·후처리·원격 아이)을 쓴다 |
-| 네트워크 | 익명 socket.io `/room` — 같은 방 아이 상태만 중계 (인증·채팅·음성 없음, 서버가 없으면 혼자) | 익명 socket.io `/proximity` — 반경 200m 안 가까운 19명 |
+| 렌더러 | 씬 전용 `WebGLRenderer` 단일 캔버스 | 같은 구조 — 플레이 씬과 같은 공유 3D 엔진(`lib/three/`의 셰이더·3인칭 조작·그림자·후처리·원격 캐릭터)을 쓴다 |
+| 네트워크 | 익명 socket.io `/room` — 같은 방 캐릭터 상태만 중계 (인증·채팅·음성 없음, 서버가 없으면 혼자) | 익명 socket.io `/proximity` — 반경 200m 안 가까운 19명 |
 | 펼침 지도 | M·HUD 지도 버튼으로 펼치는 종이 지도 — '나' = 실제 GPS 위치(캐릭터 옷 색), 북쪽 위 | 같은 종이 지도 — '나' = 캐릭터 자리 + 화면이 보는 방향 화살표, GPS가 잡은 자리는 작은 점·정확도 원으로 따로, 북쪽 위 |
 
 내 주변(베타)의 세부 규칙은 아래 [내 주변(베타)](#내-주변베타-nearby) 절에, 펼침 지도는 [펼침 지도](#펼침-지도-paper-map--mapbox-gl-js) 절에, 위치 추적은 [GPS 상태](#gps-상태) 절에 있다.
@@ -87,16 +87,16 @@ const nunito = Nunito({ subsets: ['latin'], variable: '--font-display', display:
 
 ### 렌더 루프 규칙
 
-- **플레이 씬**: `play-scene.tsx`가 소유한 단일 `requestAnimationFrame` 루프에서 돈다. 프레임 간격(dt)은 0.1초로 클램프하고, 3인칭 컨트롤러 갱신 → 캐릭터 애니메이션 가중치(`kid-animation.ts` — idle↔run은 수평 속도, air·bored가 덮음) → 동적 그림자 중심을 카메라 시선 앞 6m로 이동 → 오디오(환경음·발소리) → 터치 원 UI → 같은 방 다른 아이들(`remote-players.ts` — 위치·방향 보간, 가중치, 100m 안·화면 안일 때만 포즈) → 캐릭터 믹서 → 갈매기 비행 → 하늘 돔 카메라 추종 → 인트로 리빌 uniform → 적응형 DPR → `composer.render()` 순서를 지킨다. LOD 단계는 렌더러가 `LODExtended.update`로 고르고, 생물 애니메이션은 각 오브젝트의 `onBeforeRender`(화면에 그려질 때만)에서 한다. NPC(UFO·alien·cats·sloth·gossip) 근접 상호작용은 비활성이며, 판정 로직은 `scene.tsx`에 주석으로 있다
+- **플레이 씬**: `play-scene.tsx`가 소유한 단일 `requestAnimationFrame` 루프에서 돈다. 프레임 간격(dt)은 0.1초로 클램프하고, 3인칭 컨트롤러 갱신 → 캐릭터 애니메이션 가중치(`kid-animation.ts` — idle↔run은 수평 속도, air·bored가 덮음) → 동적 그림자 중심을 카메라 시선 앞 6m로 이동 → 오디오(환경음·발소리) → 터치 원 UI → 같은 방 다른 캐릭터들(`remote-players.ts` — 위치·방향 보간, 가중치, 100m 안·화면 안일 때만 포즈) → 캐릭터 믹서 → 갈매기 비행 → 하늘 돔 카메라 추종 → 인트로 리빌 uniform → 적응형 DPR → `composer.render()` 순서를 지킨다. LOD 단계는 렌더러가 `LODExtended.update`로 고르고, 생물 애니메이션은 각 오브젝트의 `onBeforeRender`(화면에 그려질 때만)에서 한다. NPC(UFO·alien·cats·sloth·gossip) 근접 상호작용은 비활성이며, 판정 로직은 `scene.tsx`에 주석으로 있다
 - 플레이 씬의 거리 안개는 램프 셰이더가 카메라 거리 40~300m 구간에서 명도를 0.6으로, 채도를 0.3으로 모으는 고정값이다(원본 식). 가시거리 라이선스 등급은 어느 씬도 렌더링에 반영하지 않는다
 - 플레이 씬의 그림자는 두 겹이다 — 동적 그림자맵(2048², 시선 앞 ±12m)과 로딩 때 월드 전체를 한 번 구운 정적 그림자(`shadows.ts`, 8192²·모바일 4096², LOD 단계별 3장). 동적 그림자 중심에서 9~12m 사이에서 정적 그림자로 넘어간다. 캐릭터가 아닌 면은 카메라 1.5~2m 안에서 가로줄 디더로 솎아낸다
 
 ### 오브젝트 생명주기
 
 - `.bin` 에셋은 `lib/three/bin-loader.ts`의 `loadBinGeometry`로만 로드한다. 이름별 Promise 캐시와 공유 DRACOLoader 워커를 쓰며, 캐시가 소유한 지오메트리(`userData.shared = true`)는 dispose하지 않는다. 인스턴스마다 속성을 붙여야 하면 `clone()`한 뒤 쓴다
-- 플레이 씬의 kid는 `play-scene.tsx`가 `createSkin`으로 직접 조립하고, 같은 방 다른 아이는 `remote-players.ts`가 같은 지오메트리·클립으로 한 명마다 스킨드 메시·믹서·재질(색 시드)을 따로 만든다. 나가면 0.25초에 걸쳐 줄인 뒤 스켈레톤·재질을 dispose하고, 방에 다시 들어가거나 연결이 끊기면 곧바로 모두 지운다
+- 플레이 씬의 kid는 `play-scene.tsx`가 `createSkin`으로 직접 조립하고, 같은 방 다른 캐릭터는 `remote-players.ts`가 같은 지오메트리·클립으로 한 명마다 스킨드 메시·믹서·재질(색 시드)을 따로 만든다. 나가면 0.25초에 걸쳐 줄인 뒤 스켈레톤·재질을 dispose하고, 방에 다시 들어가거나 연결이 끊기면 곧바로 모두 지운다
 - 에셋 미리보기는 `lib/three/character.ts`의 `loadCharacter`(ref-assets kid 스킨드 메시)로 캐릭터를 띄우고 `Character.dispose()`로 정리한다
-- 플레이 씬은 언마운트 시 루프를 멈추고 씬 소켓을 닫은 뒤 다른 아이들·오디오·머티리얼·정적 그림자맵·바다 반사·갈매기·터치 원·KTX2 로더·컴포저·렌더러를 dispose하고 캔버스를 떼어 낸다
+- 플레이 씬은 언마운트 시 루프를 멈추고 씬 소켓을 닫은 뒤 다른 캐릭터들·오디오·머티리얼·정적 그림자맵·바다 반사·갈매기·터치 원·KTX2 로더·컴포저·렌더러를 dispose하고 캔버스를 떼어 낸다
 - 펼침 지도는 씬이 시작되면(`playing`) 마운트돼 Mapbox 지도를 한 번 만들고 접혀 있어도 살려 두며, 언마운트 때 마커를 지우고 `map.remove()`한다. GPS 추적기(`createGpsTracker`)는 씬이 이펙트 안에서 만들고 언마운트 때 `dispose()`한다 — 개발 모드(StrictMode)가 이펙트를 두 번 돌려도 추적기가 하나만 남는다
 
 ---
@@ -131,7 +131,7 @@ const nunito = Nunito({ subsets: ['latin'], variable: '--font-display', display:
 - **위쪽 알림**: `walkNote`가 정한 한 줄과 "지도 보기" 버튼(누르면 지도를 펼친다)을 가운데 위에 띄운다. 휴대폰에서 GPS가 걸음을 못 따라갈 때("걸음 신호가 잠시 멈췄어요 · 걸으면 다시 따라가요", ±50m 밖이면 "GPS 신호가 약해(±N) 캐릭터를 잠깐 멈춰 뒀어요"), 위치를 받을 수 없게 됐을 때("위치를 받을 수 없어 캐릭터가 GPS를 따라가지 않아요") 뜬다. 좁은 화면에서는 버튼이 글 아래 줄로 내려가고, 오른쪽 위 지도 버튼과 겹치지 않게 비켜 둔다. 지도가 펼쳐져 있으면 숨긴다
 - **지도 버튼**: 우상단(위·오른쪽 20px)에 플레이 씬 HUD 버튼과 같은 모양의 지도 버튼 하나를 둔다(`aria-label`·툴팁 "지도 펼치기 (M)", 위치를 못 잡으면 구석에 "!", 손가락 기기 1.2배·2400×1300px 이상 화면 1.3배). 소리가 없어 클릭음이 없고, 등장 애니메이션 없이 씬이 시작되면 바로 뜬다. 단축키는 M(펼치기/접기)·Esc(접기)이고 Ctrl+M은 없다. 지도가 화면에 있는 동안(접을 때는 다 접혀 배경이 걷힐 때까지 — `onClosed`) 캐릭터 조작(키보드·마우스·터치)은 끄고(`controller.setEnabled(false)`), 휴대폰 GPS 걷기(`steer`)는 계속된다
 - **출처 표기**: 길이 깔린 동안 좌하단에 "지도 데이터 © OpenStreetMap · OpenMapTiles · OpenFreeMap"(각각 링크)을 띄우고, 5초 뒤 (i) 버튼으로 접는다(누르면 다시 편다). 로딩·대기 화면에는 띄우지 않는다. OpenStreetMap 표기 지침은 표기를 접어 두어도 되지만 구석의 (i) 같은 곳에서 늘 찾을 수 있어야 한다고 하고, OpenFreeMap도 OpenMapTiles·OpenStreetMap 표기를 요구한다
-- **멀티플레이**: 익명 socket.io `/proximity`(`lib/realtime/relay.ts`의 `connectRelay(…, 'proximity')`)로 플레이 씬과 같은 필드를 주고받되, 사람마다 씬 원점이 달라 위치 `p`는 실제 좌표 `[경도, 위도, 높이]`(소수 7·7·2자리, 약 1cm)로 보낸다. 받은 위치는 내 원점 기준 로컬 m로 바꿔 `remote-players.ts`에 넘긴다(로컬 축 방향이 모두 같아 방향 `r`은 그대로 쓴다). 방은 없고, 서버가 사람마다 반경 200m 안에서 가까운 19명을 골라 보여 준다(규칙은 백엔드 컨벤션). 멀어졌다 돌아온 사람은 같은 id로 다시 들어오므로, `remote-players.ts`는 사라지는 중인 아이에게 갱신이 오면 지금 크기에서 다시 키운다
+- **멀티플레이**: 익명 socket.io `/proximity`(`lib/realtime/relay.ts`의 `connectRelay(…, 'proximity')`)로 플레이 씬과 같은 필드를 주고받되, 사람마다 씬 원점이 달라 위치 `p`는 실제 좌표 `[경도, 위도, 높이]`(소수 7·7·2자리, 약 1cm)로 보낸다. 받은 위치는 내 원점 기준 로컬 m로 바꿔 `remote-players.ts`에 넘긴다(로컬 축 방향이 모두 같아 방향 `r`은 그대로 쓴다). 방은 없고, 서버가 사람마다 반경 200m 안에서 가까운 19명을 골라 보여 준다(규칙은 백엔드 컨벤션). 멀어졌다 돌아온 사람은 같은 id로 다시 들어오므로, `remote-players.ts`는 사라지는 중인 캐릭터에게 갱신이 오면 지금 크기에서 다시 키운다
 
 ---
 
@@ -423,7 +423,7 @@ Web Animations API로 한 장면을 만든다. 모든 애니메이션이 같은 
 
 | 유형 | 위치 | 예시 |
 |---|---|---|
-| 같은 방 아이 상태 (플레이 씬) | socket.io `/room` 직접 소비 (`lib/realtime/relay.ts`) → `remote-players.ts`가 아이마다 받은 필드를 합쳐 보관 | 위치·방향·모션·색 시드 |
+| 같은 방 캐릭터 상태 (플레이 씬) | socket.io `/room` 직접 소비 (`lib/realtime/relay.ts`) → `remote-players.ts`가 캐릭터마다 받은 필드를 합쳐 보관 | 위치·방향·모션·색 시드 |
 | 가까운 사람 상태 (내 주변) | socket.io `/proximity` 직접 소비 (같은 `connectRelay`) → 경위도를 내 원점 로컬 m로 바꿔 `remote-players.ts`에 보관 | 실제 좌표·방향·모션·색 시드 |
 | 내 GPS 위치 (플레이 씬·내 주변) | GPS 추적기(`lib/geo/gps.ts`) 구독으로 직접 소비 → 화면 문구·버튼은 `useGpsSnapshot`(상태·반올림 정확도·`slow`가 달라질 때만 다시 그린다) | 상태·정확도·마지막 위치 |
 | 펼침 지도의 캐릭터 자리 (내 주변) | `MapTrack` ref — 씬 루프가 매 프레임 채우고 지도가 읽는다 | 경위도·화면 방향 |

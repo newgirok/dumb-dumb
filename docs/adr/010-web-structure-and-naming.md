@@ -7,7 +7,7 @@
 웹 앱(루트 Next.js)의 폴더·파일·주소·패키지 이름은 널리 쓰는 관례를 따른다.
 
 - **`app/`에는 라우트만 둔다.** `page.tsx`·`layout.tsx`·`route.ts`만 두고, 화면별 코드는 `features/<화면>/`, 여러 화면이 같이 쓰는 코드는 `components/`·`lib/`에 둔다. 화면끼리는 서로 가져다 쓰지 않는다.
-- **공유 3D 엔진은 `lib/three/`에 둔다.** 셰이더·3인칭 조작·그림자·후처리·아이 애니메이션·다른 아이 그리기·기기 준비는 플레이 씬·내 주변·에셋 미리보기가 같이 쓴다.
+- **공유 3D 엔진은 `lib/three/`에 둔다.** 셰이더·3인칭 조작·그림자·후처리·캐릭터 애니메이션·다른 캐릭터 그리기·기기 준비는 플레이 씬·내 주변·에셋 미리보기가 같이 쓴다.
 - **파일·폴더 이름은 kebab-case**(`paper-map.tsx`, `third-person.ts`)이고, 컴포넌트·타입 이름은 PascalCase(`PaperMap`)다. NestJS 앱(`apps/api`·`apps/realtime`)도 kebab-case다.
 - **공용 UI 부품은 `components/ui/`에 둔다**(버튼·카드·토스트·로더). 레이아웃 부품은 `components/layout/`, 지도는 `components/map/`, 위치 안내는 `components/location/`에 둔다.
 - **주소는 사용자가 읽는 짧은 영어 단어다.** `/play`(플레이 씬), `/nearby`(내 주변), `/asset-viewer`(에셋 미리보기), `/map`(지도 월드, 예정).
