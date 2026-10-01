@@ -4,9 +4,11 @@
 // 원본 코드에서 그대로 옮겼다. 원본: https://summer-afternoon.vlucendo.com/
 
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react'
@@ -42,6 +44,8 @@ import { blendKidAnimation, createKidAnimation, type KidAnimation } from '@/lib/
 import { createRemotes, type Remotes } from '@/lib/three/remote-players'
 import { baseDevicePixelRatio, configure, isMobileDevice } from '@/lib/three/setup'
 import { connectRelay, type RelayConnection } from '@/lib/realtime/relay'
+import { createTalk, type Project, type Talk } from '@/lib/realtime/talk'
+import TalkLayer from '@/components/hud/talk-layer'
 import type { RelayMotion } from '@/shared/relay/contract'
 import PaperMap, { GpsBadge, MapIcon, useMapHotkey } from '@/components/map/paper-map'
 import Loader, { SPIN_MS, waitSpinTurn } from '@/components/ui/loader'
@@ -192,6 +196,11 @@ export default function PlayScene() {
   const mutedRef = useRef(true)
   const controllerRef = useRef<ThirdPerson | null>(null)
   const mapShownRef = useRef(false)
+  // 만남 대화 — 같은 방 30m 안의 사람과 1:1로 말한다. 상태는 씬 밖에 두고 소켓이 생기면 잇는다
+  const talkRef = useRef<Talk | null>(null)
+  if (!talkRef.current) talkRef.current = createTalk()
+  const talk = talkRef.current
+  const typingRef = useRef(false)
   // useEffect 안에서 만든 함수를 React 버튼과 잇는 다리
   const cycleColorRef = useRef<() => void>(() => {})
   const startAudioRef = useRef<(event?: Event) => boolean>(() => false)
@@ -635,7 +644,7 @@ export default function PlayScene() {
         onTouchJump: (ndc) => circles.jump(ndc),
       })
       controllerRef.current = controller
-      controller.setEnabled(!mapShownRef.current)
+      controller.setEnabled(!mapShownRef.current && !typingRef.current)
 
       // 카메라를 캐릭터 뒤에 미리 세워 인트로 리빌이 캐릭터를 화면 중앙에 잡게 한다
       controller.update(0)
@@ -673,10 +682,15 @@ export default function PlayScene() {
             a: motionOf(controller),
             s: seed,
           },
-        onReset: () => peers.clear(),
+        onReset: () => {
+          peers.clear()
+          talk.reset()
+        },
         onUpdate: (update) => peers.apply(update),
         onLeave: (id) => peers.remove(id),
+        talk: talk.handlers,
       })
+      talk.bind(connection.talk)
 
       // 로더를 걷고(스피너 한 바퀴를 채운 뒤 0.75s 페이드 + 0.25s) 인트로를 시작한다
       await waitSpinTurn(loaderSince)
@@ -735,6 +749,17 @@ export default function PlayScene() {
     canvas.addEventListener('pointerup', startAudio)
     window.addEventListener('keydown', onFirstKey)
 
+    // 만남 대화 — 발 위치 위 lift(m)를 캔버스 화면 좌표(CSS px)로 옮긴다. 카메라 뒤·화면 밖이면 false
+    const projected = new THREE.Vector3()
+    const project: Project = (foot, lift, out) => {
+      projected.set(foot.x, foot.y + lift, foot.z).project(camera)
+      if (projected.z >= 1 || Math.abs(projected.x) > 1.2 || Math.abs(projected.y) > 1.2) return false
+      out.x = ((projected.x + 1) / 2) * renderer.domElement.clientWidth
+      out.y = ((1 - projected.y) / 2) * renderer.domElement.clientHeight
+      return true
+    }
+    const noPeers = new Map<string, THREE.Vector3>()
+
     const start = performance.now()
     let last = start
     const loop = (now: number) => {
@@ -763,6 +788,7 @@ export default function PlayScene() {
         )
         circles.update(ratio, controller.touch)
         remotes?.update(ratio, camera, kidMesh.position)
+        talk.frame(now, kidMesh.position, remotes ? remotes.positions() : noPeers, project)
       }
       for (const m of mixers) m.update(dt)
       birds?.update(dt, ratio)
@@ -820,6 +846,8 @@ export default function PlayScene() {
       controller?.dispose()
       controllerRef.current = null
       connection?.dispose()
+      talk.bind(null)
+      talk.reset()
       remotes?.dispose()
       audioRef.current?.dispose()
       audioRef.current = null
@@ -839,16 +867,30 @@ export default function PlayScene() {
     audioRef.current?.setMuted(muted)
   }, [muted])
 
-  // 펼치면 곧바로 조작을 끄고, 접으면 다 접혀 배경까지 걷힌 뒤(onClosed)에 켠다
+  // 펼치면 곧바로 조작을 끄고, 접으면 다 접혀 배경까지 걷힌 뒤(onClosed)에 켠다.
+  // 대화 입력칸에 쓰는 동안에도 조작을 꺼서, 글자를 칠 때 캐릭터가 움직이지 않는다
+  const syncControl = useCallback(() => {
+    controllerRef.current?.setEnabled(!mapShownRef.current && !typingRef.current)
+  }, [])
   useEffect(() => {
     if (!mapOpen) return
     mapShownRef.current = true
-    controllerRef.current?.setEnabled(false)
-  }, [mapOpen])
+    syncControl()
+  }, [mapOpen, syncControl])
   const onMapClosed = () => {
     mapShownRef.current = false
-    controllerRef.current?.setEnabled(true)
+    syncControl()
   }
+  const onTyping = useCallback(
+    (typing: boolean) => {
+      typingRef.current = typing
+      syncControl()
+    },
+    [syncControl],
+  )
+
+  // 말 걸기 받기 설정은 브라우저에서만 읽는다(서버 렌더와 첫 화면이 같게)
+  useEffect(() => talk.restore(), [talk])
 
   // 개발 모드(StrictMode)는 이펙트를 두 번 돌린다 — 추적기는 이펙트 안에서 만들고 버린다
   useEffect(() => {
@@ -895,6 +937,7 @@ export default function PlayScene() {
         .sa-sound2 { left: 8px; }
         .sa-color { position: relative; width: 18px; height: 18px; margin: 7px; border-radius: 2px; transform: rotate(-16deg); }
         .sa-map { display: block; position: absolute; top: 7px; left: 6px; transform: rotate(-10deg); }
+        .sa-talk { display: block; position: absolute; top: 8px; left: 7px; transform: rotate(-10deg); }
 
         /* 원본 max-width: 1200px 분기 */
         @media (max-width: 1200px) {
@@ -907,6 +950,9 @@ export default function PlayScene() {
       `}</style>
       <div className="sa-root absolute inset-0">
         <div ref={mountRef} className="w-full h-full touch-none" />
+
+        {/* 만남 대화 — 머리 위 말 걸기 버튼·받은 요청·대화 창. 지도를 펼치면 지도 아래에 깔린다 */}
+        {playing && <TalkLayer talk={talk} active={!mapOpen} onTyping={onTyping} onPress={pressSound} />}
 
         {/* WebGL2가 없으면 로더를 걷은 뒤 안내만 띄운다 */}
         {unsupported && phase === 'playing' && (
@@ -981,10 +1027,33 @@ export default function PlayScene() {
               <MapIcon className="sa-map" />
               <GpsBadge snapshot={gpsView} />
             </ToolButton>
+
+            <TalkToggle talk={talk} onPress={pressSound} />
           </nav>
         )}
       </div>
     </div>
+  )
+}
+
+/** 말 걸기 받기 켜기·끄기 — 끄면 받은 요청을 조용히 거절한다(내가 거는 것은 그대로 된다) */
+function TalkToggle({ talk, onPress }: { talk: Talk; onPress: () => void }) {
+  const open = useSyncExternalStore(talk.subscribe, () => talk.view().open, () => true)
+  return (
+    <ToolButton label={open ? '말 걸기 받기 끄기' : '말 걸기 받기 켜기'} onPress={onPress} onClick={() => talk.setOpen(!open)}>
+      <svg className="sa-talk" width="18" height="16" viewBox="0 0 18 16" fill="none" aria-hidden>
+        <path
+          d="M3 1h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H8.5L4.5 15v-3H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2Z"
+          fill="#716C66"
+          opacity={open ? 1 : 0.4}
+        />
+        {open ? (
+          <path d="M5 6.5h8M5 9h5" stroke="#F9EFDC" strokeWidth="1.6" strokeLinecap="round" />
+        ) : (
+          <path d="M2 15 16 1" stroke="#716C66" strokeWidth="2" strokeLinecap="round" />
+        )}
+      </svg>
+    </ToolButton>
   )
 }
 

@@ -43,6 +43,8 @@ export interface Remotes {
   /** 방에 (다시) 들어갔거나 끊겼다 — 원본 _removeAllCharacters처럼 곧바로 지운다 */
   clear(): void
   update(ratio: number, camera: THREE.Camera, local: THREE.Vector3): void
+  /** 지금 화면에 선 캐릭터의 발 위치(사라지는 중인 캐릭터는 뺀다) — 만남 대화가 거리와 머리 위 자리를 잰다 */
+  positions(): ReadonlyMap<string, THREE.Vector3>
   dispose(): void
 }
 
@@ -85,6 +87,7 @@ export function createRemotes({
   createMaterial: (seed: number) => THREE.Material
 }): Remotes {
   const remotes = new Map<string, Remote>()
+  const standing = new Map<string, THREE.Vector3>()
   const frustum = new THREE.Frustum()
   const viewProjection = new THREE.Matrix4()
   const sphere = new THREE.Sphere()
@@ -140,6 +143,14 @@ export function createRemotes({
   return {
     clear,
     dispose: clear,
+
+    positions() {
+      standing.clear()
+      for (const [id, remote] of remotes) {
+        if (remote.view && remote.leftAt < 0) standing.set(id, remote.view.mesh.position)
+      }
+      return standing
+    },
 
     apply({ id, ...fields }) {
       let remote = remotes.get(id)
