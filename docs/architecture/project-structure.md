@@ -147,7 +147,7 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 | `lib/routes.ts` | `SCENE_ROUTES`(`/play`, `/nearby`, `/asset-viewer`) — 선택 페이지만 쓰는 경로 목록(카드 문구 `PLACES`와 타입으로 묶인다) |
 | `features/play/play-scene.tsx` | 플레이 씬 — ref-assets 로드·씬 조립·렌더 루프, 우상단 HUD(사운드·옷 색·지도·말 걸기 받기, 위치를 못 잡으면 지도 버튼 구석에 "!")와 단축키(M·Esc·Ctrl+M), 펼침 지도 마운트(지도가 다 접혀 배경이 걷힐 때까지 캐릭터 조작을 끈다), 만남 대화 화면 마운트(렌더 루프가 `talk.frame()`을 부르고, 입력칸에 쓰는 동안 캐릭터 조작을 끈다), GPS 추적기(이미 허용된 사이트면 씬 시작 때 바로, 아니면 지도를 처음 펼칠 때 권한을 묻는다) |
 | `lib/three/third-person.ts` | 플레이 씬 3인칭 조작(키보드·마우스·터치·게임패드)·캡슐 충돌·카메라 리그와 화면 비율 반응형 구도(`framingFor`) ([ADR 006](../adr/006-quarter-view-camera-lock.md)) |
-| `lib/three/shadows.ts` | 동적 그림자(시선 앞 ±12m) + 정적 그림자(CSM, 4096²) 굽기 — 깊이 재질을 먼저 나눠 컴파일하고 단계마다 GPU가 굽기를 마칠 때까지 기다린다. 동적 그림자 깊이 셰이더 미리 컴파일(`compileShadowDepth`) |
+| `lib/three/shadows.ts` | 동적 그림자(시선 앞 ±12m) + 정적 그림자(CSM, 4096²) 굽기 — 깊이 재질을 먼저 나눠 컴파일하고 1024² 조각마다 GPU가 굽기를 마칠 때까지 기다린다. 동적 그림자 깊이 셰이더 미리 컴파일(`compileShadowDepth`) |
 | `lib/three/warm-up.ts` | 로더 뒤 GPU 예열 — 물체마다 병렬 컴파일(새 프로그램마다 한 프레임 쉰다, 그릴 타깃 기준)·후처리 재질 컴파일·텍스처 하나씩 업로드, GPU가 앞선 일을 마칠 때까지 펜스로 기다리기(`settle`) |
 | `features/play/sea.ts` · `birds.ts` | 하늘을 비추는 바다, 갈매기 무리 비행 |
 | `lib/three/postprocess.ts` · `touch-circles.ts` | 최종 화면 패스(LUT·인트로), 터치 원 UI |
@@ -159,7 +159,7 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 | `lib/geo/vector-tiles.ts` · `local-frame.ts` | OpenFreeMap z14 타일의 `transportation` 레이어 읽기(땅 위의 길만) · 위경도 ↔ 로컬 미터 변환 |
 | `lib/geo/gps.ts` | GPS 추적기(`createGpsTracker`) — `watchPosition` 하나를 씬과 펼침 지도가 나눠 쓰고, 권한·오류·정확도를 상태 하나로 묶는다. `waitForStartFix`(내 주변 시작 위치)·`isWalkableFix`(±50m)·`useGpsSnapshot`·`formatAccuracy` |
 | `lib/geo/gps-messages.ts` | GPS 상태별 안내 문구(해요체)와 기기 판별(iOS·Android·Windows·Mac, 삼성 인터넷, 앱 속 브라우저) — `gpsNote`(지도 쪽지·도장·버튼)·`startWaitNote`(내 주변 대기 화면)·`walkNote`(내 주변 위쪽 알림) |
-| `components/map/paper-map.tsx` | 펼침 지도 — 씬과 분리된 독립 Mapbox GL 캔버스([ADR 001](../adr/001-webgl-context-sharing.md)). 씬이 시작되면(플레이 씬은 인트로가 끝난 뒤) 한 번 만들고 접혀 있는 동안은 숨겨 둔다. 종이 폭에 따라 3단·반 접기·바로 펼침, GPS 상태 쪽지·도장·정확도 원·'나' 표시(DOM 마커). `MapIcon`·`GpsBadge`·`useMapHotkey`(M·Esc)·`MapTrack`도 내보낸다 |
+| `components/map/paper-map.tsx` | 펼침 지도 — 씬과 분리된 독립 Mapbox GL 캔버스([ADR 001](../adr/001-webgl-context-sharing.md)). 씬이 시작되면(플레이 씬은 씬을 불러오는 동안 로더 뒤에서) 한 번 만들고 접혀 있는 동안은 숨겨 둔다. 종이 폭에 따라 3단·반 접기·바로 펼침, GPS 상태 쪽지·도장·정확도 원·'나' 표시(DOM 마커). `MapIcon`·`GpsBadge`·`useMapHotkey`(M·Esc)·`MapTrack`도 내보낸다 |
 | `components/map/paper-map-style.ts` | 펼침 지도 스타일 `PAPER_STYLE` — Mapbox Streets v8 + 지형 DEM을 게임 화풍으로 칠한다. 무늬 `PATTERNS`(나무·풀포기·물결)는 `styleimagemissing`에서 캔버스로 그려 넣는다 |
 | `lib/realtime/relay.ts` | socket.io 익명 멀티플레이 연결(플레이 씬 `/room`·내 주변 `/proximity`) — 35ms마다 바뀐 필드만 전송, 5분 무변화 시 끊기(탭을 숨겨도 연결을 둔다, 만남 대화가 오가면 바뀐 것으로 친다), 재접속 때 전에 있던 방 요청, 만남 대화 이벤트 송수신(`RelayConnection.talk`) |
 | `lib/realtime/talk.ts` | 만남 대화 상태(`createTalk`) — 20m 안 2초 머문 사람 중 화면에 보이는 가장 가까운 사람 고르기(30m 밖에서 지움), 머리 위 자리 4개(버튼·건 사람 표시·내 말풍선·상대 말풍선)를 매 프레임 translate3d로 옮기기, 서버 이벤트대로 요청·대화·끝을 그리는 스토어(`useSyncExternalStore`), 가리기·받기 끄기(`localStorage`)·클라이언트 글 검증 |
