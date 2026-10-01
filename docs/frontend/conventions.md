@@ -116,7 +116,7 @@ const nunito = Nunito({ subsets: ['latin'], variable: '--font-display', display:
 
 ### 내 주변(베타) (`/nearby`)
 
-실제 지도의 길을 플레이 씬 화풍으로 깔아 펼침 지도와 맞춰 보는 1단계 베타다(`features/nearby/`). 같은 동네에 들른 사람은 실제 자리에 보인다. 건물·소품·물·고도는 2단계에서 붙인다([로드맵](../roadmap.md) P2-6).
+실제 지도의 길을 플레이 씬 화풍으로 깔아 펼침 지도와 맞춰 보는 1단계 베타다(`features/nearby/`). 같은 동네에 들른 사람은 실제 자리에 보인다. 건물·소품·물·고도는 2단계에서 붙인다([로드맵](../roadmap.md) P2-4).
 
 - **데이터**: OpenStreetMap 벡터 타일(OpenFreeMap, OpenMapTiles 스키마)의 `transportation` 레이어를 z14 타일 단위로 받는다(`lib/geo/vector-tiles.ts`). 철도·지하철·뱃길·공사 중·터널·실내 길은 뺀다. 화면 좌하단에 출처(OpenStreetMap·OpenMapTiles·OpenFreeMap)를 표기한다
 - **좌표**: 시작 위치를 0.001° 격자에 맞춘 점이 원점이다(`lib/geo/local-frame.ts`, 1m = 1m, 동쪽 +x·북쪽 −z). 캐릭터는 시작 위치 자체(격자에 맞추기 전 좌표)에 서서 북쪽을 바라보며 시작한다
