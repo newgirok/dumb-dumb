@@ -1,4 +1,4 @@
-name: open-world-casual-journey
+name: dumb-dumb
 
 services:
   # 프론트(Next.js) standalone 빌드 — 핫 리로드 개발은 호스트에서 npm run dev
