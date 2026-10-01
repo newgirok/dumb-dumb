@@ -47,7 +47,7 @@ project/
 │   │   ├── third-person.ts       ← 3인칭 조작·캡슐 충돌·카메라 리그·반응형 구도(framingFor)
 │   │   ├── touch-circles.ts      ← 터치 조작 원 (씬 안 화면 공간 메시)
 │   │   ├── shadows.ts            ← 해와 동적 그림자(시선 앞 ±12m)·정적 그림자(CSM) 굽기
-│   │   ├── warm-up.ts            ← 로더 뒤 GPU 예열 — 셰이더 나눠 컴파일·텍스처 하나씩 업로드·GPU 펜스로 기다리기(플레이 씬)
+│   │   ├── warm-up.ts            ← 로더 뒤 GPU 예열 — 셰이더 나눠 컴파일·텍스처 하나씩 업로드·모든 물체 한 번 그리기·GPU 펜스로 기다리기(플레이 씬)
 │   │   ├── postprocess.ts        ← 최종 화면 패스 (LUT·인트로)
 │   │   ├── kid-animation.ts      ← 캐릭터 idle·run·air·bored 가중치 규칙 (내 캐릭터·다른 캐릭터 공통)
 │   │   ├── remote-players.ts     ← 함께 보이는 다른 캐릭터들 — 2단 보간·등장·퇴장 크기 연출
@@ -148,7 +148,7 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 | `features/play/play-scene.tsx` | 플레이 씬 — ref-assets 로드·씬 조립·렌더 루프, 우상단 HUD(사운드·옷 색·지도·말 걸기 받기, 위치를 못 잡으면 지도 버튼 구석에 "!")와 단축키(M·Esc·Ctrl+M), 펼침 지도 마운트(지도가 다 접혀 배경이 걷힐 때까지 캐릭터 조작을 끈다), 만남 대화 화면 마운트(렌더 루프가 `talk.frame()`을 부르고, 입력칸에 쓰는 동안 캐릭터 조작을 끈다), GPS 추적기(이미 허용된 사이트면 씬 시작 때 바로, 아니면 지도를 처음 펼칠 때 권한을 묻는다) |
 | `lib/three/third-person.ts` | 플레이 씬 3인칭 조작(키보드·마우스·터치·게임패드)·캡슐 충돌·카메라 리그와 화면 비율 반응형 구도(`framingFor`) ([ADR 006](../adr/006-quarter-view-camera-lock.md)) |
 | `lib/three/shadows.ts` | 동적 그림자(시선 앞 ±12m) + 정적 그림자(CSM, 4096²) 굽기 — 깊이 재질을 먼저 나눠 컴파일하고 1024² 조각마다 GPU가 굽기를 마칠 때까지 기다린다. 동적 그림자 깊이 셰이더 미리 컴파일(`compileShadowDepth`) |
-| `lib/three/warm-up.ts` | 로더 뒤 GPU 예열 — 물체마다 병렬 컴파일(새 프로그램마다 한 프레임 쉰다, 그릴 타깃 기준)·후처리 재질 컴파일·텍스처 하나씩 업로드, GPU가 앞선 일을 마칠 때까지 펜스로 기다리기(`settle`) |
+| `lib/three/warm-up.ts` | 로더 뒤 GPU 예열 — 물체마다 병렬 컴파일(새 프로그램마다 한 프레임 쉰다, 그릴 타깃 기준)·후처리 재질 컴파일·텍스처 하나씩 업로드·모든 물체를 작은 타깃에 한 번씩 그리기(`drawAllGradually` — 숨긴 LOD·먼 묶음의 버퍼·VAO까지), GPU가 앞선 일을 마칠 때까지 펜스로 기다리기(`settle`) |
 | `features/play/sea.ts` · `birds.ts` | 하늘을 비추는 바다, 갈매기 무리 비행 |
 | `lib/three/postprocess.ts` · `touch-circles.ts` | 최종 화면 패스(LUT·인트로), 터치 원 UI |
 | `lib/three/remote-players.ts` · `kid-animation.ts` | 같은 방 다른 캐릭터들 — 받은 상태를 2단 보간해 그리고 등장·퇴장 크기 연출, 만남 대화가 거리·머리 위 자리를 재는 발 위치(`positions()`, 사라지는 중인 캐릭터는 뺀다). 로컬·원격 캐릭터가 함께 쓰는 idle·run·air·bored 가중치 규칙 |
