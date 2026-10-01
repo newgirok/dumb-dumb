@@ -23,8 +23,8 @@ PostgreSQL에는 다음 확장이 필요하다: **PostGIS**, **pg_cron**, **pgcr
 ## 1. 저장소 클론
 
 ```bash
-git clone https://github.com/newgirok/open-world-casual-journey.git
-cd open-world-casual-journey
+git clone https://github.com/newgirok/dumb-dumb.git
+cd dumb-dumb
 ```
 
 ---
