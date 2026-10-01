@@ -148,8 +148,6 @@ const LOADER_HIDDEN_MS = 250
 const INTRO_REVEAL_MS = 4000
 /** 오디오는 인트로 시작 1.5초 뒤부터 소리를 낼 수 있다(원본 canPlaySound) */
 const AUDIO_DELAY_MS = 1500
-/** 펼침 지도는 인트로 시작 6.5초 뒤(카메라 돌리 6초가 끝난 뒤)에 만든다 */
-const MAP_MOUNT_DELAY_MS = 6500
 
 /** 원본 AdaptiveDPR — 2초 뒤부터 4초마다 평균 FPS로 해상도 배수를 0.7~1 사이에서 0.1씩 옮긴다 */
 const DPR_WAIT_MS = 2000
@@ -186,9 +184,6 @@ export default function PlayScene() {
   // 펼침 지도(M) — 지도가 화면에 있는 동안은 캐릭터 조작을 끈다(원본이 모달을 띄울 때처럼).
   // 접을 때는 다 접혀 배경(dim)까지 걷힌 뒤에 켠다
   const [mapOpen, setMapOpen] = useState(false)
-  // 펼침 지도(Mapbox)는 자기 WebGL 컨텍스트와 셰이더를 준비하는 동안 GPU를 붙잡아, 인트로 첫머리에 만들면 화면이
-  // 한 번 멈춘다 — 인트로가 끝난 뒤에 만들고, 그 전에 펼치면 그때 만든다
-  const [mapMounted, setMapMounted] = useState(false)
   // 실제 내 위치는 지도에만 쓴다 — 권한 창은 지도를 처음 펼칠 때 뜬다(이미 허용했으면 바로 찾는다)
   const [gps, setGps] = useState<GpsTracker | null>(null)
   const gpsView = useGpsSnapshot(gps)
@@ -300,7 +295,6 @@ export default function PlayScene() {
 
     let destroyed = false
     let raf = 0
-    let mapTimer: ReturnType<typeof setTimeout> | undefined
     let sky: THREE.Mesh | null = null
     const mixers: THREE.AnimationMixer[] = []
     let birds: Birds | null = null
@@ -752,7 +746,6 @@ export default function PlayScene() {
       adaptive.lastUpdate = adaptive.waitUntil
       adaptive.bucketStart = introStartTime
       setPhase('playing')
-      mapTimer = setTimeout(() => setMapMounted(true), MAP_MOUNT_DELAY_MS)
     })().catch((err) => {
       console.error(err)
       setError(String(err))
@@ -886,7 +879,6 @@ export default function PlayScene() {
 
     return () => {
       destroyed = true
-      clearTimeout(mapTimer)
       cancelAnimationFrame(raf)
       ro.disconnect()
       document.body.removeEventListener('click', startAudio)
@@ -915,11 +907,6 @@ export default function PlayScene() {
     mutedRef.current = muted
     audioRef.current?.setMuted(muted)
   }, [muted])
-
-  // 인트로가 끝나기 전에 지도를 펼치면 그때 지도를 만든다
-  useEffect(() => {
-    if (mapOpen) setMapMounted(true)
-  }, [mapOpen])
 
   // 펼치면 곧바로 조작을 끄고, 접으면 다 접혀 배경까지 걷힌 뒤(onClosed)에 켠다.
   // 대화 입력칸에 쓰는 동안에도 조작을 꺼서, 글자를 칠 때 캐릭터가 움직이지 않는다
@@ -1017,8 +1004,10 @@ export default function PlayScene() {
           />
         )}
 
-        {/* 펼침 지도 — 실제 내 위치(GPS)를 게임 화풍 종이 지도로 */}
-        {playing && gps && mapMounted && (
+        {/* 펼침 지도 — 실제 내 위치(GPS)를 게임 화풍 종이 지도로. Mapbox 지도를 만드는 동안 메인 스레드가 0.1초 넘게
+            막혀, 씬이 돌 때 만들면 화면이 한 번 멈춘다 — 씬을 불러오는 동안 로더 뒤에서 만들어 둔다(로더 스피너는
+            GPU 합성 스레드에서 돌아 메인 스레드가 막혀도 멈추지 않는다). 펼치는 건 인트로가 시작된 뒤부터다 */}
+        {!unsupported && !error && gps && (
           <PaperMap open={mapOpen} onClose={() => setMapOpen(false)} onClosed={onMapClosed} gps={gps} title="지도" accent={charColor} />
         )}
 

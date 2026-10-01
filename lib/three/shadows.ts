@@ -11,7 +11,8 @@ import { compileGradually, settle } from './warm-up'
  *   한 장). 동적 그림자 중심에서 9~12m 사이에서 정적 그림자로 넘어가므로 멀리 있는
  *   나무·집도 그림자를 드리운다. 한 번만 굽기 때문에 움직이는 것(캐릭터·새)은 빠진다.
  *   원본은 데스크톱 8192²이지만, 8192² 타깃은 잡는 것만으로 내장 GPU에서 0.4초쯤 화면 합성을
- *   멈춰 로더 스피너가 끊긴다 — 모바일과 같은 4096²로 굽고, 단계마다 한 프레임씩 쉰다.
+ *   멈춰 로더 스피너가 끊긴다 — 모바일과 같은 4096²로 굽되, 1024² 조각으로 나눠 조각마다 GPU가
+ *   끝낼 때까지 쉰다.
  */
 
 /** 원본 positionOffset = Spherical(100, 0.2π, -1.75π) → (41.6, 80.9, 41.6) */
@@ -30,6 +31,8 @@ const CSM_NEAR = 50
 const CSM_LAYER = 30
 /** 정적 그림자맵 크기 — 원본 모바일 값(데스크톱 원본은 8192) */
 const CSM_MAP = 4096
+/** 정적 그림자를 이 크기 조각으로 나눠 굽는다 — 4096² 타깃을 한 번에 잡고 그리면 내장 GPU가 50~80ms 멈춰 로더 스피너가 끊긴다 */
+const BAKE_TILE = 1024
 
 export interface SunLight {
   light: THREE.DirectionalLight
@@ -136,10 +139,10 @@ export async function compileShadowDepth(
  * 위에서 한 번 그린다. LOD는 단계마다 그 단계만 보이게 해서 따로 굽는다(오브젝트는
  * 자기 LOD 단계와 같은 맵을 읽어 자기 그림자와 형태가 어긋나지 않는다).
  *
- * 깊이 버퍼가 필요한 건 굽는 순간뿐이라 임시 타깃 하나로 그린 뒤 색만 텍스처로
- * 복사한다(원본은 맵마다 깊이 버퍼를 들고 있다 — 결과는 같고 메모리만 줄인다).
- * 로더 스피너가 끊기지 않게 깊이 재질을 먼저 나눠 컴파일하고, 단계마다 GPU가 굽기를 마칠 때까지 기다린다.
- * 굽는 동안에는 동적 그림자를 함께 그리지 않는다.
+ * 깊이 버퍼가 필요한 건 굽는 순간뿐이라 조각 크기(1024²) 임시 타깃 하나에 조각마다 그 부분만 보는
+ * 카메라(setViewOffset)로 그린 뒤 색만 맵의 같은 자리로 복사한다(원본은 맵마다 깊이 버퍼를 들고 한 번에
+ * 그린다 — 결과는 같고 메모리만 줄인다). 로더 스피너가 끊기지 않게 깊이 재질을 먼저 나눠 컴파일하고,
+ * 맵을 잡은 뒤와 조각마다 GPU가 끝낼 때까지 기다린다. 굽는 동안에는 동적 그림자를 함께 그리지 않는다.
  *
  * 굽는 동안 씬의 빛도 굽기 레이어에 넣는다. 셰이더 프로그램은 빛 수로도 갈리고, three는 프레임마다
  * 그림자를 빛 상태를 갱신하기 전에 그려 첫 프레임 동적 그림자가 직전(굽기)의 빛 상태를 쓴다 —
@@ -207,32 +210,44 @@ export async function bakeStaticShadows({
   const prevClearColor = renderer.getClearColor(new THREE.Color())
   const prevClearAlpha = renderer.getClearAlpha()
   const prevShadowAuto = renderer.shadowMap.autoUpdate
-  const temp = new THREE.WebGLRenderTarget(size, size, {
+  const tile = Math.min(BAKE_TILE, size)
+  const temp = new THREE.WebGLRenderTarget(tile, tile, {
     minFilter: THREE.NearestFilter,
     magFilter: THREE.NearestFilter,
   })
+  const gl = renderer.getContext()
 
   const maps: THREE.Texture[] = []
   try {
     await compileGradually(renderer, scene, camera, temp, cancelled)
-    const origin = new THREE.Vector2()
     for (let level = 0; level < CSM_LEVELS && !cancelled(); level++) {
       for (const lod of lods) lod.levels.forEach((l, i) => (l.object.visible = i === level))
-      renderer.shadowMap.autoUpdate = false
-      renderer.autoClear = false
-      renderer.setClearColor('#ffffff', 1)
-      renderer.setRenderTarget(temp)
-      renderer.clear(true, true, false)
-      renderer.render(scene, camera)
       const map = new THREE.FramebufferTexture(size, size)
-      renderer.copyFramebufferToTexture(map, origin)
       maps.push(map)
-      shared.csmMaps[level].value = map
-      renderer.setRenderTarget(prevTarget)
-      renderer.autoClear = prevAutoClear
-      renderer.setClearColor(prevClearColor, prevClearAlpha)
-      renderer.shadowMap.autoUpdate = prevShadowAuto
+      renderer.initTexture(map)
       await settle(renderer)
+      // 뷰 오프셋은 맵 위쪽부터, 프레임버퍼·텍스처 좌표는 아래쪽부터 센다
+      for (let y = 0; y < size && !cancelled(); y += tile) {
+        for (let x = 0; x < size && !cancelled(); x += tile) {
+          camera.setViewOffset(size, size, x, y, tile, tile)
+          renderer.shadowMap.autoUpdate = false
+          renderer.autoClear = false
+          renderer.setClearColor('#ffffff', 1)
+          renderer.setRenderTarget(temp)
+          renderer.clear(true, true, false)
+          renderer.render(scene, camera)
+          // copyFramebufferToTexture는 맵 크기 전체만 복사해서, 조각은 three의 텍스처 바인딩을 거쳐 직접 복사한다
+          renderer.state.bindTexture(gl.TEXTURE_2D, (renderer.properties.get(map) as { __webglTexture: WebGLTexture }).__webglTexture)
+          gl.copyTexSubImage2D(gl.TEXTURE_2D, 0, x, size - y - tile, 0, 0, tile, tile)
+          renderer.state.unbindTexture()
+          renderer.setRenderTarget(prevTarget)
+          renderer.autoClear = prevAutoClear
+          renderer.setClearColor(prevClearColor, prevClearAlpha)
+          renderer.shadowMap.autoUpdate = prevShadowAuto
+          await settle(renderer)
+        }
+      }
+      shared.csmMaps[level].value = map
     }
   } finally {
     renderer.setRenderTarget(prevTarget)
