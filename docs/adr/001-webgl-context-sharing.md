@@ -63,7 +63,7 @@ const loop = (now: number) => {
 }
 
 // 펼침 지도 — 독립 Mapbox GL 캔버스 (components/map/paper-map.tsx)
-// 씬이 시작되면 한 번 만들고, 접혀 있는 동안은 숨겨 둔다(visibility: hidden)
+// 씬이 시작되면(플레이 씬은 인트로가 끝난 뒤) 한 번 만들고, 접혀 있는 동안은 숨겨 둔다(visibility: hidden)
 const map = new mapboxgl.Map({
   container,
   style: PAPER_STYLE, // Streets v8 + 지형 음영을 게임 화풍으로 칠한 스타일 (paper-map-style.ts)
