@@ -43,9 +43,9 @@
 | `features/play/` | `play-scene.tsx`(`PlayScene`)·`audio.ts`·`sea.ts`·`birds.ts` |
 | `features/nearby/` | `nearby-scene.tsx`(`NearbyScene`)·`ground-stream.ts`·`ground.ts`·`ground-source.ts`·`ground.worker.ts` |
 | `features/asset-viewer/` | `asset-viewer.tsx`(`AssetViewer`) |
-| `components/` | `ui/`(button·card·toast·loader)·`layout/`(page-transition)·`map/`(paper-map·paper-map-style)·`location/`(gps-steps)·`hud/`·`avatar/` |
+| `components/` | `ui/`(button·card·toast·loader)·`layout/`(page-transition)·`map/`(paper-map·paper-map-style)·`location/`(gps-steps)·`hud/`(talk-layer 등)·`avatar/` |
 | `lib/three/` | bin-loader·ramp-shader·third-person·touch-circles·noise·shadows·postprocess·kid-animation·remote-players·setup·character·fog |
-| `lib/geo/`·`lib/realtime/` | gps·gps-messages·local-frame·vector-tiles / relay |
+| `lib/geo/`·`lib/realtime/` | gps·gps-messages·local-frame·vector-tiles / relay·talk |
 
 ## 주의
 

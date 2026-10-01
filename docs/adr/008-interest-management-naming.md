@@ -31,9 +31,9 @@
 ## 적용
 
 - **네임스페이스**: `/room`(플레이 씬)·`/proximity`(내 주변)·`/sector`(맵, 예정).
-- **실시간 서버**: `src/room/`(`RoomGateway`·`RoomModule`), `src/proximity/`(`ProximityGateway`·`ProximityModule`), `src/sector/`(`SectorGateway`·`SectorModule`, 격자 배럴 `grid.ts`), 방·근접 공통 `src/relay/relay.ts`.
+- **실시간 서버**: `src/room/`(`RoomGateway`·`RoomModule`), `src/proximity/`(`ProximityGateway`·`ProximityModule`), `src/sector/`(`SectorGateway`·`SectorModule`, 격자 배럴 `grid.ts`), 방·근접 공통 `src/relay/relay.ts`, 만남 대화 판정 `src/relay/talk.ts`(대화는 `/room` 안의 `talk*` 이벤트다).
 - **공유 계약**: `shared/relay/contract.ts` — `RELAYS`(`room`·`proximity`), `RelayName`, `Relay*` 타입. `shared/sector/contract.ts`·`shared/sector/grid.ts`.
-- **웹**: `lib/realtime/relay.ts`의 `connectRelay(handlers, 'room' | 'proximity')`.
+- **웹**: `lib/realtime/relay.ts`의 `connectRelay(handlers, 'room' | 'proximity')`, 만남 대화 상태 `lib/realtime/talk.ts`.
 - **식별자**: 화면 이름을 넣지 않는다. 방식과 상관없는 이름(`PeerPosition`·`ChatMessage`·`ServerToClientEvents` 등)은 그대로 쓴다.
 
 ## 주의

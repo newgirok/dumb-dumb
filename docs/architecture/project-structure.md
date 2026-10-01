@@ -26,10 +26,11 @@ project/
 │   │   └── paper-map-style.ts    ← 펼침 지도 스타일(Streets v8·지형 음영)과 무늬
 │   ├── location/
 │   │   └── gps-steps.tsx         ← 위치 설정 경로 안내 (펼침 지도 쪽지·내 주변 대기 화면)
-│   ├── hud/                      ← 이동·채팅 입력 UI 부품 (어느 화면에도 연결하지 않음)
-│   │   ├── direction-pad.tsx     ← 방향키 UI
-│   │   ├── joystick.tsx          ← 가상 조이스틱 UI
-│   │   └── chat-input.tsx        ← 채팅 입력 UI
+│   ├── hud/                      ← 씬 위에 겹치는 UI 부품
+│   │   ├── talk-layer.tsx        ← 만남 대화 화면 — 말 걸기 버튼·요청 카드·대화 창·머리 위 말풍선 (플레이 씬)
+│   │   ├── direction-pad.tsx     ← 방향키 UI (어느 화면에도 연결하지 않음)
+│   │   ├── joystick.tsx          ← 가상 조이스틱 UI (어느 화면에도 연결하지 않음)
+│   │   └── chat-input.tsx        ← 채팅 입력 UI (어느 화면에도 연결하지 않음)
 │   └── avatar/
 │       └── avatar-card.tsx       ← 아바타 미리보기 카드 (페이지에 연결되지 않음)
 │
@@ -54,7 +55,8 @@ project/
 │   │   ├── character.ts          ← kid 스킨드 캐릭터(idle/run) + 절차적 폴백 메시 (에셋 미리보기)
 │   │   └── fog.ts                ← Fog of War CSS 비네트 반경 헬퍼 (어느 화면에도 연결하지 않음)
 │   ├── realtime/
-│   │   └── relay.ts              ← socket.io 익명 연결 (플레이 씬 `/room`·내 주변 `/proximity`)
+│   │   ├── relay.ts              ← socket.io 익명 연결 (플레이 씬 `/room`·내 주변 `/proximity`, 만남 대화 이벤트)
+│   │   └── talk.ts               ← 만남 대화 상태 — 버튼 상대 고르기·머리 위 자리 옮기기·요청·대화 (플레이 씬)
 │   └── utils.ts                  ← `cn()` — clsx + 커스텀 토큰을 아는 tailwind-merge
 │
 ├── apps/api/src/                 ← NestJS API 서버 (REST, 9001)
@@ -74,9 +76,10 @@ project/
 │   │   ├── app.module.ts
 │   │   ├── health.controller.ts
 │   │   ├── auth/access-token.ts  ← `/sector` 접속 토큰 검증 (JWT_ACCESS_SECRET, DB 조회 없음)
-│   │   ├── room/                 ← room.gateway (방 중계 — 정원 20명 방, 플레이 씬), module
+│   │   ├── room/                 ← room.gateway (방 중계 — 정원 20명 방·만남 대화, 플레이 씬), module
 │   │   ├── proximity/            ← proximity.gateway (근접 중계 — 반경 200m 가까운 19명, 내 주변), module
 │   │   ├── relay/relay.ts        ← 방·근접 중계가 함께 쓰는 상태 보관·검증
+│   │   ├── relay/talk.ts         ← 만남 대화 판정 — 요청·수락·쿨다운·글 검증·끝내기 (방 게이트웨이가 쓴다)
 │   │   └── sector/               ← sector.gateway (섹터 중계 — 500m 격자 칸, 맵), grid.ts, module
 │   ├── Dockerfile                ← 빌드 컨텍스트는 저장소 루트 (shared/ 함께 컴파일)
 │   └── Dockerfile.dockerignore   ← 이 Dockerfile 전용 — apps/realtime·shared만 보낸다
@@ -85,7 +88,7 @@ project/
 │   ├── contract.ts               ← 섹터 중계 소켓 이벤트 계약 (socket.io 제네릭 타입)
 │   └── grid.ts                   ← 섹터 격자(500m)·거리·이동 검증 계산
 ├── shared/relay/
-│   └── contract.ts               ← 익명 중계 소켓 이벤트 계약 (방 — 플레이 씬, 근접 — 내 주변, socket.io 제네릭 타입)
+│   └── contract.ts               ← 익명 중계 소켓 이벤트 계약 (방 — 플레이 씬, 근접 — 내 주변, socket.io 제네릭 타입)·만남 대화 이벤트와 수치(`TALK`)
 │
 ├── public/
 │   ├── landing/                  ← 랜딩 배경 이미지 (앱 코드에서 참조하지 않음)
@@ -113,7 +116,8 @@ project/
 
 제품 진입은 선택 페이지(`/`)다. `app/page.tsx`가 `lib/routes.ts`의 `SCENE_ROUTES`(`/play`·`/nearby`·`/asset-viewer`)를
 목적지 버튼 3개로 세로로 쌓아 보여 주고, 세 페이지 모두 로그인 없이 동작한다. 플레이 씬
-(`/play`)은 같은 방 다른 방문자를 익명 소켓(`/room`)으로 받아 그리고, 실시간 서버에 닿지 못하면 혼자인 채로 돈다.
+(`/play`)은 같은 방 다른 방문자를 익명 소켓(`/room`)으로 받아 그리고, 가까이 마주친 사람과는 같은 소켓으로 만남 대화를
+나누며(`components/hud/talk-layer.tsx`·`lib/realtime/talk.ts`), 실시간 서버에 닿지 못하면 혼자인 채로 돈다.
 내 주변(베타)(`/nearby`)은 공유 3D 엔진(`lib/three/`의 셰이더·조작·그림자·후처리·원격 캐릭터)을 플레이 씬과 함께 쓰고,
 같은 계약으로 `/proximity`에 붙어 반경 200m 사람을 받는다. 두 씬은 펼침 지도(`components/map/paper-map.tsx`)를
 함께 쓰고, 씬마다 GPS 추적기(`lib/geo/gps.ts`) 하나를 씬과 지도가 나눠 쓴다. 페이지 라우트 게이팅은 없어
@@ -126,8 +130,9 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 현재 구조는 루트 Next.js 앱과 `apps/api`(REST)·`apps/realtime`(socket.io) NestJS를 한 저장소에 코로케이션한 형태다
 ([ADR 007](../adr/007-realtime-server-split.md)). 워크스페이스 도구 없이 패키지마다 따로 설치하고, 두 서버는 서로 부르지 않는다.
 맵의 섹터 계산과 소켓 이벤트 계약은 `shared/sector/`에 단일 소스로 두고, 실시간 서버(`apps/realtime/src/sector/`)가
-이를 재노출해 쓴다. 익명 멀티플레이 소켓 계약은 `shared/relay/contract.ts` 하나를 프론트(`lib/realtime/relay.ts`)와
-실시간 서버(`apps/realtime/src/room/`·`proximity/`의 두 게이트웨이)가 직접 import한다. API 서버는 `shared/`를 쓰지 않는다.
+이를 재노출해 쓴다. 익명 멀티플레이 소켓 계약은 `shared/relay/contract.ts` 하나를 프론트(`lib/realtime/relay.ts`·`talk.ts`)와
+실시간 서버(`apps/realtime/src/room/`·`proximity/`의 두 게이트웨이, 만남 대화 판정 `relay/talk.ts`)가 직접 import하고, 만남 대화의
+거리·시간·글자 수(`TALK`)도 이 파일 하나에 둔다. API 서버는 `shared/`를 쓰지 않는다.
 실시간 서버의 폴더·네임스페이스는 화면 이름 대신 받는 사람을 고르는 방식(방·근접·섹터)으로 부른다([ADR 008](../adr/008-interest-management-naming.md)).
 웹은 `app/`에 라우트만 두고, 화면별 코드는 `features/`, 여러 화면이 같이 쓰는 코드는 `components/`·`lib/`에 두며, 파일 이름은 kebab-case다([ADR 009](../adr/009-web-structure-and-naming.md)).
 
@@ -139,12 +144,12 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 |---|---|
 | `app/page.tsx` | 선택 페이지 — 여름 오후 풍경 위 제목 "Dumb Dumb"과 세로로 쌓은 목적지 버튼 3개(플레이·내 주변·에셋 미리보기, 이름·배지·아이콘은 `PLACES`). 제목은 Luckiest Guy(`next/font/google`), 버튼 이름의 Stylish 폰트 파일은 `preload`로 미리 받는다 |
 | `lib/routes.ts` | `SCENE_ROUTES`(`/play`, `/nearby`, `/asset-viewer`) — 선택 페이지만 쓰는 경로 목록(카드 문구 `PLACES`와 타입으로 묶인다) |
-| `features/play/play-scene.tsx` | 플레이 씬 — ref-assets 로드·씬 조립·렌더 루프, 우상단 HUD(사운드·옷 색·지도, 위치를 못 잡으면 지도 버튼 구석에 "!")와 단축키(M·Esc·Ctrl+M), 펼침 지도 마운트(지도가 다 접혀 배경이 걷힐 때까지 캐릭터 조작을 끈다), GPS 추적기(이미 허용된 사이트면 씬 시작 때 바로, 아니면 지도를 처음 펼칠 때 권한을 묻는다) |
+| `features/play/play-scene.tsx` | 플레이 씬 — ref-assets 로드·씬 조립·렌더 루프, 우상단 HUD(사운드·옷 색·지도·말 걸기 받기, 위치를 못 잡으면 지도 버튼 구석에 "!")와 단축키(M·Esc·Ctrl+M), 펼침 지도 마운트(지도가 다 접혀 배경이 걷힐 때까지 캐릭터 조작을 끈다), 만남 대화 화면 마운트(렌더 루프가 `talk.frame()`을 부르고, 입력칸에 쓰는 동안 캐릭터 조작을 끈다), GPS 추적기(이미 허용된 사이트면 씬 시작 때 바로, 아니면 지도를 처음 펼칠 때 권한을 묻는다) |
 | `lib/three/third-person.ts` | 플레이 씬 3인칭 조작(키보드·마우스·터치·게임패드)·캡슐 충돌·카메라 리그와 화면 비율 반응형 구도(`framingFor`) ([ADR 006](../adr/006-quarter-view-camera-lock.md)) |
 | `lib/three/shadows.ts` | 동적 그림자(시선 앞 ±12m) + 정적 그림자(CSM) 굽기 |
 | `features/play/sea.ts` · `birds.ts` | 하늘을 비추는 바다, 갈매기 무리 비행 |
 | `lib/three/postprocess.ts` · `touch-circles.ts` | 최종 화면 패스(LUT·인트로), 터치 원 UI |
-| `lib/three/remote-players.ts` · `kid-animation.ts` | 같은 방 다른 캐릭터들 — 받은 상태를 2단 보간해 그리고 등장·퇴장 크기 연출. 로컬·원격 캐릭터가 함께 쓰는 idle·run·air·bored 가중치 규칙 |
+| `lib/three/remote-players.ts` · `kid-animation.ts` | 같은 방 다른 캐릭터들 — 받은 상태를 2단 보간해 그리고 등장·퇴장 크기 연출, 만남 대화가 거리·머리 위 자리를 재는 발 위치(`positions()`, 사라지는 중인 캐릭터는 뺀다). 로컬·원격 캐릭터가 함께 쓰는 idle·run·air·bored 가중치 규칙 |
 | `features/nearby/ground-stream.ts` | 걷는 만큼 이어지는 바닥 — 256m 구역을 캐릭터 둘레 3×3으로 깔고 멀어진 구역은 치운다, 워커가 그린 마스크로 텍스처·메시 생성, 잔디 받침 바닥 |
 | `features/nearby/ground.worker.ts` · `ground-source.ts` | 워커에서 z14 타일 받기·해석(12장 캐시)과 구역 마스크 그리기(OffscreenCanvas) — 워커가 없으면 같은 코드를 메인 스레드에서 |
 | `features/nearby/nearby-scene.tsx` · `ground.ts` | 내 주변(베타) — 위치를 받을 때까지 대기 화면에서 기다렸다가(`waitForStartFix`) 그 주변 실제 길(OpenStreetMap)을 플레이 씬 지형 셰이더 마스크로 그려 1m = 1m로 걷는다. 휴대폰은 ±50m 안 GPS를 따라 걷는다. 우상단 지도 버튼 하나(M·Esc), 펼침 지도의 '나'는 캐릭터 자리와 화면이 보는 방향(`MapTrack`)이다. 반경 200m 사람이 실제 자리에 보인다. `ground.ts`는 도로 폭 규칙·타일 경계에 맞춘 점선 박자·마스크 그리기 |
@@ -154,14 +159,17 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 | `lib/geo/gps-messages.ts` | GPS 상태별 안내 문구(해요체)와 기기 판별(iOS·Android·Windows·Mac, 삼성 인터넷, 앱 속 브라우저) — `gpsNote`(지도 쪽지·도장·버튼)·`startWaitNote`(내 주변 대기 화면)·`walkNote`(내 주변 위쪽 알림) |
 | `components/map/paper-map.tsx` | 펼침 지도 — 씬과 분리된 독립 Mapbox GL 캔버스([ADR 001](../adr/001-webgl-context-sharing.md)). 씬이 시작되면 한 번 만들고 접혀 있는 동안은 숨겨 둔다. 종이 폭에 따라 3단·반 접기·바로 펼침, GPS 상태 쪽지·도장·정확도 원·'나' 표시(DOM 마커). `MapIcon`·`GpsBadge`·`useMapHotkey`(M·Esc)·`MapTrack`도 내보낸다 |
 | `components/map/paper-map-style.ts` | 펼침 지도 스타일 `PAPER_STYLE` — Mapbox Streets v8 + 지형 DEM을 게임 화풍으로 칠한다. 무늬 `PATTERNS`(나무·풀포기·물결)는 `styleimagemissing`에서 캔버스로 그려 넣는다 |
-| `lib/realtime/relay.ts` | socket.io 익명 멀티플레이 연결(플레이 씬 `/room`·내 주변 `/proximity`) — 35ms마다 바뀐 필드만 전송, 5분 무변화 시 끊기(탭을 숨겨도 연결을 둔다), 재접속 때 전에 있던 방 요청 |
+| `lib/realtime/relay.ts` | socket.io 익명 멀티플레이 연결(플레이 씬 `/room`·내 주변 `/proximity`) — 35ms마다 바뀐 필드만 전송, 5분 무변화 시 끊기(탭을 숨겨도 연결을 둔다, 만남 대화가 오가면 바뀐 것으로 친다), 재접속 때 전에 있던 방 요청, 만남 대화 이벤트 송수신(`RelayConnection.talk`) |
+| `lib/realtime/talk.ts` | 만남 대화 상태(`createTalk`) — 20m 안 2초 머문 사람 중 화면에 보이는 가장 가까운 사람 고르기(30m 밖에서 지움), 머리 위 자리 4개(버튼·건 사람 표시·내 말풍선·상대 말풍선)를 매 프레임 translate3d로 옮기기, 서버 이벤트대로 요청·대화·끝을 그리는 스토어(`useSyncExternalStore`), 가리기·받기 끄기(`localStorage`)·클라이언트 글 검증 |
+| `components/hud/talk-layer.tsx` | 만남 대화 화면 — 머리 위 말 걸기 버튼(E 키)·건 사람 "!"·요청 카드(15초 타이머)·대화 창(로그·빠른 문구·입력)·말풍선·알림 한 줄. `tk-*` 스타일, 좁은 화면(639px 이하)은 카드·대화 창을 아래에 |
 | `lib/three/fog.ts` | Fog of War CSS 비네트 반경 헬퍼 — 어느 화면에도 연결되어 있지 않다 ([ADR 005](../adr/005-fog-of-war-business-model.md)) |
 | `apps/realtime/src/main.ts` | 실시간 서버 부트스트랩 — 설정을 읽은 뒤 socket.io CORS(`WEB_ORIGIN`)를 넣는 어댑터(`CorsIoAdapter`), 포트 9002 |
 | `apps/realtime/src/auth/access-token.ts` | `AccessTokenVerifier` — `/sector` 접속 토큰의 서명·만료·종류를 API 서버와 같은 `JWT_ACCESS_SECRET`으로 확인(DB 조회 없음, 시크릿이 없으면 거절) |
-| `apps/realtime/src/room/room.gateway.ts` | 방 중계 익명 socket.io 게이트웨이(`/room`, 플레이 씬) — 방 배정(20명)·35ms 방 단위 변경분 방송 |
+| `apps/realtime/src/room/room.gateway.ts` | 방 중계 익명 socket.io 게이트웨이(`/room`, 플레이 씬) — 방 배정(20명)·35ms 방 단위 변경분 방송, 만남 대화 이벤트를 받아 판정(`relay/talk.ts`)에 넘긴다(같은 방 사람끼리만 닿는다) |
 | `apps/realtime/src/proximity/proximity.gateway.ts` | 근접 중계 익명 socket.io 게이트웨이(`/proximity`, 내 주변) — 실제 좌표, 사람마다 반경 200m 가까운 19명 선택·입장 전체 상태·퇴장 `leave` |
-| `apps/realtime/src/relay/relay.ts` | 두 익명 게이트웨이가 함께 쓰는 상태 보관·필드 검증·거리 예산·순간이동·빈도 제한 |
-| `shared/relay/contract.ts` | 익명 멀티플레이 소켓 이벤트 이름·페이로드 계약(위치·방향·모션·색 시드)과 중계별 네임스페이스·위치 자리수(`RELAYS`) — 프론트·실시간 서버 socket.io 제네릭 단일 소스 |
+| `apps/realtime/src/relay/relay.ts` | 두 익명 게이트웨이가 함께 쓰는 상태 보관·필드 검증·거리 예산·순간이동·빈도 제한(`countMessage` — 상태와 대화 이벤트가 같은 초당 한도를 쓴다) |
+| `apps/realtime/src/relay/talk.ts` | 만남 대화 판정(`Talks`) — 요청(30m·15초·1분 6번)·수락·거절 쿨다운(5분)·서로 걸면 바로 열기, 글 검증(0.5초·200자·링크)과 두 사람에게만 보내기, 멀어짐(30m 밖 10초)·조용함(3분)·떠남으로 끝내기. 사람 찾기·거리·보내기는 게이트웨이가 `TalkHost`로 넘긴다 |
+| `shared/relay/contract.ts` | 익명 멀티플레이 소켓 이벤트 이름·페이로드 계약(위치·방향·모션·색 시드, 만남 대화 `talk*` 이벤트)과 중계별 네임스페이스·위치 자리수(`RELAYS`), 만남 대화 수치(`TALK`)·링크 판별(`hasLink`) — 프론트·실시간 서버 socket.io 제네릭 단일 소스 |
 | `apps/realtime/src/sector/sector.gateway.ts` | 섹터 중계 socket.io 게이트웨이(`/sector`, 맵) — 섹터 판정·속도 검증·5Hz 묶음 브로드캐스트 (`shared/sector/contract` 제네릭 타입). 붙는 화면은 맵과 함께 예정 |
 | `shared/sector/contract.ts` | 섹터 중계 소켓 이벤트 이름·페이로드 계약 — socket.io 제네릭 단일 소스 |
 | `shared/sector/grid.ts` | 섹터 격자(500m)·거리·이동 속도 검증 계산 — 단일 소스 |
