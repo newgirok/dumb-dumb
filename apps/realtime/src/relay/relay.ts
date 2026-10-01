@@ -64,12 +64,7 @@ export interface PositionRules {
  */
 export function receiveState(player: RelayPlayer, body: unknown, now: number, rules: PositionRules): boolean {
   if (!body || typeof body !== 'object') return true
-  if (now - player.windowStart >= 1000) {
-    player.windowStart = now
-    player.windowCount = 0
-  }
-  if (++player.windowCount > MAX_MESSAGES_PER_SEC) return false
-  player.lastMessageAt = now
+  if (!countMessage(player, now)) return false
 
   const { p, r, a, s } = body as Record<string, unknown>
   const position = rules.read(p)
@@ -78,6 +73,20 @@ export function receiveState(player: RelayPlayer, body: unknown, now: number, ru
   if (rotation) setField(player, 'r', rotation as RelayPlayerState['r'])
   if (a === 0 || a === 1 || a === 2) setField(player, 'a', a)
   if (typeof s === 'number' && s >= 0 && s < 4) setField(player, 's', s)
+  return true
+}
+
+/**
+ * 메시지 하나를 센다 — 상태·대화 이벤트가 함께 쓰는 초당 한도. 넘으면 false(호출한 쪽이 끊는다).
+ * 받을 때마다 마지막 활동 시각을 남겨, 서서 대화만 하는 동안에도 조용한 소켓으로 끊기지 않는다
+ */
+export function countMessage(player: RelayPlayer, now: number): boolean {
+  if (now - player.windowStart >= 1000) {
+    player.windowStart = now
+    player.windowCount = 0
+  }
+  if (++player.windowCount > MAX_MESSAGES_PER_SEC) return false
+  player.lastMessageAt = now
   return true
 }
 

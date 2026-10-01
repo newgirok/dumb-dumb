@@ -17,6 +17,7 @@ import {
   type RelayServerToClientEvents,
 } from '../../../../shared/relay/contract'
 import {
+  countMessage,
   createRelayPlayer,
   IDLE_MS,
   MAX_PLAYERS,
@@ -27,6 +28,7 @@ import {
   type PositionRules,
   type RelayPlayer,
 } from '../relay/relay'
+import { Talks } from '../relay/talk'
 
 /**
  * 방 단위 익명 중계 — 정원 20명 방에 같이 있는 사람끼리 본다. 지금은 플레이 씬(/play)이 쓴다.
@@ -35,10 +37,12 @@ import {
  * 색 시드를 주고받는다. 원본 릴레이는 받은 메시지를 방 전원에게 곧장 흘리고 상태를
  * 들지 않았지만, 여기서는 서버가 방 사람들의 마지막 상태를 들고 있다가 방마다 35ms에
  * 한 번 바뀐 필드만 묶어 내린다. 새로 들어온 사람은 접속하자마자 방 전원의 현재
- * 상태를 받고, 값·속도·빈도 검증도 서버가 한다(relay.ts).
+ * 상태를 받고, 값·속도·빈도 검증도 서버가 한다(relay.ts). 같은 방 30m 안의 사람끼리는
+ * 만남 대화(talk.ts)를 나눌 수 있다.
  *
  * 섹터 게이트웨이는 handleConnection에서 토큰을 직접 검사하고, 이 게이트웨이는 일부러
- * 검사하지 않는다. 주고받는 것은 씬 로컬 좌표와 모션뿐이라 개인정보가 없다.
+ * 검사하지 않는다. 주고받는 것은 씬 로컬 좌표·모션과 저장하지 않는 대화 글뿐이고,
+ * 이름·기기 정보는 싣지 않는다.
  *
  * 상태는 이 프로세스 메모리에만 있다 — 인스턴스를 늘리면 인스턴스끼리는 서로 안 보인다.
  */
@@ -64,11 +68,31 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect, On
 
   /** socket.id → 상태 */
   private readonly players = new Map<string, Player>()
+  /** 중계 id → socket.id — 대화 이벤트를 한 사람에게 보낼 때 쓴다 */
+  private readonly sockets = new Map<string, string>()
   /** 방 → socket.id. 먼저 만든 방부터 채운다 */
   private readonly rooms = new Map<string, Set<string>>()
   private nextPlayerId = 0
   private nextRoomId = 0
   private timer?: NodeJS.Timeout
+
+  /** 만남 대화 — 같은 방 사람끼리만 닿는다 */
+  private readonly talks = new Talks<Player>({
+    find: (id) => {
+      const socketId = this.sockets.get(id)
+      return socketId ? this.players.get(socketId) : undefined
+    },
+    distance: (a, b) =>
+      a.room === b.room && a.state.p && b.state.p ? SCENE_LOCAL.distance(a.state.p, b.state.p) : Infinity,
+    emit: (to, event, ...args) => {
+      const socketId = this.sockets.get(to.id)
+      const socket = socketId ? this.server.sockets.get(socketId) : undefined
+      ;(socket?.emit as ((event: string, ...args: unknown[]) => boolean) | undefined)?.call(socket, event, ...args)
+    },
+    touch: (p, now) => {
+      p.lastMessageAt = now
+    },
+  })
 
   afterInit() {
     this.timer = setInterval(() => this.flush(), TICK_MS)
@@ -88,6 +112,7 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     const room = this.pickRoom(typeof requested === 'string' ? requested : '')
     const player: Player = { ...createRelayPlayer((this.nextPlayerId++).toString(36), Date.now()), room }
     this.players.set(client.id, player)
+    this.sockets.set(player.id, client.id)
     this.rooms.get(room)!.add(client.id)
     void client.join(room)
 
@@ -105,6 +130,8 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect, On
   handleDisconnect(client: RelaySocket) {
     const player = this.players.get(client.id)
     if (!player) return
+    this.talks.drop(player.id, Date.now())
+    this.sockets.delete(player.id)
     this.players.delete(client.id)
     const members = this.rooms.get(player.room)
     members?.delete(client.id)
@@ -118,10 +145,44 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect, On
     if (player && !receiveState(player, body, Date.now(), SCENE_LOCAL)) client.disconnect(true)
   }
 
-  /** 방마다 바뀐 필드를 한 묶음으로 방송하고, 오래 조용한 소켓을 정리한다 */
+  @SubscribeMessage('talkInvite')
+  onTalkInvite(@ConnectedSocket() client: RelaySocket, @MessageBody() to: unknown) {
+    const player = this.talker(client)
+    if (player) this.talks.invite(player, to, Date.now())
+  }
+
+  @SubscribeMessage('talkReply')
+  onTalkReply(@ConnectedSocket() client: RelaySocket, @MessageBody() body: unknown) {
+    const player = this.talker(client)
+    if (player) this.talks.reply(player, body, Date.now())
+  }
+
+  @SubscribeMessage('talkSend')
+  onTalkSend(@ConnectedSocket() client: RelaySocket, @MessageBody() text: unknown) {
+    const player = this.talker(client)
+    if (player) this.talks.send(player, text, Date.now())
+  }
+
+  @SubscribeMessage('talkLeave')
+  onTalkLeave(@ConnectedSocket() client: RelaySocket) {
+    const player = this.talker(client)
+    if (player) this.talks.leave(player)
+  }
+
+  /** 대화 이벤트도 상태와 같은 초당 한도로 센다 — 넘으면 끊는다 */
+  private talker(client: RelaySocket): Player | undefined {
+    const player = this.players.get(client.id)
+    if (!player) return undefined
+    if (countMessage(player, Date.now())) return player
+    client.disconnect(true)
+    return undefined
+  }
+
+  /** 방마다 바뀐 필드를 한 묶음으로 방송하고, 대화를 판정하고, 오래 조용한 소켓을 정리한다 */
   private flush() {
     if (!this.server) return
     const now = Date.now()
+    this.talks.tick(now)
     const idle: string[] = []
     for (const [room, members] of this.rooms) {
       const updates: RelayPeerUpdate[] = []
