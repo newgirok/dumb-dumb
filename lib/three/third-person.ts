@@ -103,7 +103,7 @@ const ZOOM_LERP = 0.05
  * 인트로 카메라 돌리 — 멀리서(줌아웃) 시작해 제자리로 당겨온다.
  * 원본 playIntroAnimation: followSphericalZoom 12 → 0, 6s, ease "inOut3".
  */
-const INTRO_ZOOM = 12
+export const INTRO_ZOOM = 12
 const INTRO_DURATION = 6
 /**
  * 커서 패럴랙스 — 드래그와 무관하게 커서 위치(±1)에 π/2와 이 배수를 곱한 만큼

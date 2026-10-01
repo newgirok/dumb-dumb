@@ -33,9 +33,10 @@ import {
   createSkyMaterial,
   loadKtx2Lut,
 } from '@/lib/three/ramp-shader'
-import { createThirdPerson, type ThirdPerson } from '@/lib/three/third-person'
+import { createThirdPerson, INTRO_ZOOM, type ThirdPerson } from '@/lib/three/third-person'
 import { createSceneAudio, type SceneAudio } from './audio'
-import { createSunLight, bakeStaticShadows } from '@/lib/three/shadows'
+import { createSunLight, bakeStaticShadows, compileShadowDepth } from '@/lib/three/shadows'
+import { compileGradually, compileMaterialsGradually, nextFrame, settle, uploadTexturesGradually } from '@/lib/three/warm-up'
 import { createSea } from './sea'
 import { createBirds, type Birds } from './birds'
 import { createFinalPass } from '@/lib/three/postprocess'
@@ -147,6 +148,8 @@ const LOADER_HIDDEN_MS = 250
 const INTRO_REVEAL_MS = 4000
 /** 오디오는 인트로 시작 1.5초 뒤부터 소리를 낼 수 있다(원본 canPlaySound) */
 const AUDIO_DELAY_MS = 1500
+/** 펼침 지도는 인트로 시작 6.5초 뒤(카메라 돌리 6초가 끝난 뒤)에 만든다 */
+const MAP_MOUNT_DELAY_MS = 6500
 
 /** 원본 AdaptiveDPR — 2초 뒤부터 4초마다 평균 FPS로 해상도 배수를 0.7~1 사이에서 0.1씩 옮긴다 */
 const DPR_WAIT_MS = 2000
@@ -183,6 +186,9 @@ export default function PlayScene() {
   // 펼침 지도(M) — 지도가 화면에 있는 동안은 캐릭터 조작을 끈다(원본이 모달을 띄울 때처럼).
   // 접을 때는 다 접혀 배경(dim)까지 걷힌 뒤에 켠다
   const [mapOpen, setMapOpen] = useState(false)
+  // 펼침 지도(Mapbox)는 자기 WebGL 컨텍스트와 셰이더를 준비하는 동안 GPU를 붙잡아, 인트로 첫머리에 만들면 화면이
+  // 한 번 멈춘다 — 인트로가 끝난 뒤에 만들고, 그 전에 펼치면 그때 만든다
+  const [mapMounted, setMapMounted] = useState(false)
   // 실제 내 위치는 지도에만 쓴다 — 권한 창은 지도를 처음 펼칠 때 뜬다(이미 허용했으면 바로 찾는다)
   const [gps, setGps] = useState<GpsTracker | null>(null)
   const gpsView = useGpsSnapshot(gps)
@@ -294,6 +300,7 @@ export default function PlayScene() {
 
     let destroyed = false
     let raf = 0
+    let mapTimer: ReturnType<typeof setTimeout> | undefined
     let sky: THREE.Mesh | null = null
     const mixers: THREE.AnimationMixer[] = []
     let birds: Birds | null = null
@@ -303,6 +310,8 @@ export default function PlayScene() {
     let connection: RelayConnection | null = null
     let kidMesh: THREE.SkinnedMesh | null = null
     let frameDt = 0
+    // 로더 뒤 GPU 예열이 끝나기 전에는 씬을 그리지 않는다(물체가 붙을 때마다 첫 렌더가 컴파일·업로드를 몰고 온다)
+    let prepared = false
     const materials: THREE.Material[] = []
     const disposables: { dispose(): void }[] = [circles]
     // NPC 상호작용(비활성) — 발동한 비밀 이름
@@ -650,17 +659,49 @@ export default function PlayScene() {
       controller.update(0)
       sun.follow(camera.position, controller.target)
 
+      // GPU 예열 — 로더 뒤에서 셰이더를 병렬 컴파일하고(새 프로그램마다 한 프레임 쉰다) 텍스처를 하나씩 올린다
+      // (하나마다 GPU가 끝낼 때까지 기다린다). 첫 렌더에 몰린 컴파일·업로드가 GPU를 붙잡아 로더 스피너가 멈추지
+      // 않게 한다. 씬은 실제로 그리는 컴포저 버퍼, 후처리 패스는 각자 그리는 렌더 타깃 기준으로 컴파일해야 같은
+      // 프로그램을 다시 쓴다
+      const cancelled = () => destroyed
+      const postMaterials = [finalPass.material, smaaPass.materialEdges, smaaPass.materialWeights, smaaPass.materialBlend]
+      await compileGradually(renderer, scene, camera, composer.readBuffer, cancelled)
+      await compileMaterialsGradually(renderer, postMaterials, composer.writeBuffer, cancelled)
+      const shadowDepth = await compileShadowDepth(renderer, scene, camera, composer.readBuffer, cancelled)
+      if (destroyed) {
+        shadowDepth.forEach((material) => material.dispose())
+        return
+      }
+      disposables.push(...shadowDepth)
+      await uploadTexturesGradually(renderer, scene, postMaterials, cancelled)
+      if (destroyed) return
+
       // 정적 그림자 — 월드 전체를 한 번 굽는다(캐릭터·하늘·바다·새·터치 원은 빼고)
       colliderGeo.computeBoundingSphere()
-      const shadowMaps = bakeStaticShadows({
+      const shadowMaps = await bakeStaticShadows({
         renderer,
         scene,
         shared,
         bounds: colliderGeo.boundingSphere!,
         skip: [kid, sky, sea.mesh, birds.mesh, ...circles.group.children],
-        mobile,
+        cancelled,
       })
+      if (destroyed) {
+        shadowMaps.forEach((map) => map.dispose())
+        return
+      }
       disposables.push(...shadowMaps)
+
+      // 인트로는 카메라를 INTRO_ZOOM만큼 물린 자리에서 시작해, 그때 처음 화면에 드는 물체가 많다 — 그 자리에서도
+      // 로더 뒤에서 한 번 그려 둬 인트로 첫머리에 첫 그리기(프로그램 첫 사용·드라이버 준비)가 몰리지 않게 한다
+      const introCamera = camera.clone()
+      const back = introCamera.position.clone().sub(controller.target)
+      introCamera.position.copy(controller.target).add(back.setLength(back.length() + INTRO_ZOOM))
+      renderer.setRenderTarget(composer.readBuffer)
+      renderer.render(scene, introCamera)
+      renderer.setRenderTarget(null)
+      await settle(renderer)
+      if (destroyed) return
 
       // 같은 방 다른 캐릭터들 — 로그인 없는 익명 소켓으로 주고받는다(원본 멀티플레이).
       // 서버에 닿지 못하면 소켓이 뒤에서 재시도할 뿐 씬은 혼자인 채로 돈다.
@@ -692,7 +733,13 @@ export default function PlayScene() {
       })
       talk.bind(connection.talk)
 
+      // 예열이 끝났다 — GPU가 비면 그리기 시작해 로더 뒤에서 몇 프레임 그려 첫 렌더의 버퍼 업로드를 마친 뒤
       // 로더를 걷고(스피너 한 바퀴를 채운 뒤 0.75s 페이드 + 0.25s) 인트로를 시작한다
+      await settle(renderer)
+      if (destroyed) return
+      prepared = true
+      for (let i = 0; i < 3; i++) await nextFrame()
+      if (destroyed) return
       await waitSpinTurn(loaderSince)
       if (destroyed) return
       setPhase('fading')
@@ -705,6 +752,7 @@ export default function PlayScene() {
       adaptive.lastUpdate = adaptive.waitUntil
       adaptive.bucketStart = introStartTime
       setPhase('playing')
+      mapTimer = setTimeout(() => setMapMounted(true), MAP_MOUNT_DELAY_MS)
     })().catch((err) => {
       console.error(err)
       setError(String(err))
@@ -831,13 +879,14 @@ export default function PlayScene() {
         }
       }
 
-      composer.render()
+      if (prepared) composer.render()
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
 
     return () => {
       destroyed = true
+      clearTimeout(mapTimer)
       cancelAnimationFrame(raf)
       ro.disconnect()
       document.body.removeEventListener('click', startAudio)
@@ -866,6 +915,11 @@ export default function PlayScene() {
     mutedRef.current = muted
     audioRef.current?.setMuted(muted)
   }, [muted])
+
+  // 인트로가 끝나기 전에 지도를 펼치면 그때 지도를 만든다
+  useEffect(() => {
+    if (mapOpen) setMapMounted(true)
+  }, [mapOpen])
 
   // 펼치면 곧바로 조작을 끄고, 접으면 다 접혀 배경까지 걷힌 뒤(onClosed)에 켠다.
   // 대화 입력칸에 쓰는 동안에도 조작을 꺼서, 글자를 칠 때 캐릭터가 움직이지 않는다
@@ -964,7 +1018,7 @@ export default function PlayScene() {
         )}
 
         {/* 펼침 지도 — 실제 내 위치(GPS)를 게임 화풍 종이 지도로 */}
-        {playing && gps && (
+        {playing && gps && mapMounted && (
           <PaperMap open={mapOpen} onClose={() => setMapOpen(false)} onClosed={onMapClosed} gps={gps} title="지도" accent={charColor} />
         )}
 

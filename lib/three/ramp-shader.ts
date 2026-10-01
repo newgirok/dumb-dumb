@@ -468,6 +468,8 @@ export function createGrassMaterial(
          // 원본 FADE_AWAY 60 — 55~60m에서 알파로 사라진다
          gl_FragColor = vec4(outColor, grassAlpha * smoothstep(60.0, 55.0, lenCam));`,
       )
+    // 로더 뒤 예열(warm-up.ts)이 유니폼의 텍스처를 찾아 미리 올릴 수 있게 고쳐 끼운 셰이더를 남긴다
+    material.userData.shader = shader
   }
 
   material.customProgramCacheKey = () => 'grass'
@@ -597,6 +599,8 @@ export function createTerrainMaterial(
 
          ${FINISH}`,
       )
+    // 로더 뒤 예열(warm-up.ts)이 유니폼의 텍스처를 찾아 미리 올릴 수 있게 고쳐 끼운 셰이더를 남긴다
+    material.userData.shader = shader
   }
 
   material.customProgramCacheKey = () => 'terrain'
