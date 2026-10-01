@@ -107,6 +107,77 @@ async function compileEach(
   }
 }
 
+/**
+ * 씬의 모든 물체를 한 번씩 그린다(숨긴 LOD 단계, 멀리 있어 숨긴 묶음, 평소 숨겨 둔 물체까지).
+ * 지오메트리·인스턴스 버퍼 업로드와 그리기 상태(VAO)·드라이버의 첫 그리기 준비를 로더 뒤에서 끝낸다. 그려 보지
+ * 않은 물체는 처음 화면에 들 때(걸어가다 멀리 있던 잔디 묶음이 보일 때 등) 이 일을 몰고 온다.
+ *
+ * like와 같은 형식의 작은 타깃에, 동적 그림자까지 함께 그린다(같은 형식이어야 같은 셰이더 프로그램을 쓴다).
+ * 물체를 batch개씩 묶어 그리고 묶음마다 GPU가 끝낼 때까지 쉰다. 빛은 건드리지 않는다(빛 수가 바뀌면 다른
+ * 프로그램이 된다). 끝나면 보이기·컬링·LOD 상태를 되돌린다
+ */
+export async function drawAllGradually(
+  renderer: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+  like: THREE.WebGLRenderTarget,
+  cancelled: () => boolean,
+  batch = 24,
+): Promise<void> {
+  const objects: Drawable[] = []
+  const lods: THREE.LOD[] = []
+  scene.traverse((o) => {
+    if (isDrawable(o)) objects.push(o)
+    if ((o as THREE.LOD).isLOD) lods.push(o as THREE.LOD)
+  })
+  // 그릴 물체의 조상(묶음·LOD 노드)은 모두 보이게 둔다 — 조상이 숨으면 three는 그 아래를 건너뛴다.
+  // 조상이 그릴 물체이면 그 묶음을 그릴 때만 함께 보이게 한다
+  const ancestors = new Set<THREE.Object3D>()
+  const drawableAncestors = new Map<Drawable, Drawable[]>()
+  for (const object of objects) {
+    const list: Drawable[] = []
+    for (let p = object.parent; p && p !== scene; p = p.parent) {
+      if (isDrawable(p)) list.push(p)
+      else ancestors.add(p)
+    }
+    drawableAncestors.set(object, list)
+  }
+  const visible = new Map<THREE.Object3D, boolean>()
+  for (const o of [...objects, ...ancestors]) visible.set(o, o.visible)
+  const culled = objects.map((o) => o.frustumCulled)
+  const lodAuto = lods.map((lod) => lod.autoUpdate)
+  const target = like.clone()
+  target.setSize(16, 16)
+  const previous = renderer.getRenderTarget()
+  try {
+    for (const lod of lods) lod.autoUpdate = false
+    for (const o of ancestors) o.visible = true
+    for (const o of objects) {
+      o.visible = false
+      o.frustumCulled = false
+    }
+    for (let i = 0; i < objects.length && !cancelled(); i += batch) {
+      const shown = new Set<Drawable>()
+      for (const o of objects.slice(i, i + batch)) {
+        shown.add(o)
+        for (const p of drawableAncestors.get(o)!) shown.add(p)
+      }
+      for (const o of shown) o.visible = true
+      renderer.setRenderTarget(target)
+      renderer.render(scene, camera)
+      renderer.setRenderTarget(previous)
+      for (const o of shown) o.visible = false
+      await settle(renderer)
+    }
+  } finally {
+    renderer.setRenderTarget(previous)
+    for (const [o, v] of visible) o.visible = v
+    objects.forEach((o, i) => (o.frustumCulled = culled[i]))
+    lods.forEach((lod, i) => (lod.autoUpdate = lodAuto[i]))
+    target.dispose()
+  }
+}
+
 /** 재질·유니폼이 쓰는 텍스처를 모은다(셰이더를 고쳐 끼운 재질은 userData.shader의 유니폼까지) */
 function collectTextures(material: THREE.Material, into: Set<THREE.Texture>) {
   const add = (value: unknown) => {

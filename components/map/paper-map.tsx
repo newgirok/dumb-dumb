@@ -314,6 +314,7 @@ export default function PaperMap({
   title,
   accent = '#8875ad',
   onClosed,
+  onIdleChange,
 }: {
   open: boolean
   onClose: () => void
@@ -324,6 +325,11 @@ export default function PaperMap({
   accent?: string
   /** 다 접혀 배경(dim)까지 걷힌 순간 — 씬은 이때 캐릭터 조작을 다시 켠다 */
   onClosed?: () => void
+  /**
+   * 지도가 다 그려져 쉬는지(Mapbox idle — 타일·셰이더·전환까지 끝남) 바뀔 때. 새 데이터를 받기 시작하거나 움직이면
+   * false, 다 그려지면 true다. 지도를 만들 수 없으면(토큰 없음·WebGL 실패) 바로 true — 플레이 씬 로더가 기다린다
+   */
+  onIdleChange?: (idle: boolean) => void
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -340,6 +346,8 @@ export default function PaperMap({
   const returnFocusRef = useRef<Element | null>(null)
   // 접기 애니메이션 끝(onfinish)에서 부른다 — 애니메이션은 펼칠 때 만들어지므로 그때의 콜백이 아닌 지금 것을 읽는다
   const onClosedRef = useRef(onClosed)
+  // 지도는 한 번만 만들므로 그 안의 이벤트도 지금 콜백을 읽는다
+  const onIdleChangeRef = useRef(onIdleChange)
   const [phase, setPhase] = useState<Phase>('closed')
   const [panels, setPanels] = useState<Panels>(3)
   const [mapState, setMapState] = useState<'loading' | 'ready' | 'none'>('loading')
@@ -356,6 +364,10 @@ export default function PaperMap({
   useEffect(() => {
     onClosedRef.current = onClosed
   }, [onClosed])
+
+  useEffect(() => {
+    onIdleChangeRef.current = onIdleChange
+  }, [onIdleChange])
 
   // 종이 폭이 바뀌면(창 크기·회전) 접는 횟수를 바꾼다 — 레이아웃 크기라 변환과 무관하다
   useEffect(() => {
@@ -383,6 +395,7 @@ export default function PaperMap({
     if (!container) return
     if (!token) {
       setMapState('none')
+      onIdleChangeRef.current?.(true)
       return
     }
     let cancelled = false
@@ -413,6 +426,7 @@ export default function PaperMap({
         })
       } catch {
         setMapState('none') // WebGL 미지원 등 — 쪽지로만 안내한다
+        onIdleChangeRef.current?.(true)
         return
       }
       const m = map
@@ -426,6 +440,9 @@ export default function PaperMap({
         if (make && !m.hasImage(e.id)) m.addImage(e.id, make(), { pixelRatio: 2 })
       })
       m.on('load', () => setMapState('ready'))
+      m.on('idle', () => onIdleChangeRef.current?.(true))
+      m.on('dataloading', () => onIdleChangeRef.current?.(false))
+      m.on('movestart', () => onIdleChangeRef.current?.(false))
       // 펼치고 접는 동안 날개 안쪽 면을 살아 있는 지도와 같게 — 렌더 직후라 캔버스 버퍼가 살아 있다
       m.on('render', () => {
         if (phaseRef.current === 'opening' || phaseRef.current === 'closing') copyMirrors(m)

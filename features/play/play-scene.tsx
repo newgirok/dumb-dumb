@@ -36,7 +36,14 @@ import {
 import { createThirdPerson, INTRO_ZOOM, type ThirdPerson } from '@/lib/three/third-person'
 import { createSceneAudio, type SceneAudio } from './audio'
 import { createSunLight, bakeStaticShadows, compileShadowDepth } from '@/lib/three/shadows'
-import { compileGradually, compileMaterialsGradually, nextFrame, settle, uploadTexturesGradually } from '@/lib/three/warm-up'
+import {
+  compileGradually,
+  compileMaterialsGradually,
+  drawAllGradually,
+  nextFrame,
+  settle,
+  uploadTexturesGradually,
+} from '@/lib/three/warm-up'
 import { createSea } from './sea'
 import { createBirds, type Birds } from './birds'
 import { createFinalPass } from '@/lib/three/postprocess'
@@ -148,6 +155,8 @@ const LOADER_HIDDEN_MS = 250
 const INTRO_REVEAL_MS = 4000
 /** 오디오는 인트로 시작 1.5초 뒤부터 소리를 낼 수 있다(원본 canPlaySound) */
 const AUDIO_DELAY_MS = 1500
+/** 펼침 지도가 다 그려지기를 로더가 기다리는 최대 시간 — 네트워크가 막혀 지도가 끝나지 않아도 씬은 시작한다 */
+const MAP_IDLE_TIMEOUT_MS = 8000
 
 /** 원본 AdaptiveDPR — 2초 뒤부터 4초마다 평균 FPS로 해상도 배수를 0.7~1 사이에서 0.1씩 옮긴다 */
 const DPR_WAIT_MS = 2000
@@ -197,6 +206,12 @@ export default function PlayScene() {
   const mutedRef = useRef(true)
   const controllerRef = useRef<ThirdPerson | null>(null)
   const mapShownRef = useRef(false)
+  // 펼침 지도가 다 그려져 쉬는지 — 로더는 지도까지 다 그려진 뒤에 걷는다(wake: 기다리는 쪽을 깨운다)
+  const mapIdleRef = useRef<{ idle: boolean; wake: (() => void) | null }>({ idle: false, wake: null })
+  const onMapIdleChange = useCallback((idle: boolean) => {
+    mapIdleRef.current.idle = idle
+    if (idle) mapIdleRef.current.wake?.()
+  }, [])
   // 만남 대화 — 같은 방 30m 안의 사람과 1:1로 말한다. 상태는 씬 밖에 두고 소켓이 생기면 잇는다
   const talkRef = useRef<Talk | null>(null)
   if (!talkRef.current) talkRef.current = createTalk()
@@ -260,13 +275,26 @@ export default function PlayScene() {
     const smaaPass = new SMAAPass(1, 1)
     composer.addPass(smaaPass)
     composer.addPass(new OutputPass())
-    new THREE.TextureLoader().load('/ref-assets/images/transition-intro.jpg', (tex) => {
+    // 인트로 전환 이미지·터치 원 텍스처는 로더 뒤 예열 전에 다 받아 둔다 — 늦게 오면 예열에서 빠져 처음 쓸 때 올라간다
+    const imageLoads: Promise<void>[] = []
+    const loadImage = (url: string, onLoad?: (texture: THREE.Texture) => void) => {
+      let texture!: THREE.Texture
+      imageLoads.push(
+        new Promise((resolve) => {
+          const loaded = (t: THREE.Texture) => {
+            onLoad?.(t)
+            resolve()
+          }
+          texture = new THREE.TextureLoader().load(url, loaded, undefined, () => resolve())
+        }),
+      )
+      return texture
+    }
+    loadImage('/ref-assets/images/transition-intro.jpg', (tex) => {
       finalPass.uniforms.tIntro.value = tex
     })
 
-    const circles = createTouchCircles(
-      new THREE.TextureLoader().load('/ref-assets/images/controls/circles.png'),
-    )
+    const circles = createTouchCircles(loadImage('/ref-assets/images/controls/circles.png'))
     scene.add(circles.group)
 
     const resize = () => {
@@ -308,6 +336,19 @@ export default function PlayScene() {
     let prepared = false
     const materials: THREE.Material[] = []
     const disposables: { dispose(): void }[] = [circles]
+    /** 펼침 지도가 다 그려져 쉴 때까지 기다린다 — 길어야 timeout(ms) */
+    const waitMapIdle = (timeout: number) =>
+      new Promise<void>((resolve) => {
+        const state = mapIdleRef.current
+        if (state.idle) return resolve()
+        const done = () => {
+          clearTimeout(timer)
+          state.wake = null
+          resolve()
+        }
+        const timer = setTimeout(done, timeout)
+        state.wake = done
+      })
     // NPC 상호작용(비활성) — 발동한 비밀 이름
     // const found = new Set<string>()
 
@@ -657,6 +698,8 @@ export default function PlayScene() {
       // (하나마다 GPU가 끝낼 때까지 기다린다). 첫 렌더에 몰린 컴파일·업로드가 GPU를 붙잡아 로더 스피너가 멈추지
       // 않게 한다. 씬은 실제로 그리는 컴포저 버퍼, 후처리 패스는 각자 그리는 렌더 타깃 기준으로 컴파일해야 같은
       // 프로그램을 다시 쓴다
+      await Promise.all(imageLoads)
+      if (destroyed) return
       const cancelled = () => destroyed
       const postMaterials = [finalPass.material, smaaPass.materialEdges, smaaPass.materialWeights, smaaPass.materialBlend]
       await compileGradually(renderer, scene, camera, composer.readBuffer, cancelled)
@@ -685,6 +728,11 @@ export default function PlayScene() {
         return
       }
       disposables.push(...shadowMaps)
+
+      // 모든 물체를 한 번씩 그린다(숨긴 LOD 단계·멀리 있어 숨긴 묶음·평소 숨겨 둔 물체까지) — 걸어가다 처음 보이는
+      // 물체가 버퍼 업로드·첫 그리기를 플레이 중에 몰고 오지 않게 한다
+      await drawAllGradually(renderer, scene, camera, composer.readBuffer, cancelled)
+      if (destroyed) return
 
       // 인트로는 카메라를 INTRO_ZOOM만큼 물린 자리에서 시작해, 그때 처음 화면에 드는 물체가 많다 — 그 자리에서도
       // 로더 뒤에서 한 번 그려 둬 인트로 첫머리에 첫 그리기(프로그램 첫 사용·드라이버 준비)가 몰리지 않게 한다
@@ -726,6 +774,10 @@ export default function PlayScene() {
         talk: talk.handlers,
       })
       talk.bind(connection.talk)
+
+      // 펼침 지도까지 다 그려지기를 기다린다(타일·셰이더까지) — 네트워크가 막혀 끝나지 않으면 MAP_IDLE_TIMEOUT_MS 뒤에 넘어간다
+      await waitMapIdle(MAP_IDLE_TIMEOUT_MS)
+      if (destroyed) return
 
       // 예열이 끝났다 — GPU가 비면 그리기 시작해 로더 뒤에서 몇 프레임 그려 첫 렌더의 버퍼 업로드를 마친 뒤
       // 로더를 걷고(스피너 한 바퀴를 채운 뒤 0.75s 페이드 + 0.25s) 인트로를 시작한다
@@ -1008,7 +1060,15 @@ export default function PlayScene() {
             막혀, 씬이 돌 때 만들면 화면이 한 번 멈춘다 — 씬을 불러오는 동안 로더 뒤에서 만들어 둔다(로더 스피너는
             GPU 합성 스레드에서 돌아 메인 스레드가 막혀도 멈추지 않는다). 펼치는 건 인트로가 시작된 뒤부터다 */}
         {!unsupported && !error && gps && (
-          <PaperMap open={mapOpen} onClose={() => setMapOpen(false)} onClosed={onMapClosed} gps={gps} title="지도" accent={charColor} />
+          <PaperMap
+            open={mapOpen}
+            onClose={() => setMapOpen(false)}
+            onClosed={onMapClosed}
+            onIdleChange={onMapIdleChange}
+            gps={gps}
+            title="지도"
+            accent={charColor}
+          />
         )}
 
         {/* 로딩 화면 — 로더(스피너 + 안내 한 줄, 버튼 없이 자동 진입) */}
