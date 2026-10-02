@@ -351,6 +351,12 @@ export function createTalk(): Talk {
       }
       for (const id of near.keys()) if (!others.has(id)) near.delete(id)
 
+      // 건 요청을 기다리는 동안 상대가 버튼이 사라지는 거리 밖으로 가면 요청을 거둔다 — "기다리는 중…"도 함께 사라진다
+      if (view.asking) {
+        const pos = others.get(view.asking)
+        if (!self || !pos || distance(self, pos) > TALK.promptExitM) leave()
+      }
+
       // 버튼 상대 — 대화·요청이 없을 때, 잠시 머문 사람 가운데 가장 가까운 사람(화면 밖이면 버튼이 가장자리에 붙는다)
       let candidate: string | null = null
       if (self && !view.peer && !view.asking && !view.invite) {
