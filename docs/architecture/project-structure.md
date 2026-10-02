@@ -162,7 +162,7 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 | `components/map/paper-map.tsx` | 펼침 지도 — 씬과 분리된 독립 Mapbox GL 캔버스([ADR 001](../adr/001-webgl-context-sharing.md)). 씬이 시작되면(플레이 씬은 씬을 불러오는 동안 로더 뒤에서) 한 번 만들고 접혀 있는 동안은 숨겨 둔다. 종이 폭에 따라 3단·반 접기·바로 펼침, GPS 상태 쪽지·도장·정확도 원·'나' 표시(DOM 마커). `MapIcon`·`GpsBadge`·`useMapHotkey`(M·Esc)·`MapTrack`도 내보낸다 |
 | `components/map/paper-map-style.ts` | 펼침 지도 스타일 `PAPER_STYLE` — Mapbox Streets v8 + 지형 DEM을 게임 화풍으로 칠한다. 무늬 `PATTERNS`(나무·풀포기·물결)는 `styleimagemissing`에서 캔버스로 그려 넣는다 |
 | `lib/realtime/relay.ts` | socket.io 익명 멀티플레이 연결(플레이 씬 `/room`·내 주변 `/proximity`) — 35ms마다 바뀐 필드만 전송, 5분 무변화 시 끊기(탭을 숨겨도 연결을 둔다, 만남 대화가 오가면 바뀐 것으로 친다), 재접속 때 전에 있던 방 요청, 만남 대화 이벤트 송수신(`RelayConnection.talk`) |
-| `lib/realtime/talk.ts` | 만남 대화 상태(`createTalk`) — 20m 안 2초 머문 사람 중 가장 가까운 사람 고르기(30m 밖에서 지움), 머리 위 자리 4개(버튼·건 사람 표시·내 말풍선·상대 말풍선)를 매 프레임 translate3d로 옮기기(화면 밖 버튼 상대는 가장자리에 붙이고 화살표로 방향 표시), 서버 이벤트대로 요청·대화·끝을 그리는 스토어(`useSyncExternalStore`), 받기 끄기(`localStorage`)·클라이언트 글 검증 |
+| `lib/realtime/talk.ts` | 만남 대화 상태(`createTalk`) — 4m 안 2초 머문 사람 중 가장 가까운 사람 고르기(6m 밖에서 지움), 머리 위 자리 4개(버튼·건 사람 표시·내 말풍선·상대 말풍선)를 매 프레임 translate3d로 옮기기(화면 밖 버튼 상대는 가장자리에 붙이고 화살표로 방향 표시), 서버 이벤트대로 요청·대화·끝을 그리는 스토어(`useSyncExternalStore`), 받기 끄기(`localStorage`)·클라이언트 글 검증 |
 | `components/hud/talk-layer.tsx` | 만남 대화 화면 — 머리 위 말 걸기 버튼(E 키)·건 사람 "!"·요청 카드(15초 타이머)·대화 창(로그·빠른 문구·입력)·말풍선·알림 한 줄. `tk-*` 스타일, 좁은 화면(639px 이하)은 카드·대화 창을 아래에 |
 | `lib/three/fog.ts` | Fog of War CSS 비네트 반경 헬퍼 — 어느 화면에도 연결되어 있지 않다 ([ADR 005](../adr/005-fog-of-war-business-model.md)) |
 | `apps/realtime/src/main.ts` | 실시간 서버 부트스트랩 — 설정을 읽은 뒤 socket.io CORS(`WEB_ORIGIN`)를 넣는 어댑터(`CorsIoAdapter`), 포트 9002 |
@@ -170,7 +170,7 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 | `apps/realtime/src/room/room.gateway.ts` | 방 중계 익명 socket.io 게이트웨이(`/room`, 플레이 씬) — 방 배정(20명)·35ms 방 단위 변경분 방송, 만남 대화 이벤트를 받아 판정(`relay/talk.ts`)에 넘긴다(같은 방 사람끼리만 닿는다) |
 | `apps/realtime/src/proximity/proximity.gateway.ts` | 근접 중계 익명 socket.io 게이트웨이(`/proximity`, 내 주변) — 실제 좌표, 사람마다 반경 200m 가까운 19명 선택·입장 전체 상태·퇴장 `leave` |
 | `apps/realtime/src/relay/relay.ts` | 두 익명 게이트웨이가 함께 쓰는 상태 보관·필드 검증·거리 예산·순간이동·빈도 제한(`countMessage` — 상태와 대화 이벤트가 같은 초당 한도를 쓴다) |
-| `apps/realtime/src/relay/talk.ts` | 만남 대화 판정(`Talks`) — 요청(30m·15초·1분 6번)·수락·거절 쿨다운(5분)·서로 걸면 바로 열기, 글 검증(0.5초·200자·링크)과 두 사람에게만 보내기, 멀어짐(30m 밖 10초)·조용함(3분)·떠남으로 끝내기. 사람 찾기·거리·보내기는 게이트웨이가 `TalkHost`로 넘긴다 |
+| `apps/realtime/src/relay/talk.ts` | 만남 대화 판정(`Talks`) — 요청(6m·15초·1분 6번)·수락·거절 쿨다운(5분)·서로 걸면 바로 열기, 글 검증(0.5초·200자·링크)과 두 사람에게만 보내기, 멀어짐(10m 밖 10초)·조용함(3분)·떠남으로 끝내기. 사람 찾기·거리·보내기는 게이트웨이가 `TalkHost`로 넘긴다 |
 | `shared/relay/contract.ts` | 익명 멀티플레이 소켓 이벤트 이름·페이로드 계약(위치·방향·모션·색 시드, 만남 대화 `talk*` 이벤트)과 중계별 네임스페이스·위치 자리수(`RELAYS`), 만남 대화 수치(`TALK`)·링크 판별(`hasLink`) — 프론트·실시간 서버 socket.io 제네릭 단일 소스 |
 | `apps/realtime/src/sector/sector.gateway.ts` | 섹터 중계 socket.io 게이트웨이(`/sector`, 맵) — 섹터 판정·속도 검증·5Hz 묶음 브로드캐스트 (`shared/sector/contract` 제네릭 타입). 붙는 화면은 맵과 함께 예정 |
 | `shared/sector/contract.ts` | 섹터 중계 소켓 이벤트 이름·페이로드 계약 — socket.io 제네릭 단일 소스 |

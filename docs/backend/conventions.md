@@ -133,11 +133,11 @@ CORS 같은 서버 옵션은 게이트웨이 데코레이터에 두지 않고, `
 
 - 판정은 `apps/realtime/src/relay/talk.ts`의 `Talks`가 한다. 게이트웨이는 사람 찾기(중계 id → 소켓), 두 사람 거리(같은 방이고 둘 다 위치가 있을 때만 — 아니면 닿지 않는 `Infinity`), 한 사람에게 보내기, 활동 시각 남기기를 `TalkHost`로 넘기고, 35ms 틱(`flush`)마다 `tick`을, 연결이 끊기면 `drop`을 부른다. 근접 게이트웨이에도 같은 판정을 붙일 수 있게 방 배정과 나눠 둔다
 - 이벤트 — 클라이언트 → 서버 `talkInvite(상대 id)`·`talkReply({ from, accept })`·`talkSend(글)`·`talkLeave()`, 서버 → 클라이언트 `talkInvited(from)`·`talkInviteEnded(from)`·`talkDeclined(to)`·`talkStarted(peer)`·`talkMessage({ from, text })`·`talkEnded(까닭)`. 이름·페이로드·수치(`TALK`)는 `shared/relay/contract.ts`에 있다
-- 요청 — 대화 중이거나 이미 걸어 둔 사람의 요청은 무시한다. 상대가 없거나 1분에 6번을 넘으면 `talkDeclined`. 상대가 먼저 나에게 걸어 두었으면 곧바로 연다. 쿨다운 중이거나, 상대가 대화 중이거나 다른 요청을 받고 있거나, 30m 밖이면 `talkDeclined`. 아니면 15초짜리 요청을 두고 상대에게 `talkInvited`
-- 답 — 받아들이면 두 사람이 아직 비어 있고 30m 안일 때 연다. 거절은 건 사람에게 `talkDeclined`를 보내고 `건 사람>받은 사람` 쿨다운 5분을 둔다. 15초가 지난 요청도 같고, 받은 사람에게는 `talkInviteEnded`가 간다
+- 요청 — 대화 중이거나 이미 걸어 둔 사람의 요청은 무시한다. 상대가 없거나 1분에 6번을 넘으면 `talkDeclined`. 상대가 먼저 나에게 걸어 두었으면 곧바로 연다. 쿨다운 중이거나, 상대가 대화 중이거나 다른 요청을 받고 있거나, 6m 밖이면 `talkDeclined`. 아니면 15초짜리 요청을 두고 상대에게 `talkInvited`
+- 답 — 받아들이면 두 사람이 아직 비어 있고 6m 안일 때 연다. 거절은 건 사람에게 `talkDeclined`를 보내고 `건 사람>받은 사람` 쿨다운 5분을 둔다. 15초가 지난 요청도 같고, 받은 사람에게는 `talkInviteEnded`가 간다
 - 열기 — 두 사람이 따로 걸어 두거나 받아 둔 다른 요청을 모두 거두고(그쪽 사람에게 `talkInviteEnded`·`talkDeclined`), 두 사람에게 `talkStarted`를 보낸다
 - 글 — 0.5초 간격, 제어 문자를 공백으로 바꾸고 앞뒤를 다듬은 1~200자, 링크(`hasLink`)가 없을 때만 두 사람에게 `talkMessage`(보낸 사람에게도 돌아간다). 받은 글은 저장·기록하지 않는다
-- 끝 — `talkLeave`는 나에게 'self'·상대에게 'left'. 틱마다 30m 밖 10초면 'far', 글 없이 3분이면 'idle'을 둘에게 보낸다. 연결이 끊기면 상대에게 'gone'을 보내고, 그 사람이 건 요청은 거두고 받은 요청은 거절로 알린다
+- 끝 — `talkLeave`는 나에게 'self'·상대에게 'left'. 틱마다 10m 밖 10초면 'far', 글 없이 3분이면 'idle'을 둘에게 보낸다. 연결이 끊기면 상대에게 'gone'을 보내고, 그 사람이 건 요청은 거두고 받은 요청은 거절로 알린다
 - 거절·시간 초과·바쁨은 건 사람에게 같은 `talkDeclined`로만 알린다 — 받는 사람의 상태(대화 중·받기 끔)를 드러내지 않는다. 받기 끄기는 클라이언트가 `talkReply({ accept: false })`로 처리하고 서버에 설정을 두지 않는다
 
 ### 근접 게이트웨이 (`/proximity`)
