@@ -77,7 +77,13 @@ const CSS = `
   .tk-far { color: #c4553f; }
   .tk-close { width: 30px; height: 30px; border-radius: 7px; background: #fffdf8; color: #5d5a57; font-size: 20px; line-height: 1; box-shadow: 2px 2px 0 0 #716c66; }
   .tk-close:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 transparent; }
-  .tk-log { flex: 1; min-height: 48px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; padding: 4px 12px 8px;
+  .tk-log-wrap { position: relative; flex: 1; min-height: 48px; display: flex; flex-direction: column; }
+  /* 새 메시지 — 위로 올려 읽는 중에 새 글이 오면 로그 아래 가운데에 뜬다. 누르면 맨 아래로 내려가고 사라진다 */
+  .tk-jump { position: absolute; left: 0; right: 0; bottom: 8px; width: fit-content; margin: 0 auto; display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px 5px 10px; border-radius: 999px; background: #716c66; color: #fbf3df; font-size: 12.5px; font-weight: 600; white-space: nowrap;
+    box-shadow: 2px 2px 0 0 #4a4744; animation: tk-pop 0.2s cubic-bezier(0.33, 1, 0.68, 1); }
+  .tk-jump:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 transparent; }
+  .tk-log { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; padding: 4px 12px 8px;
     scrollbar-width: thin; scrollbar-color: rgba(113, 108, 102, 0.35) transparent; }
   .tk-log:hover { scrollbar-color: rgba(113, 108, 102, 0.6) transparent; }
   /* 스크롤바 — 메신저처럼 화살표 없이 얇고 둥근 막대, 마우스를 올리면 조금 진해진다. 크롬·사파리는 ::-webkit-scrollbar로 그린다
@@ -153,6 +159,12 @@ export default function TalkLayer({
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const logRef = useRef<HTMLDivElement>(null)
+  /** 맨 아래를 보는 중인지 — 위로 올려 예전 글을 읽는 동안에는 새 글이 와도 끌어내리지 않는다 */
+  const followRef = useRef(true)
+  /** 마지막으로 본 줄의 key — 줄 key는 대화가 바뀌어도 계속 커진다 */
+  const seenKeyRef = useRef(0)
+  /** 위를 읽는 동안 아래에 쌓인 새 글 수 — '새 메시지' 버튼에 보인다 */
+  const [unseen, setUnseen] = useState(0)
 
   const refs = useMemo(() => {
     const bind = (slot: TalkSlot) => (el: HTMLDivElement | null) => talk.anchor(slot, el)
@@ -181,18 +193,57 @@ export default function TalkLayer({
     return () => window.removeEventListener('keydown', onKey)
   }, [active, talk])
 
-  // 대화가 끝나면 쓰던 글과 입력 중 상태를 푼다
+  // 대화가 끝나면 쓰던 글과 입력 중 상태를 풀고, 다음 대화는 맨 아래를 따라가며 시작한다
   useEffect(() => {
     if (view.peer) return
     setDraft('')
     onTyping(false)
+    setUnseen(0)
+    followRef.current = true
   }, [view.peer, onTyping])
 
-  // 새 줄이 오면 맨 아래를 보인다
+  // 새 줄 — 맨 아래를 보던 중이거나 내가 보낸 글이면 맨 아래로 내린다. 위를 읽는 중이면 자리를 두고 새 글 수만 센다
+  useEffect(() => {
+    const fresh = view.lines.filter((line) => line.key > seenKeyRef.current)
+    seenKeyRef.current = Math.max(seenKeyRef.current, view.lines[view.lines.length - 1]?.key ?? 0)
+    const log = logRef.current
+    if (!log || fresh.length === 0) return
+    if (followRef.current || fresh.some((line) => line.mine)) {
+      log.scrollTop = log.scrollHeight
+      followRef.current = true
+      setUnseen(0)
+    } else {
+      setUnseen((n) => n + fresh.length)
+    }
+  }, [view.lines])
+
+  // 창 크기가 바뀌어 로그 높이가 달라져도 맨 아래를 보던 중이면 맨 아래에 붙여 둔다
   useEffect(() => {
     const log = logRef.current
-    if (log) log.scrollTop = log.scrollHeight
-  }, [view.lines])
+    if (!log) return
+    const keep = new ResizeObserver(() => {
+      if (followRef.current) log.scrollTop = log.scrollHeight
+    })
+    keep.observe(log)
+    return () => keep.disconnect()
+  }, [view.peer])
+
+  // 맨 아래에서 한 줄(32px) 안이면 맨 아래를 보는 것으로 친다 — 거기까지 내려오면 새 메시지 표시도 지운다
+  const onLogScroll = () => {
+    const log = logRef.current
+    if (!log) return
+    followRef.current = log.scrollHeight - log.scrollTop - log.clientHeight <= 32
+    if (followRef.current) setUnseen(0)
+  }
+
+  const jumpToLatest = () => {
+    const log = logRef.current
+    if (!log) return
+    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    log.scrollTo({ top: log.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+    followRef.current = true
+    setUnseen(0)
+  }
 
   const submit = () => {
     // 조합이 끝난 직후의 값은 상태보다 입력칸이 먼저 안다
@@ -287,15 +338,25 @@ export default function TalkLayer({
               ×
             </button>
           </header>
-          <div ref={logRef} className="tk-log" aria-live="polite">
-            {view.lines.length === 0 ? (
-              <p className="tk-empty">먼저 인사를 건네 보세요</p>
-            ) : (
-              view.lines.map((line) => (
-                <p key={line.key} className={line.mine ? 'tk-line tk-mine' : 'tk-line'}>
-                  {line.text}
-                </p>
-              ))
+          <div className="tk-log-wrap">
+            <div ref={logRef} className="tk-log" aria-live="polite" onScroll={onLogScroll}>
+              {view.lines.length === 0 ? (
+                <p className="tk-empty">먼저 인사를 건네 보세요</p>
+              ) : (
+                view.lines.map((line) => (
+                  <p key={line.key} className={line.mine ? 'tk-line tk-mine' : 'tk-line'}>
+                    {line.text}
+                  </p>
+                ))
+              )}
+            </div>
+            {unseen > 0 && (
+              <button type="button" className="tk-jump" aria-label={`새 메시지 ${unseen}개 — 맨 아래로`} onClick={jumpToLatest}>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+                  <path d="M6 1.5V10M2.4 6.4 6 10l3.6-3.6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                새 메시지 {unseen}개
+              </button>
             )}
           </div>
           <QuickReplies onPick={(phrase) => talk.send(phrase)} />
