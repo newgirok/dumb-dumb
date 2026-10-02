@@ -77,7 +77,18 @@ const CSS = `
   .tk-far { color: #c4553f; }
   .tk-close { width: 30px; height: 30px; border-radius: 7px; background: #fffdf8; color: #5d5a57; font-size: 20px; line-height: 1; box-shadow: 2px 2px 0 0 #716c66; }
   .tk-close:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 transparent; }
-  .tk-log { flex: 1; min-height: 48px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; padding: 4px 12px 8px; }
+  .tk-log { flex: 1; min-height: 48px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; padding: 4px 12px 8px;
+    scrollbar-width: thin; scrollbar-color: rgba(113, 108, 102, 0.35) transparent; }
+  .tk-log:hover { scrollbar-color: rgba(113, 108, 102, 0.6) transparent; }
+  /* 스크롤바 — 메신저처럼 화살표 없이 얇고 둥근 막대, 마우스를 올리면 조금 진해진다. 크롬·사파리는 ::-webkit-scrollbar로 그린다
+     (표준 scrollbar-* 값을 두면 크롬이 이 규칙을 버리고 윈도우에서 위아래 화살표가 남으므로 auto로 되돌린다). 파이어폭스는 위 표준 값 */
+  @supports selector(::-webkit-scrollbar) {
+    .tk-log, .tk-log:hover { scrollbar-width: auto; scrollbar-color: auto; }
+    .tk-log::-webkit-scrollbar { width: 6px; }
+    .tk-log::-webkit-scrollbar-track { background: transparent; }
+    .tk-log::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(113, 108, 102, 0.35); }
+    .tk-log:hover::-webkit-scrollbar-thumb { background: rgba(113, 108, 102, 0.6); }
+  }
   .tk-line { align-self: flex-start; max-width: 85%; padding: 7px 11px; border-radius: 12px 12px 12px 4px; background: #fffdf8; color: #4a4744;
     font-size: 14px; line-height: 1.45; word-break: keep-all; overflow-wrap: anywhere; }
   .tk-line.tk-mine { align-self: flex-end; border-radius: 12px 12px 4px 12px; background: #716c66; color: #fbf3df; }
