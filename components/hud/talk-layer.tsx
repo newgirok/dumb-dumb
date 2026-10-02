@@ -16,25 +16,32 @@ const CSS = `
   .tk-anchor { position: absolute; left: 0; top: 0; visibility: hidden; will-change: transform; }
   .tk-over { position: absolute; left: 0; bottom: 0; transform: translateX(-50%); white-space: nowrap; }
 
+  /* 머리 위 표시가 나타나고 사라지기 — 나타날 때는 0.22초에 커지며 또렷해지고, 사라질 때는 그 자리에서 0.18초에 작아지며
+     옅어진다(Material 모션처럼 나가는 쪽을 짧게). 사라지는 중에 다시 뜨면 그 자리에서 되돌아온다 */
+  .tk-fade { transform-origin: 50% 100%; animation: tk-pop 0.22s cubic-bezier(0.33, 1, 0.68, 1);
+    transition: opacity 0.18s cubic-bezier(0.4, 0, 1, 1), transform 0.18s cubic-bezier(0.4, 0, 1, 1); }
+  .tk-fade.tk-gone { opacity: 0; transform: translateY(4px) scale(0.85); }
+  .tk-gone .tk-hint, .tk-gone .tk-prompt { pointer-events: none; }
+
+  /* 기다리는 중 — 내가 건 요청을 기다리는 상대 머리 위(누를 수 없는 표시) */
   .tk-prompt { pointer-events: auto; display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px 5px 5px; border-radius: 999px;
-    background: #f9efdc; color: #5d5a57; font-size: 14px; font-weight: 600; box-shadow: 2px 2px 0 0 #716c66;
-    animation: tk-pop 0.3s cubic-bezier(0.33, 1, 0.68, 1); transition: transform 0.15s; }
-  @media (hover: hover) { .tk-prompt:not(:disabled):hover { transform: scale(1.06); } }
-  .tk-prompt:not(:disabled):active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 transparent; }
+    background: #f9efdc; color: #5d5a57; font-size: 14px; font-weight: 600; box-shadow: 2px 2px 0 0 #716c66; }
   .tk-prompt:disabled { cursor: default; color: #8d8981; }
   .tk-bang { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #e2674f; color: #fff; font-size: 14px; font-weight: 800; }
   .tk-prompt:disabled .tk-bang { background: #b8b0a3; animation: tk-wait 1.2s ease-in-out infinite; }
-  /* 버튼 상대 표시 — 말 걸 수 있는(4m 안, 화면에 보이는) 가장 가까운 사람 머리 위. 말 걸기 아이콘(말풍선)과 헷갈리지 않게
+  /* 손가락 표시 — 말 걸 수 있는(4m 안, 화면에 보이는) 사람마다 머리 위. 말 걸기 아이콘(말풍선)과 헷갈리지 않게
      "눌러 보세요"를 뜻하는 손가락 모양이고, 살짝 오르내리며 파문이 퍼져 눈길을 끈다(누르면 원형 메뉴) */
   .tk-hint { pointer-events: auto; position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 5px 7px; border-radius: 999px;
-    background: #f9efdc; color: #716c66; box-shadow: 2px 2px 0 0 #716c66;
-    animation: tk-pop 0.3s cubic-bezier(0.33, 1, 0.68, 1), tk-float 1.6s ease-in-out 0.3s infinite; }
+    background: #f9efdc; color: #716c66; box-shadow: 2px 2px 0 0 #716c66; animation: tk-float 1.6s ease-in-out 0.25s infinite; }
   .tk-hint::before { content: ''; position: absolute; inset: -2px; border-radius: inherit; border: 2px solid #f9efdc; pointer-events: none;
-    animation: tk-ripple 1.6s ease-out 0.3s infinite; }
+    animation: tk-ripple 1.6s ease-out 0.25s infinite; }
   /* 손가락으로 누르기 좋게 보이는 크기보다 넓게(44px 남짓) 받는다 */
   .tk-hint::after { content: ''; position: absolute; inset: -9px; border-radius: inherit; }
   @media (hover: hover) { .tk-hint:hover, .tk-hint:hover::before { animation-play-state: paused; } }
   .tk-hint:active { box-shadow: 0 0 0 0 transparent; }
+  /* 거절된 뒤 쉬는 사람 — 숨기지 않고 흐리게, 움직임 없이 둔다(누르면 메뉴에서 남은 시간이 보인다) */
+  .tk-hint.tk-rest { background: #ece4d4; color: #b5aea3; box-shadow: 2px 2px 0 0 #b5aea3; animation: none; }
+  .tk-hint.tk-rest::before { display: none; }
   .tk-ico { display: block; flex: none; }
   /* 원형 메뉴 — 누른 사람 가슴께를 가운데로 둥근 고리를 펼치고 아이콘 버튼을 고리 위에 둔다. 지금은 12시 자리의 말 걸기(말풍선,
      누르면 바로 건다) 하나이고, 나중 아이콘(인사·친구·차단)은 같은 고리의 다른 자리에 붙는다 */
@@ -207,7 +214,6 @@ export default function TalkLayer({
   const refs = useMemo(() => {
     const bind = (slot: TalkSlot) => (el: HTMLDivElement | null) => talk.anchor(slot, el)
     return {
-      target: bind('target'),
       menu: bind('menu'),
       inviter: bind('inviter'),
       selfBubble: bind('selfBubble'),
@@ -223,7 +229,7 @@ export default function TalkLayer({
   }, [onPress])
 
   // E — 말 걸기 아이콘을 누른 것과 같다: 열린 원형 메뉴 상대(못 걸면 흔들고 까닭을 알린다), 메뉴가 없으면 메뉴를 열지 않고
-  // 버튼 상대에게 바로 건다(물리 키 기준, 입력칸·IME 조합 중·키 반복은 무시)
+  // E 키 상대(손가락 표시에 E가 붙은 사람)에게 바로 건다(물리 키 기준, 입력칸·IME 조합 중·키 반복은 무시)
   useEffect(() => {
     if (!active) return
     const onKey = (e: KeyboardEvent) => {
@@ -307,41 +313,42 @@ export default function TalkLayer({
     if (talk.send(inputRef.current?.value ?? draft)) setDraft('')
   }
 
-  const candidate = view.menu ? null : view.candidate
   const menu = view.menu
   return (
     <div className="tk-layer">
       <style>{CSS}</style>
 
-      {/* 버튼 상대 — 말 걸 수 있는 사람 머리 위의 손가락 표시(누르면 원형 메뉴). 건 요청을 기다리는 동안은 "기다리는 중…" */}
-      <div ref={refs.target} className="tk-anchor">
-        {view.asking ? (
+      {/* 머리 위 표시 — 말 걸 수 있는 사람마다 손가락 표시(누르면 원형 메뉴, E 키 상대에게는 E). 건 요청을 기다리는 동안은
+          그 상대의 "기다리는 중…". 사라질 때는 그 자리에서 옅어진다 */}
+      {view.hints.map((hint) => (
+        <div key={hint.id} ref={talk.hintAnchor(hint.id)} className="tk-anchor">
           <div className="tk-over">
-            <button type="button" className="tk-prompt" disabled>
-              <span className="tk-bang" aria-hidden>
-                !
-              </span>
-              기다리는 중…
-            </button>
-          </div>
-        ) : (
-          candidate && (
-            <div className="tk-over">
-              <button
-                type="button"
-                className="tk-hint"
-                aria-label="누를 수 있는 사람 — 눌러서 메뉴 열기"
-                title="눌러서 메뉴 열기 · E로 바로 말 걸기"
-                onPointerDown={onPress}
-                onClick={() => talk.select(candidate)}
-              >
-                <TapIcon />
-                <kbd className="tk-key">E</kbd>
-              </button>
+            <div className={hint.leaving ? 'tk-fade tk-gone' : 'tk-fade'}>
+              {hint.kind === 'wait' ? (
+                <button type="button" className="tk-prompt" disabled>
+                  <span className="tk-bang" aria-hidden>
+                    !
+                  </span>
+                  기다리는 중…
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={hint.cooling ? 'tk-hint tk-rest' : 'tk-hint'}
+                  aria-label={hint.cooling ? '잠시 뒤에 말을 걸 수 있는 사람 — 눌러서 메뉴 열기' : '누를 수 있는 사람 — 눌러서 메뉴 열기'}
+                  title={hint.focus ? '눌러서 메뉴 열기 · E로 바로 말 걸기' : '눌러서 메뉴 열기'}
+                  tabIndex={hint.leaving ? -1 : undefined}
+                  onPointerDown={onPress}
+                  onClick={() => talk.select(hint.id)}
+                >
+                  <TapIcon />
+                  {hint.focus && <kbd className="tk-key">E</kbd>}
+                </button>
+              )}
             </div>
-          )
-        )}
-      </div>
+          </div>
+        </div>
+      ))}
 
       {/* 원형 메뉴 — 누른 사람 둘레. 지금은 12시 자리의 말 걸기 아이콘 하나이고 누르면 바로 건다(멀면 흐리고, 쉬는 중이면 덮개가 걷힌다) */}
       <div ref={refs.menu} className="tk-anchor">
