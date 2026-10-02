@@ -6,12 +6,14 @@ import type { RelayTalk, RelayTalkHandlers } from './relay'
 /**
  * 만남 대화 화면 상태 — 가까이 온 사람을 알아채고, 요청·수락·대화를 서버 이벤트대로 그린다.
  *
- * 말을 거는 길은 둘이다. 화면에 보이는 사람을 눌러(pick) 그 사람 머리 위에 카드를 열고 [말 걸기]를 누르거나
- * (로블록스 아바타 메뉴·클럽 펭귄 플레이어 카드처럼), TALK.promptEnterM 안에 TALK.dwellMs 머문 사람 가운데
- * 화면에 보이는 가장 가까운 사람(버튼 상대 — 머리 위에 작은 말풍선 표시)에게 E 키로 바로 건다. 카드의 [말 걸기]는
- * TALK.promptEnterM 안에서 켜지고 TALK.promptExitM보다 멀어지면 꺼진다(위치가 흔들려도 깜빡이지 않는다).
- * 화면 밖 사람은 누를 수 없으니 표시도 카드도 없다. 성사·종료는 서버가 판정하고, 화면은 받은 대로 그린다.
- * 머리 위 표시·카드·말풍선은 frame()이 매 프레임 화면 좌표로 옮겨 React를 다시 그리지 않는다.
+ * 말을 거는 길은 둘이다. 화면에 보이는 사람을 눌러(pick) 그 사람 둘레에 원형 메뉴를 열고 말풍선 아이콘을 누르거나
+ * (심즈의 파이 메뉴처럼 — 나중에 인사·친구·차단 아이콘이 같은 원에 붙는다), TALK.promptEnterM 안에 TALK.dwellMs 머문
+ * 사람 가운데 화면에 보이는 가장 가까운 사람(버튼 상대 — 머리 위에 누를 수 있다는 손가락 표시)에게 E 키로 바로 건다.
+ * 말풍선 아이콘은 TALK.promptEnterM 안에서 켜지고 TALK.promptExitM보다 멀어지면 흐려진다(위치가 흔들려도 깜빡이지 않는다).
+ * 거절된 뒤 쉬는 동안은 아이콘을 어두운 덮개가 덮고 남은 시간만큼 시계 방향으로 걷힌다. 못 쓰는 아이콘을 누르면(E 키도)
+ * 까닭을 한 줄로 알린다.
+ * 화면 밖 사람은 누를 수 없으니 표시도 메뉴도 없다. 성사·종료는 서버가 판정하고, 화면은 받은 대로 그린다.
+ * 머리 위 표시·메뉴·말풍선은 frame()이 매 프레임 화면 좌표로 옮겨 React를 다시 그리지 않는다.
  * 받기를 꺼 둔 동안의 요청은 조용히 거절한다.
  */
 
@@ -32,14 +34,21 @@ export interface TalkBubble {
   text: string
 }
 
-/** 카드의 [말 걸기] — 걸 수 있음 · 멀어서 못 함 · 거절된 뒤 쉬는 중 */
+/** 원형 메뉴의 말 걸기 아이콘 — 걸 수 있음 · 멀어서 못 함 · 거절된 뒤 쉬는 중 */
 export type TalkReach = 'near' | 'far' | 'cooling'
 
+/** 캐릭터를 눌러 연 원형 메뉴 — coolUntil은 쉬는 중일 때 다시 걸 수 있는 시각(Date.now() 기준) */
+export interface TalkMenu {
+  id: string
+  reach: TalkReach
+  coolUntil: number | null
+}
+
 export interface TalkView {
-  /** 버튼 상대 — 머리 위에 말풍선 표시를 띄우고 E 키가 거는 사람 */
+  /** 버튼 상대 — 머리 위에 손가락 표시를 띄우고 E 키가 거는 사람 */
   candidate: string | null
-  /** 눌러서 연 카드 — 그 사람 머리 위에 [말 걸기]를 띄운다 */
-  card: { id: string; reach: TalkReach } | null
+  /** 눌러서 연 원형 메뉴 — 그 사람 둘레에 말 걸기 아이콘을 띄운다 */
+  menu: TalkMenu | null
   /** 내가 건 요청을 기다리는 상대 */
   asking: string | null
   /** 받은 요청 — until은 Date.now() 기준 만료 시각 */
@@ -56,8 +65,8 @@ export interface TalkView {
   open: boolean
 }
 
-/** 머리 위 자리 — 버튼 상대 표시(또는 "기다리는 중…"), 눌러서 연 카드, 요청을 건 사람 표시, 내 말풍선, 상대 말풍선 */
-export type TalkSlot = 'target' | 'card' | 'inviter' | 'selfBubble' | 'peerBubble'
+/** 머리 위 자리 — 버튼 상대 표시(또는 "기다리는 중…"), 눌러서 연 원형 메뉴, 요청을 건 사람 표시, 내 말풍선, 상대 말풍선 */
+export type TalkSlot = 'target' | 'menu' | 'inviter' | 'selfBubble' | 'peerBubble'
 
 /** 발 위치에서 lift(m) 위를 화면 좌표(px)로 옮긴다 — 화면 밖이거나 카메라 뒤면 false */
 export type Project = (foot: Vec3, lift: number, out: { x: number; y: number }) => boolean
@@ -73,11 +82,11 @@ export interface Talk {
   reset(): void
   /** 저장해 둔 말 걸기 받기 설정을 읽는다(브라우저에서만) */
   restore(): void
-  /** 말을 건다 — to가 없으면 [말 걸기]가 켜진 카드 상대, 그다음 버튼 상대에게 */
+  /** 말을 건다 — to가 없으면 열린 원형 메뉴 상대(못 걸면 까닭만 알린다), 메뉴가 없으면 버튼 상대에게 */
   invite(to?: string): void
   /** 화면 좌표(캔버스 기준 px)에 선 캐릭터 — 여럿이 겹치면 카메라에 가까운 사람. 없으면 null */
   pick(x: number, y: number): string | null
-  /** 카드를 연다(null이면 닫는다) — 대화·요청 중에는 열지 않는다 */
+  /** 원형 메뉴를 연다(null이면 닫는다) — 대화·요청 중에는 열지 않는다 */
   select(id: string | null): void
   accept(): void
   decline(): void
@@ -98,6 +107,8 @@ const NOTICE_MS = 2600
 const MAX_LINES = 60
 /** 머리 위 자리 높이(m, 발 기준) — 모자 꼭대기(약 1.5m) 조금 위 */
 const HEAD_LIFT = 1.7
+/** 원형 메뉴 가운데 높이(m, 발 기준) — 가슴께 */
+const CHEST_LIFT = 0.85
 /** 머리 위 자리가 화면 가장자리와 띄울 간격(px) */
 const EDGE_PX = 8
 /** 캐릭터를 누르는 칸의 최소 반폭(px) — 멀리 있어 작게 보여도 손가락으로 누를 만큼(48px 폭) 넉넉하게 */
@@ -119,7 +130,7 @@ export function createTalk(): Talk {
   const listeners = new Set<() => void>()
   let view: TalkView = {
     candidate: null,
-    card: null,
+    menu: null,
     asking: null,
     invite: null,
     peer: null,
@@ -138,7 +149,7 @@ export function createTalk(): Talk {
   const near = new Map<string, number>()
   /** 다시 걸 수 있는 시각(Date.now()) */
   const cooling = new Map<string, number>()
-  const anchors: Record<TalkSlot, HTMLElement | null> = { target: null, card: null, inviter: null, selfBubble: null, peerBubble: null }
+  const anchors: Record<TalkSlot, HTMLElement | null> = { target: null, menu: null, inviter: null, selfBubble: null, peerBubble: null }
   const spot = { x: 0, y: 0 }
   const head = { x: 0, y: 0 }
   const feet = { x: 0, y: 0 }
@@ -212,7 +223,7 @@ export function createTalk(): Talk {
       notify('지금은 바쁜가 봐요')
     },
     onStarted(peer) {
-      set({ asking: null, invite: null, candidate: null, card: null, ...ended(), peer })
+      set({ asking: null, invite: null, candidate: null, menu: null, ...ended(), peer })
     },
     onMessage({ text, mine }) {
       if (!view.peer) return
@@ -226,31 +237,41 @@ export function createTalk(): Talk {
     },
   }
 
-  /** 머리 위 자리를 옮긴다 — 화면 밖이거나 카메라 뒤면 숨긴다 */
-  const place = (slot: TalkSlot, foot: Vec3 | null | undefined, project: Project) => {
+  /**
+   * 자리를 옮긴다 — 화면 밖이거나 카메라 뒤면 숨긴다. 기본은 머리 위(내용의 아래 끝이 그 자리)이고,
+   * centered면 lift 높이가 내용의 가운데다(원형 메뉴는 가슴께가 가운데)
+   */
+  const place = (slot: TalkSlot, foot: Vec3 | null | undefined, project: Project, lift = HEAD_LIFT, centered = false) => {
     const el = anchors[slot]
     if (!el) return
-    if (!foot || !project(foot, HEAD_LIFT, spot)) {
+    if (!foot || !project(foot, lift, spot)) {
       if (el.style.visibility !== 'hidden') el.style.visibility = 'hidden'
       return
     }
-    // 말풍선·카드가 화면 밖으로 잘리지 않게 내용 크기만큼 안으로 당긴다 — 내용의 아래 끝이 머리 위 자리에 온다
+    // 말풍선·메뉴가 화면 밖으로 잘리지 않게 내용 크기만큼 안으로 당긴다
     const box = el.firstElementChild as HTMLElement | null
     const half = (box?.offsetWidth ?? 0) / 2
+    const tall = box?.offsetHeight ?? 0
     const width = el.parentElement?.clientWidth ?? 0
     const height = el.parentElement?.clientHeight ?? 0
     const x = Math.min(Math.max(spot.x, half + EDGE_PX), width - half - EDGE_PX)
-    const y = Math.min(Math.max(spot.y, (box?.offsetHeight ?? 0) + EDGE_PX), height - EDGE_PX)
+    const y = centered
+      ? Math.min(Math.max(spot.y, tall / 2 + EDGE_PX), height - tall / 2 - EDGE_PX)
+      : Math.min(Math.max(spot.y, tall + EDGE_PX), height - EDGE_PX)
     el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`
     if (el.style.visibility !== 'visible') el.style.visibility = 'visible'
   }
 
-  /** 카드 상대에게 지금 말을 걸 수 있는지 — 이미 걸 수 있었으면 나가는 거리까지 켜 둔다(경계에서 깜빡이지 않게) */
+  /** 메뉴 상대에게 지금 말을 걸 수 있는지 — 이미 걸 수 있었으면 나가는 거리까지 켜 둔다(경계에서 깜빡이지 않게) */
   const reachOf = (id: string, was: TalkReach | null): TalkReach => {
     if ((cooling.get(id) ?? 0) > Date.now()) return 'cooling'
     const pos = lastOthers.get(id)
     if (!lastSelf || !pos) return 'far'
     return distance(lastSelf, pos) <= (was === 'near' ? TALK.promptExitM : TALK.promptEnterM) ? 'near' : 'far'
+  }
+  const menuOf = (id: string, was: TalkReach | null): TalkMenu => {
+    const reach = reachOf(id, was)
+    return { id, reach, coolUntil: reach === 'cooling' ? (cooling.get(id) ?? null) : null }
   }
 
   return {
@@ -268,7 +289,7 @@ export function createTalk(): Talk {
     reset() {
       const talking = view.peer !== null
       near.clear()
-      set({ candidate: null, card: null, asking: null, invite: null, ...ended() })
+      set({ candidate: null, menu: null, asking: null, invite: null, ...ended() })
       if (talking) notify('연결이 끊겨 대화가 끝났어요')
     },
 
@@ -281,12 +302,16 @@ export function createTalk(): Talk {
     },
 
     invite(target) {
-      const card = view.card
-      const to = target ?? (card?.reach === 'near' ? card.id : view.candidate)
+      // 메뉴가 열려 있으면 그 사람에게만 — 메뉴 상대를 못 걸 때 E 키가 메뉴에 가려 안 보이는 버튼 상대에게 걸지 않게
+      const menu = view.menu
+      const to = target ?? menu?.id ?? view.candidate
       if (!to || view.asking || view.peer || !transport) return
-      // 카드로 거는 건 [말 걸기]가 켜졌을 때만 — 멀거나 쉬는 중인 사람에게는 걸지 않는다
-      if (card?.id === to && card.reach !== 'near') return
-      set({ asking: to, card: null })
+      // 메뉴로 거는 건 아이콘이 켜졌을 때만 — 멀거나 쉬는 중이면 걸지 않고 까닭만 한 줄로 알린다(게임의 "너무 멀어요"처럼)
+      if (menu?.id === to && menu.reach !== 'near') {
+        notify(menu.reach === 'far' ? '조금 더 가까이 가면 말을 걸 수 있어요' : '잠시 뒤에 다시 말을 걸 수 있어요')
+        return
+      }
+      set({ asking: to, menu: null })
       transport.invite(to)
       // 서버 답이 끝내 오지 않으면(끊김) 요청 시간이 지난 뒤 기다림을 푼다
       later(TALK.inviteTtlMs + 3000, () => {
@@ -316,12 +341,12 @@ export function createTalk(): Talk {
 
     select(id) {
       if (id === null) {
-        if (view.card) set({ card: null })
+        if (view.menu) set({ menu: null })
         return
       }
       if (view.peer || view.asking || view.invite) return
-      if (view.card?.id === id) return
-      set({ card: { id, reach: reachOf(id, null) } })
+      if (view.menu?.id === id) return
+      set({ menu: menuOf(id, null) })
     },
 
     accept() {
@@ -402,14 +427,14 @@ export function createTalk(): Talk {
       }
       if (candidate !== view.candidate) set({ candidate })
 
-      // 카드 — 그 사람이 떠났거나 화면 밖으로 나갔거나, 대화·요청이 생기면 닫는다. 아니면 [말 걸기]를 거리대로 켜고 끈다
-      if (view.card) {
-        const pos = others.get(view.card.id)
+      // 원형 메뉴 — 그 사람이 떠났거나 화면 밖으로 나갔거나, 대화·요청이 생기면 닫는다. 아니면 말 걸기 아이콘을 거리대로 켜고 끈다
+      if (view.menu) {
+        const pos = others.get(view.menu.id)
         if (!pos || !project(pos, HEAD_LIFT, spot) || view.peer || view.asking || view.invite) {
-          set({ card: null })
+          set({ menu: null })
         } else {
-          const reach = reachOf(view.card.id, view.card.reach)
-          if (reach !== view.card.reach) set({ card: { id: view.card.id, reach } })
+          const reach = reachOf(view.menu.id, view.menu.reach)
+          if (reach !== view.menu.reach) set({ menu: menuOf(view.menu.id, view.menu.reach) })
         }
       }
 
@@ -421,7 +446,7 @@ export function createTalk(): Talk {
 
       const target = view.asking ?? view.candidate
       place('target', target ? others.get(target) : null, project)
-      place('card', view.card ? others.get(view.card.id) : null, project)
+      place('menu', view.menu ? others.get(view.menu.id) : null, project, CHEST_LIFT, true)
       place('inviter', view.invite ? others.get(view.invite.from) : null, project)
       place('selfBubble', view.bubbles.self ? self : null, project)
       place('peerBubble', view.peer && view.bubbles.peer ? others.get(view.peer) : null, project)

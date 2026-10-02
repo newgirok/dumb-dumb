@@ -157,7 +157,7 @@ const INTRO_REVEAL_MS = 4000
 const AUDIO_DELAY_MS = 1500
 /** 펼침 지도가 다 그려지기를 로더가 기다리는 최대 시간 — 네트워크가 막혀 지도가 끝나지 않아도 씬은 시작한다 */
 const MAP_IDLE_TIMEOUT_MS = 8000
-/** 캐릭터를 눌렀다 뗀 것으로 치는 범위 — 이만큼 안 움직이고 이 시간 안에 떼면 카드를 연다 */
+/** 캐릭터를 눌렀다 뗀 것으로 치는 범위 — 이만큼 안 움직이고 이 시간 안에 떼면 원형 메뉴를 연다 */
 const PICK_SLOP_PX = 12
 const PICK_MS = 600
 
@@ -855,8 +855,8 @@ export default function PlayScene() {
       return true
     }
 
-    // 만남 대화 카드 — 캐릭터 위를 짧게 눌렀다 떼면(클릭·탭) 그 사람 카드를 연다. 캐릭터 위에서 누른 것은 이동·점프로
-    // 넘기지 않으려고, 캔버스의 3인칭 조작보다 먼저 받는 감싼 요소의 캡처 단계에서 듣는다. 빈 곳을 누르면 카드를 닫는다
+    // 만남 대화 원형 메뉴 — 캐릭터 위를 짧게 눌렀다 떼면(클릭·탭) 그 사람 둘레에 메뉴를 연다. 캐릭터 위에서 누른 것은 이동·점프로
+    // 넘기지 않으려고, 캔버스의 3인칭 조작보다 먼저 받는 감싼 요소의 캡처 단계에서 듣는다. 빈 곳을 누르면 메뉴를 닫는다
     let pressed: { pointerId: number; x: number; y: number; at: number; id: string } | null = null
     const pickAt = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect()

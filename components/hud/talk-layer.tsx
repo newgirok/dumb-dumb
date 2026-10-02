@@ -24,19 +24,37 @@ const CSS = `
   .tk-prompt:disabled { cursor: default; color: #8d8981; }
   .tk-bang { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #e2674f; color: #fff; font-size: 14px; font-weight: 800; }
   .tk-prompt:disabled .tk-bang { background: #b8b0a3; animation: tk-wait 1.2s ease-in-out infinite; }
-  /* 버튼 상대 표시 — 말 걸 수 있는(4m 안, 화면에 보이는) 가장 가까운 사람 머리 위의 작은 말풍선. 누르면 카드가 열린다 */
-  .tk-hint { pointer-events: auto; display: inline-flex; align-items: center; gap: 4px; padding: 5px 7px; border-radius: 999px; background: #f9efdc; color: #716c66;
-    box-shadow: 2px 2px 0 0 #716c66; animation: tk-pop 0.3s cubic-bezier(0.33, 1, 0.68, 1); transition: transform 0.15s; }
-  @media (hover: hover) { .tk-hint:hover { transform: scale(1.08); } }
-  .tk-hint:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 transparent; }
+  /* 버튼 상대 표시 — 말 걸 수 있는(4m 안, 화면에 보이는) 가장 가까운 사람 머리 위. 말 걸기 아이콘(말풍선)과 헷갈리지 않게
+     "눌러 보세요"를 뜻하는 손가락 모양이고, 살짝 오르내리며 파문이 퍼져 눈길을 끈다(누르면 원형 메뉴) */
+  .tk-hint { pointer-events: auto; position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 5px 7px; border-radius: 999px;
+    background: #f9efdc; color: #716c66; box-shadow: 2px 2px 0 0 #716c66;
+    animation: tk-pop 0.3s cubic-bezier(0.33, 1, 0.68, 1), tk-float 1.6s ease-in-out 0.3s infinite; }
+  .tk-hint::before { content: ''; position: absolute; inset: -2px; border-radius: inherit; border: 2px solid #f9efdc; pointer-events: none;
+    animation: tk-ripple 1.6s ease-out 0.3s infinite; }
+  /* 손가락으로 누르기 좋게 보이는 크기보다 넓게(44px 남짓) 받는다 */
+  .tk-hint::after { content: ''; position: absolute; inset: -9px; border-radius: inherit; }
+  @media (hover: hover) { .tk-hint:hover, .tk-hint:hover::before { animation-play-state: paused; } }
+  .tk-hint:active { box-shadow: 0 0 0 0 transparent; }
   .tk-ico { display: block; flex: none; }
-  /* 카드 — 누른 사람 머리 위. 지금은 [말 걸기] 하나이고, 나중 버튼(인사·친구·차단)도 같은 줄에 붙는다 */
-  .tk-pcard { pointer-events: auto; display: flex; gap: 6px; padding: 6px; border-radius: 14px; background: #f9efdc; box-shadow: 3px 3px 0 0 #716c66;
-    animation: tk-pop 0.25s cubic-bezier(0.33, 1, 0.68, 1); }
-  .tk-act { --tk-ico-line: #716c66; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: #716c66;
-    color: #fbf3df; font-size: 14px; font-weight: 600; box-shadow: 2px 2px 0 0 #4a4744; transition: transform 0.15s; }
-  .tk-act:not(:disabled):active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 transparent; }
-  .tk-act:disabled { --tk-ico-line: #ece3d3; cursor: default; background: #ece3d3; color: #8d8981; box-shadow: none; }
+  /* 원형 메뉴 — 누른 사람 가슴께를 가운데로 둥근 고리를 펼치고 아이콘 버튼을 고리 위에 둔다. 지금은 12시 자리의 말 걸기(말풍선,
+     누르면 바로 건다) 하나이고, 나중 아이콘(인사·친구·차단)은 같은 고리의 다른 자리에 붙는다 */
+  .tk-center { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); }
+  .tk-wheel { position: relative; width: 112px; height: 112px; border-radius: 50%; border: 3px solid rgba(249, 239, 220, 0.85);
+    box-shadow: 0 0 0 1px rgba(113, 108, 102, 0.35), inset 0 0 0 1px rgba(113, 108, 102, 0.25); animation: tk-wheel 0.22s cubic-bezier(0.33, 1, 0.68, 1); }
+  .tk-wheel-btn { pointer-events: auto; position: absolute; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%;
+    background: #f9efdc; color: #716c66; box-shadow: 2px 2px 0 0 #716c66; transition: background-color 0.2s, color 0.2s, box-shadow 0.2s; }
+  .tk-wheel-btn .tk-ico { width: 20px; height: 18px; }
+  .tk-wheel-top { left: 50%; top: 0; margin: -22px 0 0 -22px; }
+  .tk-wheel-btn:not([aria-disabled='true']):active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 transparent; }
+  /* 지금은 못 쓰는 아이콘 — 숨기지 않고 둔다. 누르면 흔들리고 까닭을 한 줄로 알린다 */
+  .tk-wheel-btn[aria-disabled='true'] { cursor: default; }
+  /* 사거리 밖 — 색만 옅게 한다(반투명으로 흐리면 뒤 풍경이 비쳐 아이콘이 깨져 보인다) */
+  .tk-wheel-btn.tk-off { background: #ece4d4; color: #b5aea3; box-shadow: 2px 2px 0 0 #b5aea3; }
+  .tk-wheel-btn.tk-shake { animation: tk-shake 0.35s ease; }
+  /* 거절된 뒤 쉬는 동안 — 아이콘을 덮은 어두운 덮개가 12시부터 시계 방향으로 걷힌다(게임의 쿨다운 표시). --tk-cool은 남은 몫(1→0) */
+  @property --tk-cool { syntax: '<number>'; inherits: false; initial-value: 0; }
+  .tk-cool { position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+    background: conic-gradient(transparent calc((1 - var(--tk-cool)) * 1turn), rgba(74, 71, 68, 0.42) 0); animation: tk-cool linear forwards; }
   .tk-key { padding: 0 6px; border: 1px solid #b8b0a3; border-radius: 4px; font: 600 11px/18px Pretendard, sans-serif; color: #8d8981; }
   @media (pointer: coarse) { .tk-key { display: none; } }
 
@@ -138,16 +156,23 @@ const CSS = `
   @keyframes tk-pop { from { opacity: 0; transform: translateY(6px) scale(0.9); } to { opacity: 1; transform: none; } }
   @keyframes tk-wait { 50% { opacity: 0.5; } }
   @keyframes tk-bob { 50% { transform: translateY(-4px); } }
+  @keyframes tk-float { 50% { transform: translateY(-3px); } }
+  @keyframes tk-ripple { from { opacity: 0.9; transform: scale(1); } to { opacity: 0; transform: scale(1.45); } }
+  @keyframes tk-wheel { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+  @keyframes tk-shake { 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
+  @keyframes tk-cool { from { --tk-cool: 1; } to { --tk-cool: 0; } }
   @keyframes tk-bubble { 0% { opacity: 0; transform: translate(-50%, 6px); } 5%, 88% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, 0); } }
   @keyframes tk-drop { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
   @keyframes tk-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
   @keyframes tk-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
   @keyframes tk-notice { 0% { opacity: 0; transform: translateY(-6px); } 8%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
   @media (prefers-reduced-motion: reduce) { .tk-layer *, .tk-layer *::before { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; } }
+  /* 움직임을 줄이면 쉬는 동안 덮개를 걷지 않고 다 덮어 둔다(쉬는 게 끝나면 덮개가 사라진다) */
+  @media (prefers-reduced-motion: reduce) { .tk-layer .tk-cool { animation: none !important; --tk-cool: 1; } }
 `
 
 /**
- * 만남 대화 화면 — 가까이 온 사람 머리 위 말 걸기 버튼, 받은 요청 카드, 두 사람만 보는 대화 창, 머리 위 말풍선.
+ * 만남 대화 화면 — 누를 수 있는 사람 머리 위 손가락 표시, 눌러서 여는 원형 메뉴, 받은 요청 카드, 두 사람만 보는 대화 창, 머리 위 말풍선.
  * 상태는 talk(lib/realtime/talk.ts)가 들고, 머리 위 자리는 씬이 매 프레임 talk.frame()으로 옮긴다.
  */
 export default function TalkLayer({
@@ -174,12 +199,16 @@ export default function TalkLayer({
   const seenKeyRef = useRef(0)
   /** 위를 읽는 동안 아래에 쌓인 새 글 수 — '새 메시지' 버튼에 보인다 */
   const [unseen, setUnseen] = useState(0)
+  /** 흐린 말 걸기 아이콘을 누른 횟수 — 늘 때마다 아이콘이 한 번 흔들린다(다른 사람 메뉴를 열면 처음으로) */
+  const [shake, setShake] = useState(0)
+  const menuId = view.menu?.id ?? null
+  useEffect(() => setShake(0), [menuId])
 
   const refs = useMemo(() => {
     const bind = (slot: TalkSlot) => (el: HTMLDivElement | null) => talk.anchor(slot, el)
     return {
       target: bind('target'),
-      card: bind('card'),
+      menu: bind('menu'),
       inviter: bind('inviter'),
       selfBubble: bind('selfBubble'),
       peerBubble: bind('peerBubble'),
@@ -193,31 +222,33 @@ export default function TalkLayer({
     pressRef.current = onPress
   }, [onPress])
 
-  // E — 카드를 열지 않고 바로 말 걸기: [말 걸기]가 켜진 카드 상대, 없으면 버튼 상대(물리 키 기준, 입력칸·IME 조합 중·키 반복은 무시)
+  // E — 말 걸기 아이콘을 누른 것과 같다: 열린 원형 메뉴 상대(못 걸면 흔들고 까닭을 알린다), 메뉴가 없으면 메뉴를 열지 않고
+  // 버튼 상대에게 바로 건다(물리 키 기준, 입력칸·IME 조합 중·키 반복은 무시)
   useEffect(() => {
     if (!active) return
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'KeyE' || e.repeat || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return
       if ((e.target as HTMLElement | null)?.closest('input, textarea, select, [contenteditable="true"]')) return
       const now = talk.view()
-      if (!now.candidate && now.card?.reach !== 'near') return
+      if (!now.candidate && !now.menu) return
       e.preventDefault()
       pressRef.current?.()
+      if (now.menu && now.menu.reach !== 'near') setShake((n) => n + 1)
       talk.invite()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [active, talk])
 
-  // Esc — 열린 카드를 닫는다(빈 곳을 눌러도 닫힌다 — 씬이 처리한다)
+  // Esc — 열린 원형 메뉴를 닫는다(빈 곳을 눌러도 닫힌다 — 씬이 처리한다)
   useEffect(() => {
-    if (!view.card) return
+    if (!view.menu) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') talk.select(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [view.card, talk])
+  }, [view.menu, talk])
 
   // 대화가 끝나면 쓰던 글과 입력 중 상태를 풀고, 다음 대화는 맨 아래를 따라가며 시작한다
   useEffect(() => {
@@ -276,13 +307,13 @@ export default function TalkLayer({
     if (talk.send(inputRef.current?.value ?? draft)) setDraft('')
   }
 
-  const candidate = view.card ? null : view.candidate
-  const card = view.card
+  const candidate = view.menu ? null : view.candidate
+  const menu = view.menu
   return (
     <div className="tk-layer">
       <style>{CSS}</style>
 
-      {/* 버튼 상대 — 말 걸 수 있는 사람 머리 위의 작은 말풍선(누르면 카드). 건 요청을 기다리는 동안은 "기다리는 중…" */}
+      {/* 버튼 상대 — 말 걸 수 있는 사람 머리 위의 손가락 표시(누르면 원형 메뉴). 건 요청을 기다리는 동안은 "기다리는 중…" */}
       <div ref={refs.target} className="tk-anchor">
         {view.asking ? (
           <div className="tk-over">
@@ -299,12 +330,12 @@ export default function TalkLayer({
               <button
                 type="button"
                 className="tk-hint"
-                aria-label="말 걸 수 있어요 — 눌러서 카드 열기"
-                title="말 걸기 (E)"
+                aria-label="누를 수 있는 사람 — 눌러서 메뉴 열기"
+                title="눌러서 메뉴 열기 · E로 바로 말 걸기"
                 onPointerDown={onPress}
                 onClick={() => talk.select(candidate)}
               >
-                <TalkIcon />
+                <TapIcon />
                 <kbd className="tk-key">E</kbd>
               </button>
             </div>
@@ -312,20 +343,35 @@ export default function TalkLayer({
         )}
       </div>
 
-      {/* 카드 — 누른 사람 머리 위. [말 걸기]는 4m 안에서 켜진다 */}
-      <div ref={refs.card} className="tk-anchor">
-        {card && (
-          <div className="tk-over">
-            <div className="tk-pcard" role="dialog" aria-label="이 사람에게 할 수 있는 것">
+      {/* 원형 메뉴 — 누른 사람 둘레. 지금은 12시 자리의 말 걸기 아이콘 하나이고 누르면 바로 건다(멀면 흐리고, 쉬는 중이면 덮개가 걷힌다) */}
+      <div ref={refs.menu} className="tk-anchor">
+        {menu && (
+          <div className="tk-center">
+            <div className="tk-wheel" role="menu" aria-label="이 사람에게 할 수 있는 것">
               <button
+                key={shake}
                 type="button"
-                className="tk-act"
-                disabled={card.reach !== 'near'}
+                role="menuitem"
+                className={`tk-wheel-btn tk-wheel-top${menu.reach === 'far' ? ' tk-off' : ''}${shake ? ' tk-shake' : ''}`}
+                aria-disabled={menu.reach !== 'near'}
+                aria-label={
+                  menu.reach === 'near'
+                    ? '말 걸기'
+                    : menu.reach === 'far'
+                      ? '말 걸기 — 더 가까이 가야 해요'
+                      : '말 걸기 — 잠시 뒤에 걸 수 있어요'
+                }
+                title="말 걸기 (E)"
                 onPointerDown={onPress}
-                onClick={() => talk.invite(card.id)}
+                onClick={() => {
+                  if (menu.reach !== 'near') setShake((n) => n + 1)
+                  talk.invite(menu.id)
+                }}
               >
                 <TalkIcon />
-                {card.reach === 'near' ? '말 걸기' : card.reach === 'far' ? '가까이 가면 말 걸기' : '잠시 뒤에 다시 걸 수 있어요'}
+                {menu.reach === 'cooling' && menu.coolUntil !== null && (
+                  <CoolWipe key={`${menu.id}:${menu.coolUntil}`} until={menu.coolUntil} />
+                )}
               </button>
             </div>
           </div>
@@ -495,6 +541,28 @@ function QuickReplies({ onPick }: { onPick: (phrase: string) => void }) {
         </button>
       ))}
     </div>
+  )
+}
+
+/**
+ * 쉬는 동안 덮개 — 지난 시간은 처음 그릴 때 한 번만 잰다. 다시 그릴 때마다 새로 재서 늦춤 값을 바꾸면
+ * 이미 돌던 애니메이션이 그만큼 앞으로 튄다(시작 시각은 그대로라서)
+ */
+function CoolWipe({ until }: { until: number }) {
+  const [elapsed] = useState(() => TALK.cooldownMs - Math.max(0, until - Date.now()))
+  return <span className="tk-cool" style={{ animationDuration: `${TALK.cooldownMs}ms`, animationDelay: `${-elapsed}ms` }} />
+}
+
+/** 손가락 아이콘 — "눌러 보세요"(손끝 위 파문 한 줄). 말 걸기 아이콘과 다른 모양이라 메뉴를 여는 표시로 쓴다 */
+function TapIcon() {
+  return (
+    <svg className="tk-ico" width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden>
+      <path d="M5.2 5.6a3.9 3.9 0 0 1 7.6 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path
+        d="M7.8 6.6a1.25 1.25 0 0 1 2.5 0v4l2.7.6a1.6 1.6 0 0 1 1.2 1.8l-.5 3.3H7.5l-2.4-3.2a1.2 1.2 0 0 1 1.8-1.6l.9.9z"
+        fill="currentColor"
+      />
+    </svg>
   )
 }
 
