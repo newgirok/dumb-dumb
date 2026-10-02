@@ -19,7 +19,14 @@ const PLACES: Record<SceneRoute, { title: string; badge?: string; tilt: number; 
   '/asset-viewer': { title: '에셋 미리보기', badge: '개발용', tilt: -1, Icon: AssetViewerIcon },
 }
 
+// 버튼 이름·배지 글자만 담은 작은 폰트(Stylish 4KB·Pretendard 2KB) — 전체 한글 폰트(936KB·748KB)를 기다리지 않고 첫 화면 글자가
+// 곧바로 그려진다. 버튼 이름이나 배지 글자를 바꾸면 다시 만든다(공식 배포본에서 fontTools로, 라이선스 정보는 그대로 둔다):
+//   pyftsubset Stylish-Regular.ttf --text="플레이 내 주변 에셋 미리보기" --flavor=woff2 --name-IDs='*' --output-file=public/fonts/stylish-home.woff2
+//   pyftsubset Pretendard-Regular.otf --text="베타 개발용" --flavor=woff2 --name-IDs='*' --output-file=public/fonts/pretendard-home.woff2
+// 빠진 글자는 뒤의 전체 폰트(Stylish·Pretendard)로 그려진다
 const CSS = `
+  @font-face { font-family: 'Stylish Home'; src: url('/fonts/stylish-home.woff2') format('woff2'); font-weight: 400; font-display: block; }
+  @font-face { font-family: 'Pretendard Home'; src: url('/fonts/pretendard-home.woff2') format('woff2'); font-weight: 400; font-display: block; }
   .home { --card-w: min(420px, 86vw); position: relative; min-height: 100dvh; overflow: hidden; display: flex; flex-direction: column; align-items: center;
     background:
       radial-gradient(circle at 84% 10%, rgba(255, 246, 220, 0.95) 0, rgba(255, 246, 220, 0) 20%),
@@ -40,8 +47,8 @@ const CSS = `
   .home-card:active { transform: translate(3px, 3px) rotate(0deg) scale(1.04); box-shadow: 0 0 0 0 transparent; }
   .home-card:focus-visible { outline: 3px solid #5d5a57; outline-offset: 4px; }
   .home-card svg { width: clamp(36px, 10vw, 50px); height: clamp(36px, 10vw, 50px); }
-  .home-card-title { font-family: Stylish, Pretendard, sans-serif; font-size: clamp(26px, 7.2vw, 38px); line-height: 1; }
-  .home-badge { font-family: Pretendard, sans-serif; font-size: 12px; line-height: 1; padding: 5px 8px; border-radius: 999px;
+  .home-card-title { font-family: 'Stylish Home', Stylish, Pretendard, sans-serif; font-size: clamp(26px, 7.2vw, 38px); line-height: 1; }
+  .home-badge { font-family: 'Pretendard Home', Pretendard, sans-serif; font-size: 12px; line-height: 1; padding: 5px 8px; border-radius: 999px;
     background: #716c66; color: #f9efdc; vertical-align: 0.3em; margin-left: 8px; white-space: nowrap; }
   /* 제목·카드 묶음은 언덕 위 하늘의 가운데에 — 아래 여백은 언덕이 올라오는 만큼 */
   .home-hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6vh 0 max(22vh, 150px); }
@@ -60,8 +67,11 @@ const CSS = `
 `
 
 export default function Home() {
-  // 버튼 이름 폰트(Stylish)는 1MB 가까이 된다 — 펼침 지도도 같은 파일을 쓰니 여기서 먼저 받아 둔다
-  preload('/ref-assets/fonts/Stylish-Regular.woff2', { as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' })
+  // 버튼 이름·배지는 작은 폰트로 먼저 그린다. 전체 Stylish(1MB 가까이)는 펼침 지도가 쓰니 여기서 받아 두되,
+  // 첫 화면 글자와 대역폭을 다투지 않게 낮은 우선순위로 받는다
+  preload('/fonts/stylish-home.woff2', { as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' })
+  preload('/fonts/pretendard-home.woff2', { as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' })
+  preload('/ref-assets/fonts/Stylish-Regular.woff2', { as: 'font', type: 'font/woff2', crossOrigin: 'anonymous', fetchPriority: 'low' })
 
   return (
     <main className={`home ${luckiestGuy.variable}`}>
