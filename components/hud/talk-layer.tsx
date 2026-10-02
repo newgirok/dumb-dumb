@@ -54,26 +54,34 @@ const CSS = `
   @media (max-width: 639px) {
     .tk-card { top: auto; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); width: auto; transform: none; animation-name: tk-rise; }
   }
+  /* 좁고 낮은 화면(휴대폰 가로)은 아래 가득 펼치면 오른쪽 HUD 버튼 줄을 덮는다 — 가운데에 HUD 폭만큼 비켜 띄운다 */
+  @media (max-width: 639px) and (max-height: 560px) {
+    .tk-card { left: 0; right: 0; margin: 0 auto; width: min(340px, calc(100vw - 144px)); }
+  }
 
-  /* 대화 창 — 데스크톱은 오른쪽 아래, 좁은 화면은 아래를 가득 */
-  .tk-panel { pointer-events: auto; position: absolute; right: 20px; bottom: 20px; width: 320px; max-height: min(46vh, 420px); display: flex;
-    flex-direction: column; border-radius: 14px; background: #f9efdc; box-shadow: 3px 3px 0 0 #716c66; overflow: hidden;
+  /* 대화 창 — 데스크톱은 오른쪽 아래, 좁은 화면은 아래를 가득, 낮은 화면은 왼쪽 위아래를 가득(오른쪽 위 HUD와 겹치지 않게) */
+  .tk-panel { pointer-events: auto; position: absolute; right: 20px; bottom: 20px; width: 320px; max-height: min(46vh, 420px); max-height: min(46dvh, 420px);
+    display: flex; flex-direction: column; border-radius: 14px; background: #f9efdc; box-shadow: 3px 3px 0 0 #716c66; overflow: hidden;
     animation: tk-rise 0.25s cubic-bezier(0.33, 1, 0.68, 1); }
   @media (max-width: 639px) {
-    .tk-panel { left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); width: auto; max-height: 44vh; }
+    .tk-panel { left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); width: auto; max-height: 44vh; max-height: 44dvh; }
+  }
+  @media (max-height: 560px) {
+    .tk-panel { top: calc(12px + env(safe-area-inset-top)); bottom: calc(12px + env(safe-area-inset-bottom)); left: calc(12px + env(safe-area-inset-left));
+      right: auto; width: min(340px, calc(100vw - 96px)); max-height: none; }
   }
   .tk-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 10px 8px 14px; }
   .tk-title { font-family: Stylish, sans-serif; font-size: 19px; }
   .tk-far { color: #c4553f; }
   .tk-close { width: 30px; height: 30px; border-radius: 7px; background: #fffdf8; color: #5d5a57; font-size: 20px; line-height: 1; box-shadow: 2px 2px 0 0 #716c66; }
   .tk-close:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 transparent; }
-  .tk-log { flex: 1; min-height: 72px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; padding: 4px 12px 8px; }
+  .tk-log { flex: 1; min-height: 48px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; padding: 4px 12px 8px; }
   .tk-line { align-self: flex-start; max-width: 85%; padding: 7px 11px; border-radius: 12px 12px 12px 4px; background: #fffdf8; color: #4a4744;
     font-size: 14px; line-height: 1.45; word-break: keep-all; overflow-wrap: anywhere; }
   .tk-line.tk-mine { align-self: flex-end; border-radius: 12px 12px 4px 12px; background: #716c66; color: #fbf3df; }
   .tk-empty { margin: auto; font-size: 13px; color: #8d8981; }
-  .tk-quick { display: flex; gap: 6px; padding: 0 12px 8px; overflow-x: auto; scrollbar-width: none; }
-  .tk-quick::-webkit-scrollbar { display: none; }
+  /* 빠른 문구 — 한 줄에 다 들지 않으면 다음 줄로 넘긴다(가로로 숨겨 두면 끝 문구가 잘려 보인다) */
+  .tk-quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 8px; }
   .tk-chip { flex: none; padding: 5px 11px; border-radius: 999px; background: #fffdf8; color: #5d5a57; font-size: 13px; box-shadow: 1px 1px 0 0 #716c66; }
   .tk-chip:active { transform: translate(1px, 1px); box-shadow: 0 0 0 0 transparent; }
   .tk-form { display: flex; gap: 8px; padding: 0 12px 12px; }
@@ -84,9 +92,14 @@ const CSS = `
   .tk-send { flex: none; padding: 0 14px; border-radius: 10px; background: #716c66; color: #fbf3df; font-size: 14px; font-weight: 600; }
   .tk-send:disabled { opacity: 0.45; cursor: default; }
 
-  .tk-notice { position: absolute; top: 18px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 32px); padding: 8px 16px; border-radius: 999px;
+  .tk-notice { position: absolute; top: 18px; left: 16px; right: 16px; width: fit-content; margin: 0 auto; padding: 8px 16px; border-radius: 999px;
     background: #716c66; color: #fbf3df; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: tk-notice ${2600}ms ease forwards; }
   .tk-notice.tk-low { top: 150px; }
+  /* 좁은 화면 — 오른쪽 위 HUD 버튼 줄을 비켜 가운데에 두고, 긴 글은 잘라 내지 않고 두 줄로 넘긴다. 카드는 아래에 뜨니 내릴 필요가 없다 */
+  @media (max-width: 639px) {
+    .tk-notice { left: 72px; right: 72px; border-radius: 16px; white-space: normal; text-align: center; word-break: keep-all; }
+    .tk-notice.tk-low { top: 18px; }
+  }
 
   @keyframes tk-pop { from { opacity: 0; transform: translateY(6px) scale(0.9); } to { opacity: 1; transform: none; } }
   @keyframes tk-wait { 50% { opacity: 0.5; } }
@@ -95,7 +108,7 @@ const CSS = `
   @keyframes tk-drop { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
   @keyframes tk-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
   @keyframes tk-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
-  @keyframes tk-notice { 0% { opacity: 0; transform: translate(-50%, -6px); } 8%, 85% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, 0); } }
+  @keyframes tk-notice { 0% { opacity: 0; transform: translateY(-6px); } 8%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
   @media (prefers-reduced-motion: reduce) { .tk-layer *, .tk-layer *::before { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; } }
 `
 
