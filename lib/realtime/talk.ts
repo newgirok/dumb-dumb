@@ -10,7 +10,7 @@ import type { RelayTalk, RelayTalkHandlers } from './relay'
  * TALK.promptExitM보다 멀어져야 사라진다(위치가 흔들려도 깜빡이지 않는다). 등 뒤에 있어 보이지 않는
  * 사람에게는 E 키로도 걸리지 않는다. 성사·종료는 서버가 판정하고,
  * 화면은 받은 대로 그린다. 머리 위 버튼·말풍선은 frame()이 매 프레임 화면 좌표로 옮겨 React를 다시
- * 그리지 않는다. 가린 사람·받기를 꺼 둔 동안의 요청은 조용히 거절한다.
+ * 그리지 않는다. 받기를 꺼 둔 동안의 요청은 조용히 거절한다.
  */
 
 export interface Vec3 {
@@ -69,8 +69,6 @@ export interface Talk {
   invite(): void
   accept(): void
   decline(): void
-  /** 이 사람 가리기 — 버튼·요청·말풍선을 숨기고, 대화 중이면 끝낸다 */
-  hide(id: string): void
   /** 보내면 true — 비었거나 길거나 링크가 있거나 너무 잦으면 false */
   send(text: string): boolean
   leave(): void
@@ -123,7 +121,6 @@ export function createTalk(): Talk {
 
   /** 들어온 시각(performance.now()) — 나가는 거리보다 멀어지면 지운다 */
   const near = new Map<string, number>()
-  const hidden = new Set<string>()
   /** 다시 걸 수 있는 시각(Date.now()) */
   const cooling = new Map<string, number>()
   const anchors: Record<TalkSlot, HTMLElement | null> = { target: null, inviter: null, selfBubble: null, peerBubble: null }
@@ -177,8 +174,8 @@ export function createTalk(): Talk {
 
   const handlers: RelayTalkHandlers = {
     onInvited(from) {
-      // 받기를 꺼 두었거나 가린 사람, 대화 중이면 조용히 거절한다
-      if (!view.open || hidden.has(from) || view.peer || view.invite) {
+      // 받기를 꺼 두었거나 대화 중이면 조용히 거절한다
+      if (!view.open || view.peer || view.invite) {
         transport?.reply(from, false)
         return
       }
@@ -270,13 +267,6 @@ export function createTalk(): Talk {
 
     decline,
 
-    hide(id) {
-      hidden.add(id)
-      if (view.invite?.from === id) decline()
-      if (view.peer === id || view.asking === id) leave()
-      if (view.candidate === id) set({ candidate: null })
-    },
-
     send(text) {
       const clean = text.trim()
       if (!view.peer || !clean || [...clean].length > TALK.maxChars) return false
@@ -325,7 +315,7 @@ export function createTalk(): Talk {
         const clock = Date.now()
         let best = Infinity
         for (const [id, since] of near) {
-          if (now - since < TALK.dwellMs || hidden.has(id) || (cooling.get(id) ?? 0) > clock) continue
+          if (now - since < TALK.dwellMs || (cooling.get(id) ?? 0) > clock) continue
           const pos = others.get(id)!
           if (!project(pos, HEAD_LIFT, spot)) continue
           const d = distance(self, pos)

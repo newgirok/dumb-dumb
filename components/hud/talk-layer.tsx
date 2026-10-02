@@ -45,7 +45,6 @@ const CSS = `
     box-shadow: 2px 2px 0 0 #716c66; transition: transform 0.15s; }
   .tk-btn:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 transparent; }
   .tk-yes { background: #716c66; color: #fbf3df; }
-  .tk-link { margin-top: 10px; padding: 2px 4px; font-size: 12.5px; color: #8d8981; text-decoration: underline; text-underline-offset: 2px; }
   .tk-timer { position: absolute; left: 0; bottom: 0; width: 100%; height: 4px; background: #c9b99c; transform-origin: left; animation: tk-timer linear forwards; }
   /* 좁은 화면은 오른쪽 위 HUD 버튼과 겹치지 않게 아래(엄지가 닿는 자리)에 띄운다 */
   @media (max-width: 639px) {
@@ -62,8 +61,6 @@ const CSS = `
   .tk-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 10px 8px 14px; }
   .tk-title { font-family: Stylish, sans-serif; font-size: 19px; }
   .tk-far { color: #c4553f; }
-  .tk-head-actions { display: flex; align-items: center; gap: 6px; }
-  .tk-head-actions .tk-link { margin-top: 0; }
   .tk-close { width: 30px; height: 30px; border-radius: 7px; background: #fffdf8; color: #5d5a57; font-size: 20px; line-height: 1; box-shadow: 2px 2px 0 0 #716c66; }
   .tk-close:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 transparent; }
   .tk-log { flex: 1; min-height: 72px; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; padding: 4px 12px 8px; }
@@ -230,9 +227,6 @@ export default function TalkLayer({
               다음에
             </button>
           </div>
-          <button type="button" className="tk-link" onClick={() => view.invite && talk.hide(view.invite.from)}>
-            이 사람 가리기
-          </button>
           <div className="tk-timer" style={{ animationDuration: `${Math.max(0, view.invite.until - Date.now())}ms` }} />
         </div>
       )}
@@ -243,21 +237,16 @@ export default function TalkLayer({
             <span className={view.far ? 'tk-title tk-far' : 'tk-title'} role="status">
               {view.far ? '멀어지고 있어요' : '대화 중'}
             </span>
-            <span className="tk-head-actions">
-              <button type="button" className="tk-link" onClick={() => view.peer && talk.hide(view.peer)}>
-                가리기
-              </button>
-              <button
-                type="button"
-                className="tk-close"
-                aria-label="대화 끝내기"
-                title="대화 끝내기"
-                onPointerDown={onPress}
-                onClick={() => talk.leave()}
-              >
-                ×
-              </button>
-            </span>
+            <button
+              type="button"
+              className="tk-close"
+              aria-label="대화 끝내기"
+              title="대화 끝내기"
+              onPointerDown={onPress}
+              onClick={() => talk.leave()}
+            >
+              ×
+            </button>
           </header>
           <div ref={logRef} className="tk-log" aria-live="polite">
             {view.lines.length === 0 ? (
