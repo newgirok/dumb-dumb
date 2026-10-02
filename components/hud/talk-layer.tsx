@@ -24,6 +24,10 @@ const CSS = `
   .tk-prompt:disabled { cursor: default; color: #8d8981; }
   .tk-bang { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #e2674f; color: #fff; font-size: 14px; font-weight: 800; }
   .tk-prompt:disabled .tk-bang { background: #b8b0a3; animation: tk-wait 1.2s ease-in-out infinite; }
+  /* 화면 밖(등 뒤) 사람 — 버튼이 그쪽 가장자리에 붙고 ! 대신 그 사람 쪽을 가리키는 화살표가 뜬다 */
+  .tk-bang-arrow { display: none; width: 13px; height: 13px; transform: rotate(var(--tk-dir, 180deg)); }
+  .tk-pinned .tk-bang-mark { display: none; }
+  .tk-pinned .tk-bang-arrow { display: block; }
   .tk-key { padding: 0 6px; border: 1px solid #b8b0a3; border-radius: 4px; font: 600 11px/18px Pretendard, sans-serif; color: #8d8981; }
   @media (pointer: coarse) { .tk-key { display: none; } }
 
@@ -180,7 +184,10 @@ export default function TalkLayer({
               onClick={() => talk.invite()}
             >
               <span className="tk-bang" aria-hidden>
-                !
+                <span className="tk-bang-mark">!</span>
+                <svg className="tk-bang-arrow" viewBox="0 0 12 12" fill="none">
+                  <path d="M6 10.5V2M2.4 5.6 6 2l3.6 3.6" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </span>
               {view.asking ? '기다리는 중…' : '말 걸기'}
               {!view.asking && <kbd className="tk-key">E</kbd>}

@@ -6,9 +6,10 @@ import type { RelayTalk, RelayTalkHandlers } from './relay'
 /**
  * 만남 대화 화면 상태 — 가까이 온 사람을 알아채 말 걸기 버튼을 띄우고, 요청·수락·대화를 서버 이벤트대로 그린다.
  *
- * 버튼은 TALK.promptEnterM 안에 TALK.dwellMs 머문 사람 가운데 화면에 보이는 가장 가까운 사람에게 뜨고,
- * TALK.promptExitM보다 멀어져야 사라진다(위치가 흔들려도 깜빡이지 않는다). 등 뒤에 있어 보이지 않는
- * 사람에게는 E 키로도 걸리지 않는다. 성사·종료는 서버가 판정하고,
+ * 버튼은 TALK.promptEnterM 안에 TALK.dwellMs 머문 사람 가운데 가장 가까운 사람에게 뜨고,
+ * TALK.promptExitM보다 멀어져야 사라진다(위치가 흔들려도 깜빡이지 않는다). 그 사람이 화면 밖(등 뒤)에
+ * 있으면 버튼을 그쪽 화면 가장자리에 붙이고 화살표로 방향을 가리킨다 — 나중에 들어와 등 뒤에 선 사람에게도
+ * 먼저 와 있던 사람이 말을 걸 수 있다. 성사·종료는 서버가 판정하고,
  * 화면은 받은 대로 그린다. 머리 위 버튼·말풍선은 frame()이 매 프레임 화면 좌표로 옮겨 React를 다시
  * 그리지 않는다. 받기를 꺼 둔 동안의 요청은 조용히 거절한다.
  */
@@ -52,8 +53,15 @@ export interface TalkView {
 /** 머리 위 자리 — 말 걸기 버튼, 요청을 건 사람 표시, 내 말풍선, 상대 말풍선 */
 export type TalkSlot = 'target' | 'inviter' | 'selfBubble' | 'peerBubble'
 
-/** 발 위치에서 lift(m) 위를 화면 좌표(px)로 옮긴다 — 화면 밖이거나 카메라 뒤면 false */
-export type Project = (foot: Vec3, lift: number, out: { x: number; y: number }) => boolean
+/** 화면 좌표(px) — behind는 카메라 뒤라는 뜻이다(x는 그 사람이 있는 쪽을 가리키고 y는 뜻이 없다) */
+export interface ScreenPoint {
+  x: number
+  y: number
+  behind: boolean
+}
+
+/** 발 위치에서 lift(m) 위를 화면 좌표로 옮긴다 — 화면 안이면 true. 화면 밖·카메라 뒤여도 out을 채운다 */
+export type Project = (foot: Vec3, lift: number, out: ScreenPoint) => boolean
 
 export interface Talk {
   subscribe(listener: () => void): () => void
@@ -124,7 +132,7 @@ export function createTalk(): Talk {
   /** 다시 걸 수 있는 시각(Date.now()) */
   const cooling = new Map<string, number>()
   const anchors: Record<TalkSlot, HTMLElement | null> = { target: null, inviter: null, selfBubble: null, peerBubble: null }
-  const spot = { x: 0, y: 0 }
+  const spot: ScreenPoint = { x: 0, y: 0, behind: false }
   let seq = 0
   let lastSentAt = -Infinity
   const timers = new Set<ReturnType<typeof setTimeout>>()
@@ -205,19 +213,53 @@ export function createTalk(): Talk {
     },
   }
 
-  const place = (slot: TalkSlot, foot: Vec3 | null | undefined, project: Project) => {
+  /**
+   * 머리 위 자리를 옮긴다. 화면 밖이면 숨기되, pin(말 걸기 버튼)이면 화면 가운데에서 그 사람 쪽으로 가장자리까지
+   * 밀어 붙이고(카메라 뒤면 아래 가장자리) tk-pinned와 --tk-dir(화살표 각도, 0°가 위·시계 방향)로 방향을 알린다
+   */
+  const place = (slot: TalkSlot, foot: Vec3 | null | undefined, project: Project, pin = false) => {
     const el = anchors[slot]
     if (!el) return
-    if (foot && project(foot, HEAD_LIFT, spot)) {
-      // 가장자리에 선 사람의 말풍선·버튼이 화면 밖으로 잘리지 않게 내용 너비의 절반만큼 안으로 당긴다
-      const half = ((el.firstElementChild as HTMLElement | null)?.offsetWidth ?? 0) / 2
-      const width = el.parentElement?.clientWidth ?? Infinity
-      const x = Math.min(Math.max(spot.x, half + EDGE_PX), width - half - EDGE_PX)
-      el.style.transform = `translate3d(${x.toFixed(1)}px, ${spot.y.toFixed(1)}px, 0)`
-      if (el.style.visibility !== 'visible') el.style.visibility = 'visible'
-    } else if (el.style.visibility !== 'hidden') {
-      el.style.visibility = 'hidden'
+    const inside = !!foot && project(foot, HEAD_LIFT, spot)
+    if (!foot || (!inside && !pin)) {
+      if (el.style.visibility !== 'hidden') el.style.visibility = 'hidden'
+      return
     }
+    // 말풍선·버튼이 화면 밖으로 잘리지 않게 내용 크기만큼 안으로 당긴다 — 내용의 아래 끝이 머리 위 자리에 온다
+    const box = el.firstElementChild as HTMLElement | null
+    const half = (box?.offsetWidth ?? 0) / 2
+    const width = el.parentElement?.clientWidth ?? 0
+    const height = el.parentElement?.clientHeight ?? 0
+    const left = half + EDGE_PX
+    const right = width - half - EDGE_PX
+    const top = (box?.offsetHeight ?? 0) + EDGE_PX
+    const bottom = height - EDGE_PX
+    let { x, y } = spot
+    if (!inside) {
+      const cx = width / 2
+      const cy = height / 2
+      const dx = Number.isFinite(x) ? x - cx : 0
+      if (spot.behind || !Number.isFinite(y)) {
+        y = bottom
+      } else {
+        const dy = y - cy
+        const tx = dx > 0 ? (right - cx) / dx : dx < 0 ? (left - cx) / dx : Infinity
+        const ty = dy > 0 ? (bottom - cy) / dy : dy < 0 ? (top - cy) / dy : Infinity
+        const t = Math.min(tx, ty)
+        x = cx + dx * (Number.isFinite(t) ? t : 0)
+        y = cy + dy * (Number.isFinite(t) ? t : 0)
+      }
+      x = Number.isFinite(x) ? x : cx
+    }
+    x = Math.min(Math.max(x, left), right)
+    y = Math.min(Math.max(y, top), bottom)
+    el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`
+    if (el.classList.contains('tk-pinned') === inside) el.classList.toggle('tk-pinned', !inside)
+    if (!inside) {
+      const angle = (Math.atan2(x - width / 2, height / 2 - y) * 180) / Math.PI
+      el.style.setProperty('--tk-dir', `${angle.toFixed(0)}deg`)
+    }
+    if (el.style.visibility !== 'visible') el.style.visibility = 'visible'
   }
 
   return {
@@ -309,16 +351,14 @@ export function createTalk(): Talk {
       }
       for (const id of near.keys()) if (!others.has(id)) near.delete(id)
 
-      // 버튼 상대 — 대화·요청이 없을 때, 잠시 머문 사람 가운데 화면에 보이는 가장 가까운 사람
+      // 버튼 상대 — 대화·요청이 없을 때, 잠시 머문 사람 가운데 가장 가까운 사람(화면 밖이면 버튼이 가장자리에 붙는다)
       let candidate: string | null = null
       if (self && !view.peer && !view.asking && !view.invite) {
         const clock = Date.now()
         let best = Infinity
         for (const [id, since] of near) {
           if (now - since < TALK.dwellMs || (cooling.get(id) ?? 0) > clock) continue
-          const pos = others.get(id)!
-          if (!project(pos, HEAD_LIFT, spot)) continue
-          const d = distance(self, pos)
+          const d = distance(self, others.get(id)!)
           if (d < best) {
             best = d
             candidate = id
@@ -334,7 +374,7 @@ export function createTalk(): Talk {
       }
 
       const target = view.asking ?? view.candidate
-      place('target', target ? others.get(target) : null, project)
+      place('target', target ? others.get(target) : null, project, true)
       place('inviter', view.invite ? others.get(view.invite.from) : null, project)
       place('selfBubble', view.bubbles.self ? self : null, project)
       place('peerBubble', view.peer && view.bubbles.peer ? others.get(view.peer) : null, project)

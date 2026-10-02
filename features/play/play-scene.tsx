@@ -842,14 +842,16 @@ export default function PlayScene() {
     canvas.addEventListener('pointerup', startAudio)
     window.addEventListener('keydown', onFirstKey)
 
-    // 만남 대화 — 발 위치 위 lift(m)를 캔버스 화면 좌표(CSS px)로 옮긴다. 카메라 뒤·화면 밖이면 false
+    // 만남 대화 — 발 위치 위 lift(m)를 캔버스 화면 좌표(CSS px)로 옮긴다. 화면 안이면 true.
+    // 카메라 뒤면 원근 나눗셈에 좌우가 뒤집히므로 되돌려, 화면 밖 말 걸기 버튼이 그 사람 쪽 가장자리에 붙게 한다
     const projected = new THREE.Vector3()
     const project: Project = (foot, lift, out) => {
       projected.set(foot.x, foot.y + lift, foot.z).project(camera)
-      if (projected.z >= 1 || Math.abs(projected.x) > 1.2 || Math.abs(projected.y) > 1.2) return false
+      out.behind = projected.z >= 1
+      if (out.behind) projected.x = -projected.x
       out.x = ((projected.x + 1) / 2) * renderer.domElement.clientWidth
       out.y = ((1 - projected.y) / 2) * renderer.domElement.clientHeight
-      return true
+      return !out.behind && Math.abs(projected.x) <= 1.2 && Math.abs(projected.y) <= 1.2
     }
     const noPeers = new Map<string, THREE.Vector3>()
 
