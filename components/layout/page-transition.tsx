@@ -10,7 +10,7 @@ import Loader, { SPIN_MS } from '@/components/ui/loader'
  */
 const DESTINATION_MESSAGES: Record<string, string> = {
   '/': '처음 화면으로 가고 있어요. 잠시만요.',
-  '/play': '게임을 불러오고 있어요. 잠시만 기다려 주세요.',
+  '/play': '산책 가방 챙기는 중이에요',
   '/nearby': '위치를 찾고 있어요…',
   '/asset-viewer': '에셋을 불러오고 있어요. 잠시만 기다려 주세요.',
 }

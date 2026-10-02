@@ -33,7 +33,11 @@ const CSS = `
   .ld-spinner { display: block; flex: none; width: 54px; height: 54px; animation: ld-spin ${SPIN_MS}ms linear infinite; will-change: transform; }
   .ld-spinner svg { display: block; width: 100%; height: 100%; }
   .ld-spinner .path { stroke: #BDBCB8; stroke-dasharray: 58 200; }
-  .ld-message { margin-top: 22px; font-family: Pretendard, sans-serif; font-size: 15px; line-height: 1.5; color: #9a968f; word-break: keep-all; }
+  /* 문구가 바뀌면(로딩 단계 안내 등) 살짝 떠오르며 바뀐다 — 글자만 갈아 끼우면 깜빡인 것처럼 보인다 */
+  @keyframes ld-message { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  .ld-message { margin-top: 22px; font-family: Pretendard, sans-serif; font-size: 15px; line-height: 1.5; color: #9a968f; word-break: keep-all;
+    animation: ld-message 0.25s cubic-bezier(0.33, 1, 0.68, 1); }
+  @media (prefers-reduced-motion: reduce) { .ld-message { animation: none; } }
   .ld-hint { margin-top: 6px; max-width: 24rem; font-family: Pretendard, sans-serif; font-size: 12.5px; line-height: 1.55; color: #b3aea6; word-break: keep-all; }
   .ld-detail { margin-top: 10px; max-width: 26rem; font-family: Pretendard, sans-serif; font-size: 12.5px; line-height: 1.55; color: #9a968f;
     --gps-path: #716c66; }
@@ -91,7 +95,11 @@ export default function Loader({
       <style>{CSS}</style>
       <LoaderSpinner className={spinning ? '' : 'off'} />
       <div className="ld-body">
-        {message && <p className="ld-message">{message}</p>}
+        {message && (
+          <p key={message} className="ld-message">
+            {message}
+          </p>
+        )}
         {hint && <p className="ld-hint">{hint}</p>}
         {detail && <div className="ld-detail">{detail}</div>}
         {children && <div className="ld-actions">{children}</div>}
