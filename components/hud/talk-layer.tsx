@@ -59,16 +59,18 @@ const CSS = `
     .tk-card { left: 0; right: 0; margin: 0 auto; width: min(340px, calc(100vw - 144px)); }
   }
 
-  /* 대화 창 — 데스크톱은 오른쪽 아래, 좁은 화면은 아래를 가득, 낮은 화면은 왼쪽 위아래를 가득(오른쪽 위 HUD와 겹치지 않게) */
-  .tk-panel { pointer-events: auto; position: absolute; right: 20px; bottom: 20px; width: 320px; max-height: min(46vh, 420px); max-height: min(46dvh, 420px);
+  /* 대화 창 — 게임 채팅 관례대로 왼쪽 아래(오른쪽 위 HUD의 반대편)에 두고, 세로로 긴 좁은 화면만 아래를 가득 채운다.
+     낮은 화면(휴대폰 가로·낮은 창)도 같은 왼쪽 아래에서 높이만 화면에 맞춘다 */
+  .tk-panel { pointer-events: auto; position: absolute; left: calc(20px + env(safe-area-inset-left)); bottom: calc(20px + env(safe-area-inset-bottom));
+    width: 340px; max-height: min(46vh, 420px); max-height: min(46dvh, 420px);
     display: flex; flex-direction: column; border-radius: 14px; background: #f9efdc; box-shadow: 3px 3px 0 0 #716c66; overflow: hidden;
     animation: tk-rise 0.25s cubic-bezier(0.33, 1, 0.68, 1); }
   @media (max-width: 639px) {
     .tk-panel { left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); width: auto; max-height: 44vh; max-height: 44dvh; }
   }
   @media (max-height: 560px) {
-    .tk-panel { top: calc(12px + env(safe-area-inset-top)); bottom: calc(12px + env(safe-area-inset-bottom)); left: calc(12px + env(safe-area-inset-left));
-      right: auto; width: min(340px, calc(100vw - 96px)); max-height: none; }
+    .tk-panel { left: calc(12px + env(safe-area-inset-left)); right: auto; bottom: calc(12px + env(safe-area-inset-bottom)); width: min(340px, calc(100vw - 96px));
+      max-height: min(420px, calc(100vh - 24px)); max-height: min(420px, calc(100dvh - 24px - env(safe-area-inset-bottom))); }
   }
   .tk-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 10px 8px 14px; }
   .tk-title { font-family: Stylish, sans-serif; font-size: 19px; }
