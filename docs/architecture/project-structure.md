@@ -94,6 +94,7 @@ project/
 │   └── contract.ts               ← 익명 중계 소켓 이벤트 계약 (방 — 플레이 씬, 근접 — 내 주변, socket.io 제네릭 타입)·만남 대화 이벤트와 수치(`TALK`)
 │
 ├── public/
+│   ├── fonts/                    ← 첫 화면 글자 전용 작은 폰트 (stylish-home·pretendard-home — 선택 페이지 버튼, stylish-loader — 로더 첫 줄)
 │   ├── landing/                  ← 랜딩 배경 이미지 (앱 코드에서 참조하지 않음)
 │   │   ├── hero.jpg
 │   │   ├── explore.jpg
