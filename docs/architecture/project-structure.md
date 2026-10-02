@@ -18,7 +18,7 @@ project/
 │   └── asset-viewer/             ← 에셋 미리보기 (asset-viewer — ref-assets 캐릭터·소품, 개발용)
 │
 ├── components/                   ← 여러 화면이 같이 쓰는 React 컴포넌트
-│   ├── ui/                       ← 공통 UI (button, card, toast, loader — 로더는 모든 로딩 화면)
+│   ├── ui/                       ← 공통 UI (button, card, toast, loader — 로더는 모든 로딩 화면, sound-link — 누르는 순간 오디오를 켜 두는 링크)
 │   ├── layout/
 │   │   └── page-transition.tsx   ← 링크 이동 때 전체 화면 로더
 │   ├── map/
@@ -36,6 +36,8 @@ project/
 │
 ├── lib/                          ← 화면들이 같이 쓰는 로직
 │   ├── routes.ts                 ← SCENE_ROUTES — 선택 페이지가 보여 주는 경로 목록
+│   ├── audio/
+│   │   └── unlock.ts             ← 선택 페이지 '플레이'를 누를 때 켜 두는 오디오 컨텍스트 (플레이 씬이 이어 쓴다)
 │   ├── geo/
 │   │   ├── gps.ts                ← GPS 추적기·상태 (씬·펼침 지도가 함께 쓰는 watchPosition, 내 주변 시작 위치 대기)
 │   │   ├── gps-messages.ts       ← GPS 상태별 안내 문구·기기 판별 (지도 쪽지, 내 주변 대기 화면·알림)
@@ -143,7 +145,9 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 
 | 파일 | 역할 |
 |---|---|
-| `app/page.tsx` | 선택 페이지 — 여름 오후 풍경 위 제목 "Dumb Dumb"과 세로로 쌓은 목적지 버튼 3개(플레이·내 주변·에셋 미리보기, 이름·배지·아이콘은 `PLACES`). 제목은 Luckiest Guy(`next/font/google`), 버튼 이름·배지는 쓰는 글자만 담은 `public/fonts/stylish-home.woff2`·`pretendard-home.woff2`(4KB·2KB)를 `preload`로 먼저 받아 그리고, 펼침 지도가 쓸 전체 Stylish는 낮은 우선순위로 미리 받는다 |
+| `app/page.tsx` | 선택 페이지 — 여름 오후 풍경 위 제목 "Dumb Dumb"과 세로로 쌓은 목적지 버튼 3개(플레이·내 주변·에셋 미리보기, 이름·배지·아이콘은 `PLACES`). 제목은 Luckiest Guy(`next/font/google`), 버튼 이름·배지는 쓰는 글자만 담은 `public/fonts/stylish-home.woff2`·`pretendard-home.woff2`(4KB·2KB)를 `preload`로 먼저 받아 그리고, 펼침 지도가 쓸 전체 Stylish는 낮은 우선순위로 미리 받는다. '플레이' 버튼은 `SoundLink`라 누르는 순간 오디오를 켜 둔다 |
+| `components/ui/sound-link.tsx` | 소리가 나는 화면으로 가는 링크(`next/link`) — 누르는 순간 `unlockAudio()`로 오디오를 켜 두어 그 화면이 첫 탭을 기다리지 않고 소리를 낸다 |
+| `lib/audio/unlock.ts` | 미리 켜 둔 오디오 컨텍스트 — `unlockAudio()`(탭·클릭 처리 안에서 컨텍스트를 켜고 1샘플 무음을 틀어 iOS에서도 연다)·`unlockedAudio()`(플레이 씬 오디오가 three 공용 컨텍스트로 이어 쓴다) |
 | `lib/routes.ts` | `SCENE_ROUTES`(`/play`, `/nearby`, `/asset-viewer`) — 선택 페이지만 쓰는 경로 목록(카드 문구 `PLACES`와 타입으로 묶인다) |
 | `features/play/play-scene.tsx` | 플레이 씬 — ref-assets 로드·씬 조립·렌더 루프, 우상단 HUD(사운드·옷 색·지도·말 걸기 받기, 위치를 못 잡으면 지도 버튼 구석에 "!")와 단축키(M·Esc·Ctrl+M), 펼침 지도 마운트(지도가 다 접혀 배경이 걷힐 때까지 캐릭터 조작을 끈다), 만남 대화 화면 마운트(렌더 루프가 `talk.frame()`을 부르고, 입력칸에 쓰는 동안 캐릭터 조작을 끈다), GPS 추적기(이미 허용된 사이트면 씬 시작 때 바로, 아니면 지도를 처음 펼칠 때 권한을 묻는다) |
 | `lib/three/third-person.ts` | 플레이 씬 3인칭 조작(키보드·마우스·터치·게임패드)·캡슐 충돌·카메라 리그와 화면 비율 반응형 구도(`framingFor`) ([ADR 006](../adr/006-quarter-view-camera-lock.md)) |
