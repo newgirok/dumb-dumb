@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { unlockedAudio } from '@/lib/audio/unlock'
 
 /**
  * 원본 audioController 이식.
@@ -61,6 +62,9 @@ export function createSceneAudio({
   canPlay: Promise<void>
   onUnlock?: () => void
 }): SceneAudio {
+  // 선택 페이지에서 '플레이'를 누를 때 켜 둔 컨텍스트가 있으면 three의 공용 컨텍스트로 이어 쓴다
+  const ready = unlockedAudio()
+  if (ready) THREE.AudioContext.setContext(ready)
   const listener = new THREE.AudioListener()
   listener.setMasterVolume(0)
   const ctx = listener.context

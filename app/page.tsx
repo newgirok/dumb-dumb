@@ -2,6 +2,7 @@ import type { CSSProperties, JSX } from 'react'
 import Link from 'next/link'
 import { Luckiest_Guy } from 'next/font/google'
 import { preload } from 'react-dom'
+import SoundLink from '@/components/ui/sound-link'
 import { SCENE_ROUTES } from '@/lib/routes'
 
 // 선택 페이지 — 게임 타이틀 화면처럼 여름 오후 풍경 위에서 갈 곳을 고른다.
@@ -90,14 +91,16 @@ export default function Home() {
           <nav aria-label="갈 곳" className="home-places flex flex-col items-center gap-5">
             {SCENE_ROUTES.map((href) => {
               const place = PLACES[href]
+              // 플레이 씬은 소리가 난다 — 누르는 순간 오디오를 켜 둔다
+              const PlaceLink = href === '/play' ? SoundLink : Link
               return (
-                <Link key={href} href={href} className="home-card" style={{ ['--tilt' as string]: `${place.tilt}deg` }}>
+                <PlaceLink key={href} href={href} className="home-card" style={{ ['--tilt' as string]: `${place.tilt}deg` }}>
                   <place.Icon />
                   <span className="home-card-title">
                     {place.title}
                     {place.badge && <span className="home-badge">{place.badge}</span>}
                   </span>
-                </Link>
+                </PlaceLink>
               )
             })}
           </nav>
