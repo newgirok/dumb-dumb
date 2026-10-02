@@ -4,14 +4,15 @@ import { hasLink, TALK, type RelayTalkEnd } from '@/shared/relay/contract'
 import type { RelayTalk, RelayTalkHandlers } from './relay'
 
 /**
- * 만남 대화 화면 상태 — 가까이 온 사람을 알아채 말 걸기 버튼을 띄우고, 요청·수락·대화를 서버 이벤트대로 그린다.
+ * 만남 대화 화면 상태 — 가까이 온 사람을 알아채고, 요청·수락·대화를 서버 이벤트대로 그린다.
  *
- * 버튼은 TALK.promptEnterM 안에 TALK.dwellMs 머문 사람 가운데 가장 가까운 사람에게 뜨고,
- * TALK.promptExitM보다 멀어져야 사라진다(위치가 흔들려도 깜빡이지 않는다). 그 사람이 화면 밖(등 뒤)에
- * 있으면 버튼을 그쪽 화면 가장자리에 붙이고 화살표로 방향을 가리킨다 — 나중에 들어와 등 뒤에 선 사람에게도
- * 먼저 와 있던 사람이 말을 걸 수 있다. 성사·종료는 서버가 판정하고,
- * 화면은 받은 대로 그린다. 머리 위 버튼·말풍선은 frame()이 매 프레임 화면 좌표로 옮겨 React를 다시
- * 그리지 않는다. 받기를 꺼 둔 동안의 요청은 조용히 거절한다.
+ * 말을 거는 길은 둘이다. 화면에 보이는 사람을 눌러(pick) 그 사람 머리 위에 카드를 열고 [말 걸기]를 누르거나
+ * (로블록스 아바타 메뉴·클럽 펭귄 플레이어 카드처럼), TALK.promptEnterM 안에 TALK.dwellMs 머문 사람 가운데
+ * 화면에 보이는 가장 가까운 사람(버튼 상대 — 머리 위에 작은 말풍선 표시)에게 E 키로 바로 건다. 카드의 [말 걸기]는
+ * TALK.promptEnterM 안에서 켜지고 TALK.promptExitM보다 멀어지면 꺼진다(위치가 흔들려도 깜빡이지 않는다).
+ * 화면 밖 사람은 누를 수 없으니 표시도 카드도 없다. 성사·종료는 서버가 판정하고, 화면은 받은 대로 그린다.
+ * 머리 위 표시·카드·말풍선은 frame()이 매 프레임 화면 좌표로 옮겨 React를 다시 그리지 않는다.
+ * 받기를 꺼 둔 동안의 요청은 조용히 거절한다.
  */
 
 export interface Vec3 {
@@ -31,9 +32,14 @@ export interface TalkBubble {
   text: string
 }
 
+/** 카드의 [말 걸기] — 걸 수 있음 · 멀어서 못 함 · 거절된 뒤 쉬는 중 */
+export type TalkReach = 'near' | 'far' | 'cooling'
+
 export interface TalkView {
-  /** 말 걸기 버튼을 띄울 상대 */
+  /** 버튼 상대 — 머리 위에 말풍선 표시를 띄우고 E 키가 거는 사람 */
   candidate: string | null
+  /** 눌러서 연 카드 — 그 사람 머리 위에 [말 걸기]를 띄운다 */
+  card: { id: string; reach: TalkReach } | null
   /** 내가 건 요청을 기다리는 상대 */
   asking: string | null
   /** 받은 요청 — until은 Date.now() 기준 만료 시각 */
@@ -50,18 +56,11 @@ export interface TalkView {
   open: boolean
 }
 
-/** 머리 위 자리 — 말 걸기 버튼, 요청을 건 사람 표시, 내 말풍선, 상대 말풍선 */
-export type TalkSlot = 'target' | 'inviter' | 'selfBubble' | 'peerBubble'
+/** 머리 위 자리 — 버튼 상대 표시(또는 "기다리는 중…"), 눌러서 연 카드, 요청을 건 사람 표시, 내 말풍선, 상대 말풍선 */
+export type TalkSlot = 'target' | 'card' | 'inviter' | 'selfBubble' | 'peerBubble'
 
-/** 화면 좌표(px) — behind는 카메라 뒤라는 뜻이다(x는 그 사람이 있는 쪽을 가리키고 y는 뜻이 없다) */
-export interface ScreenPoint {
-  x: number
-  y: number
-  behind: boolean
-}
-
-/** 발 위치에서 lift(m) 위를 화면 좌표로 옮긴다 — 화면 안이면 true. 화면 밖·카메라 뒤여도 out을 채운다 */
-export type Project = (foot: Vec3, lift: number, out: ScreenPoint) => boolean
+/** 발 위치에서 lift(m) 위를 화면 좌표(px)로 옮긴다 — 화면 밖이거나 카메라 뒤면 false */
+export type Project = (foot: Vec3, lift: number, out: { x: number; y: number }) => boolean
 
 export interface Talk {
   subscribe(listener: () => void): () => void
@@ -74,7 +73,12 @@ export interface Talk {
   reset(): void
   /** 저장해 둔 말 걸기 받기 설정을 읽는다(브라우저에서만) */
   restore(): void
-  invite(): void
+  /** 말을 건다 — to가 없으면 [말 걸기]가 켜진 카드 상대, 그다음 버튼 상대에게 */
+  invite(to?: string): void
+  /** 화면 좌표(캔버스 기준 px)에 선 캐릭터 — 여럿이 겹치면 카메라에 가까운 사람. 없으면 null */
+  pick(x: number, y: number): string | null
+  /** 카드를 연다(null이면 닫는다) — 대화·요청 중에는 열지 않는다 */
+  select(id: string | null): void
   accept(): void
   decline(): void
   /** 보내면 true — 비었거나 길거나 링크가 있거나 너무 잦으면 false */
@@ -96,6 +100,8 @@ const MAX_LINES = 60
 const HEAD_LIFT = 1.7
 /** 머리 위 자리가 화면 가장자리와 띄울 간격(px) */
 const EDGE_PX = 8
+/** 캐릭터를 누르는 칸의 최소 반폭(px) — 멀리 있어 작게 보여도 손가락으로 누를 만큼(48px 폭) 넉넉하게 */
+const PICK_MIN_HALF_PX = 24
 const OPEN_KEY = 'dumb.talk.open'
 
 const ENDED: Record<RelayTalkEnd, string> = {
@@ -113,6 +119,7 @@ export function createTalk(): Talk {
   const listeners = new Set<() => void>()
   let view: TalkView = {
     candidate: null,
+    card: null,
     asking: null,
     invite: null,
     peer: null,
@@ -131,8 +138,14 @@ export function createTalk(): Talk {
   const near = new Map<string, number>()
   /** 다시 걸 수 있는 시각(Date.now()) */
   const cooling = new Map<string, number>()
-  const anchors: Record<TalkSlot, HTMLElement | null> = { target: null, inviter: null, selfBubble: null, peerBubble: null }
-  const spot: ScreenPoint = { x: 0, y: 0, behind: false }
+  const anchors: Record<TalkSlot, HTMLElement | null> = { target: null, card: null, inviter: null, selfBubble: null, peerBubble: null }
+  const spot = { x: 0, y: 0 }
+  const head = { x: 0, y: 0 }
+  const feet = { x: 0, y: 0 }
+  /** 지난 프레임의 나·다른 사람 발 위치·화면 좌표 변환 — 누른 자리의 캐릭터를 찾을 때(pick) 쓴다 */
+  let lastSelf: Vec3 | null = null
+  let lastOthers: ReadonlyMap<string, Vec3> = new Map()
+  let lastProject: Project | null = null
   let seq = 0
   let lastSentAt = -Infinity
   const timers = new Set<ReturnType<typeof setTimeout>>()
@@ -199,7 +212,7 @@ export function createTalk(): Talk {
       notify('지금은 바쁜가 봐요')
     },
     onStarted(peer) {
-      set({ asking: null, invite: null, candidate: null, ...ended(), peer })
+      set({ asking: null, invite: null, candidate: null, card: null, ...ended(), peer })
     },
     onMessage({ text, mine }) {
       if (!view.peer) return
@@ -213,53 +226,31 @@ export function createTalk(): Talk {
     },
   }
 
-  /**
-   * 머리 위 자리를 옮긴다. 화면 밖이면 숨기되, pin(말 걸기 버튼)이면 화면 가운데에서 그 사람 쪽으로 가장자리까지
-   * 밀어 붙이고(카메라 뒤면 아래 가장자리) tk-pinned와 --tk-dir(화살표 각도, 0°가 위·시계 방향)로 방향을 알린다
-   */
-  const place = (slot: TalkSlot, foot: Vec3 | null | undefined, project: Project, pin = false) => {
+  /** 머리 위 자리를 옮긴다 — 화면 밖이거나 카메라 뒤면 숨긴다 */
+  const place = (slot: TalkSlot, foot: Vec3 | null | undefined, project: Project) => {
     const el = anchors[slot]
     if (!el) return
-    const inside = !!foot && project(foot, HEAD_LIFT, spot)
-    if (!foot || (!inside && !pin)) {
+    if (!foot || !project(foot, HEAD_LIFT, spot)) {
       if (el.style.visibility !== 'hidden') el.style.visibility = 'hidden'
       return
     }
-    // 말풍선·버튼이 화면 밖으로 잘리지 않게 내용 크기만큼 안으로 당긴다 — 내용의 아래 끝이 머리 위 자리에 온다
+    // 말풍선·카드가 화면 밖으로 잘리지 않게 내용 크기만큼 안으로 당긴다 — 내용의 아래 끝이 머리 위 자리에 온다
     const box = el.firstElementChild as HTMLElement | null
     const half = (box?.offsetWidth ?? 0) / 2
     const width = el.parentElement?.clientWidth ?? 0
     const height = el.parentElement?.clientHeight ?? 0
-    const left = half + EDGE_PX
-    const right = width - half - EDGE_PX
-    const top = (box?.offsetHeight ?? 0) + EDGE_PX
-    const bottom = height - EDGE_PX
-    let { x, y } = spot
-    if (!inside) {
-      const cx = width / 2
-      const cy = height / 2
-      const dx = Number.isFinite(x) ? x - cx : 0
-      if (spot.behind || !Number.isFinite(y)) {
-        y = bottom
-      } else {
-        const dy = y - cy
-        const tx = dx > 0 ? (right - cx) / dx : dx < 0 ? (left - cx) / dx : Infinity
-        const ty = dy > 0 ? (bottom - cy) / dy : dy < 0 ? (top - cy) / dy : Infinity
-        const t = Math.min(tx, ty)
-        x = cx + dx * (Number.isFinite(t) ? t : 0)
-        y = cy + dy * (Number.isFinite(t) ? t : 0)
-      }
-      x = Number.isFinite(x) ? x : cx
-    }
-    x = Math.min(Math.max(x, left), right)
-    y = Math.min(Math.max(y, top), bottom)
+    const x = Math.min(Math.max(spot.x, half + EDGE_PX), width - half - EDGE_PX)
+    const y = Math.min(Math.max(spot.y, (box?.offsetHeight ?? 0) + EDGE_PX), height - EDGE_PX)
     el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`
-    if (el.classList.contains('tk-pinned') === inside) el.classList.toggle('tk-pinned', !inside)
-    if (!inside) {
-      const angle = (Math.atan2(x - width / 2, height / 2 - y) * 180) / Math.PI
-      el.style.setProperty('--tk-dir', `${angle.toFixed(0)}deg`)
-    }
     if (el.style.visibility !== 'visible') el.style.visibility = 'visible'
+  }
+
+  /** 카드 상대에게 지금 말을 걸 수 있는지 — 이미 걸 수 있었으면 나가는 거리까지 켜 둔다(경계에서 깜빡이지 않게) */
+  const reachOf = (id: string, was: TalkReach | null): TalkReach => {
+    if ((cooling.get(id) ?? 0) > Date.now()) return 'cooling'
+    const pos = lastOthers.get(id)
+    if (!lastSelf || !pos) return 'far'
+    return distance(lastSelf, pos) <= (was === 'near' ? TALK.promptExitM : TALK.promptEnterM) ? 'near' : 'far'
   }
 
   return {
@@ -277,7 +268,7 @@ export function createTalk(): Talk {
     reset() {
       const talking = view.peer !== null
       near.clear()
-      set({ candidate: null, asking: null, invite: null, ...ended() })
+      set({ candidate: null, card: null, asking: null, invite: null, ...ended() })
       if (talking) notify('연결이 끊겨 대화가 끝났어요')
     },
 
@@ -289,15 +280,48 @@ export function createTalk(): Talk {
       }
     },
 
-    invite() {
-      const to = view.candidate
+    invite(target) {
+      const card = view.card
+      const to = target ?? (card?.reach === 'near' ? card.id : view.candidate)
       if (!to || view.asking || view.peer || !transport) return
-      set({ asking: to })
+      // 카드로 거는 건 [말 걸기]가 켜졌을 때만 — 멀거나 쉬는 중인 사람에게는 걸지 않는다
+      if (card?.id === to && card.reach !== 'near') return
+      set({ asking: to, card: null })
       transport.invite(to)
       // 서버 답이 끝내 오지 않으면(끊김) 요청 시간이 지난 뒤 기다림을 푼다
       later(TALK.inviteTtlMs + 3000, () => {
         if (view.asking === to) set({ asking: null })
       })
+    },
+
+    pick(x, y) {
+      const project = lastProject
+      if (!project) return null
+      // 머리 위(HEAD_LIFT)부터 발까지, 폭은 키의 0.6배(작게 보여도 PICK_MIN_HALF_PX)인 칸 — 화면 밖 사람은 고르지 않는다
+      let best: string | null = null
+      let bestSize = 0
+      for (const [id, foot] of lastOthers) {
+        if (!project(foot, HEAD_LIFT, head) || !project(foot, 0, feet)) continue
+        const size = feet.y - head.y
+        const half = Math.max(PICK_MIN_HALF_PX, size * 0.3)
+        if (Math.abs(x - (head.x + feet.x) / 2) > half || y < head.y - EDGE_PX || y > feet.y + EDGE_PX) continue
+        // 겹치면 화면에 크게 보이는(카메라에 가까운) 사람
+        if (size > bestSize) {
+          bestSize = size
+          best = id
+        }
+      }
+      return best
+    },
+
+    select(id) {
+      if (id === null) {
+        if (view.card) set({ card: null })
+        return
+      }
+      if (view.peer || view.asking || view.invite) return
+      if (view.card?.id === id) return
+      set({ card: { id, reach: reachOf(id, null) } })
     },
 
     accept() {
@@ -339,6 +363,9 @@ export function createTalk(): Talk {
     },
 
     frame(now, self, others, project) {
+      lastSelf = self
+      lastOthers = others
+      lastProject = project
       if (self) {
         for (const [id, pos] of others) {
           const d = distance(self, pos)
@@ -357,14 +384,16 @@ export function createTalk(): Talk {
         if (!self || !pos || distance(self, pos) > TALK.promptExitM) leave()
       }
 
-      // 버튼 상대 — 대화·요청이 없을 때, 잠시 머문 사람 가운데 가장 가까운 사람(화면 밖이면 버튼이 가장자리에 붙는다)
+      // 버튼 상대 — 대화·요청이 없을 때, 잠시 머문 사람 가운데 화면에 보이는 가장 가까운 사람
       let candidate: string | null = null
       if (self && !view.peer && !view.asking && !view.invite) {
         const clock = Date.now()
         let best = Infinity
         for (const [id, since] of near) {
           if (now - since < TALK.dwellMs || (cooling.get(id) ?? 0) > clock) continue
-          const d = distance(self, others.get(id)!)
+          const pos = others.get(id)!
+          if (!project(pos, HEAD_LIFT, spot)) continue
+          const d = distance(self, pos)
           if (d < best) {
             best = d
             candidate = id
@@ -373,6 +402,17 @@ export function createTalk(): Talk {
       }
       if (candidate !== view.candidate) set({ candidate })
 
+      // 카드 — 그 사람이 떠났거나 화면 밖으로 나갔거나, 대화·요청이 생기면 닫는다. 아니면 [말 걸기]를 거리대로 켜고 끈다
+      if (view.card) {
+        const pos = others.get(view.card.id)
+        if (!pos || !project(pos, HEAD_LIFT, spot) || view.peer || view.asking || view.invite) {
+          set({ card: null })
+        } else {
+          const reach = reachOf(view.card.id, view.card.reach)
+          if (reach !== view.card.reach) set({ card: { id: view.card.id, reach } })
+        }
+      }
+
       if (view.peer) {
         const pos = others.get(view.peer)
         const far = !self || !pos || distance(self, pos) > TALK.farM
@@ -380,7 +420,8 @@ export function createTalk(): Talk {
       }
 
       const target = view.asking ?? view.candidate
-      place('target', target ? others.get(target) : null, project, true)
+      place('target', target ? others.get(target) : null, project)
+      place('card', view.card ? others.get(view.card.id) : null, project)
       place('inviter', view.invite ? others.get(view.invite.from) : null, project)
       place('selfBubble', view.bubbles.self ? self : null, project)
       place('peerBubble', view.peer && view.bubbles.peer ? others.get(view.peer) : null, project)

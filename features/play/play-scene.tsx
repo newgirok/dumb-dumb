@@ -157,6 +157,9 @@ const INTRO_REVEAL_MS = 4000
 const AUDIO_DELAY_MS = 1500
 /** 펼침 지도가 다 그려지기를 로더가 기다리는 최대 시간 — 네트워크가 막혀 지도가 끝나지 않아도 씬은 시작한다 */
 const MAP_IDLE_TIMEOUT_MS = 8000
+/** 캐릭터를 눌렀다 뗀 것으로 치는 범위 — 이만큼 안 움직이고 이 시간 안에 떼면 카드를 연다 */
+const PICK_SLOP_PX = 12
+const PICK_MS = 600
 
 /** 원본 AdaptiveDPR — 2초 뒤부터 4초마다 평균 FPS로 해상도 배수를 0.7~1 사이에서 0.1씩 옮긴다 */
 const DPR_WAIT_MS = 2000
@@ -842,17 +845,51 @@ export default function PlayScene() {
     canvas.addEventListener('pointerup', startAudio)
     window.addEventListener('keydown', onFirstKey)
 
-    // 만남 대화 — 발 위치 위 lift(m)를 캔버스 화면 좌표(CSS px)로 옮긴다. 화면 안이면 true.
-    // 카메라 뒤면 원근 나눗셈에 좌우가 뒤집히므로 되돌려, 화면 밖 말 걸기 버튼이 그 사람 쪽 가장자리에 붙게 한다
+    // 만남 대화 — 발 위치 위 lift(m)를 캔버스 화면 좌표(CSS px)로 옮긴다. 카메라 뒤·화면 밖이면 false
     const projected = new THREE.Vector3()
     const project: Project = (foot, lift, out) => {
       projected.set(foot.x, foot.y + lift, foot.z).project(camera)
-      out.behind = projected.z >= 1
-      if (out.behind) projected.x = -projected.x
+      if (projected.z >= 1 || Math.abs(projected.x) > 1.2 || Math.abs(projected.y) > 1.2) return false
       out.x = ((projected.x + 1) / 2) * renderer.domElement.clientWidth
       out.y = ((1 - projected.y) / 2) * renderer.domElement.clientHeight
-      return !out.behind && Math.abs(projected.x) <= 1.2 && Math.abs(projected.y) <= 1.2
+      return true
     }
+
+    // 만남 대화 카드 — 캐릭터 위를 짧게 눌렀다 떼면(클릭·탭) 그 사람 카드를 연다. 캐릭터 위에서 누른 것은 이동·점프로
+    // 넘기지 않으려고, 캔버스의 3인칭 조작보다 먼저 받는 감싼 요소의 캡처 단계에서 듣는다. 빈 곳을 누르면 카드를 닫는다
+    let pressed: { pointerId: number; x: number; y: number; at: number; id: string } | null = null
+    const pickAt = (e: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect()
+      return talk.pick(e.clientX - rect.left, e.clientY - rect.top)
+    }
+    const onPickDown = (e: PointerEvent) => {
+      if (mapShownRef.current || (e.pointerType === 'mouse' && e.button !== 0)) return
+      const id = pickAt(e)
+      if (!id) {
+        talk.select(null)
+        return
+      }
+      pressed = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, at: performance.now(), id }
+      e.stopPropagation()
+    }
+    const onPickUp = (e: PointerEvent) => {
+      if (!pressed || pressed.pointerId !== e.pointerId) return
+      const { x, y, at, id } = pressed
+      pressed = null
+      if (e.type === 'pointerup' && Math.hypot(e.clientX - x, e.clientY - y) < PICK_SLOP_PX && performance.now() - at < PICK_MS) {
+        talk.select(id)
+      }
+    }
+    // 마우스 커서 — 누를 수 있는 캐릭터 위에서는 손가락 모양
+    const onPickHover = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse' || e.buttons !== 0) return
+      const cursor = !mapShownRef.current && pickAt(e) ? 'pointer' : ''
+      if (canvas.style.cursor !== cursor) canvas.style.cursor = cursor
+    }
+    mount.addEventListener('pointerdown', onPickDown, true)
+    mount.addEventListener('pointermove', onPickHover)
+    window.addEventListener('pointerup', onPickUp, true)
+    window.addEventListener('pointercancel', onPickUp, true)
     const noPeers = new Map<string, THREE.Vector3>()
 
     const start = performance.now()
@@ -938,6 +975,10 @@ export default function PlayScene() {
       document.body.removeEventListener('click', startAudio)
       canvas.removeEventListener('pointerup', startAudio)
       window.removeEventListener('keydown', onFirstKey)
+      mount.removeEventListener('pointerdown', onPickDown, true)
+      mount.removeEventListener('pointermove', onPickHover)
+      window.removeEventListener('pointerup', onPickUp, true)
+      window.removeEventListener('pointercancel', onPickUp, true)
       controller?.dispose()
       controllerRef.current = null
       connection?.dispose()

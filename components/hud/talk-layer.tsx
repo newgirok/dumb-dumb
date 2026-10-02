@@ -24,10 +24,19 @@ const CSS = `
   .tk-prompt:disabled { cursor: default; color: #8d8981; }
   .tk-bang { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #e2674f; color: #fff; font-size: 14px; font-weight: 800; }
   .tk-prompt:disabled .tk-bang { background: #b8b0a3; animation: tk-wait 1.2s ease-in-out infinite; }
-  /* 화면 밖(등 뒤) 사람 — 버튼이 그쪽 가장자리에 붙고 ! 대신 그 사람 쪽을 가리키는 화살표가 뜬다 */
-  .tk-bang-arrow { display: none; width: 13px; height: 13px; transform: rotate(var(--tk-dir, 180deg)); }
-  .tk-pinned .tk-bang-mark { display: none; }
-  .tk-pinned .tk-bang-arrow { display: block; }
+  /* 버튼 상대 표시 — 말 걸 수 있는(4m 안, 화면에 보이는) 가장 가까운 사람 머리 위의 작은 말풍선. 누르면 카드가 열린다 */
+  .tk-hint { pointer-events: auto; display: inline-flex; align-items: center; gap: 4px; padding: 5px 7px; border-radius: 999px; background: #f9efdc; color: #716c66;
+    box-shadow: 2px 2px 0 0 #716c66; animation: tk-pop 0.3s cubic-bezier(0.33, 1, 0.68, 1); transition: transform 0.15s; }
+  @media (hover: hover) { .tk-hint:hover { transform: scale(1.08); } }
+  .tk-hint:active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 transparent; }
+  .tk-ico { display: block; flex: none; }
+  /* 카드 — 누른 사람 머리 위. 지금은 [말 걸기] 하나이고, 나중 버튼(인사·친구·차단)도 같은 줄에 붙는다 */
+  .tk-pcard { pointer-events: auto; display: flex; gap: 6px; padding: 6px; border-radius: 14px; background: #f9efdc; box-shadow: 3px 3px 0 0 #716c66;
+    animation: tk-pop 0.25s cubic-bezier(0.33, 1, 0.68, 1); }
+  .tk-act { --tk-ico-line: #716c66; display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; background: #716c66;
+    color: #fbf3df; font-size: 14px; font-weight: 600; box-shadow: 2px 2px 0 0 #4a4744; transition: transform 0.15s; }
+  .tk-act:not(:disabled):active { transform: translate(2px, 2px); box-shadow: 0 0 0 0 transparent; }
+  .tk-act:disabled { --tk-ico-line: #ece3d3; cursor: default; background: #ece3d3; color: #8d8981; box-shadow: none; }
   .tk-key { padding: 0 6px; border: 1px solid #b8b0a3; border-radius: 4px; font: 600 11px/18px Pretendard, sans-serif; color: #8d8981; }
   @media (pointer: coarse) { .tk-key { display: none; } }
 
@@ -168,7 +177,13 @@ export default function TalkLayer({
 
   const refs = useMemo(() => {
     const bind = (slot: TalkSlot) => (el: HTMLDivElement | null) => talk.anchor(slot, el)
-    return { target: bind('target'), inviter: bind('inviter'), selfBubble: bind('selfBubble'), peerBubble: bind('peerBubble') }
+    return {
+      target: bind('target'),
+      card: bind('card'),
+      inviter: bind('inviter'),
+      selfBubble: bind('selfBubble'),
+      peerBubble: bind('peerBubble'),
+    }
   }, [talk])
 
   // 클릭음은 늘 최신 것을 부른다 — 부모가 렌더마다 새로 만들어도 E 키 처리기를 다시 걸지 않는다.
@@ -178,13 +193,14 @@ export default function TalkLayer({
     pressRef.current = onPress
   }, [onPress])
 
-  // E — 가까이 온 사람에게 말 걸기(물리 키 기준, 입력칸·IME 조합 중·키 반복은 무시)
+  // E — 카드를 열지 않고 바로 말 걸기: [말 걸기]가 켜진 카드 상대, 없으면 버튼 상대(물리 키 기준, 입력칸·IME 조합 중·키 반복은 무시)
   useEffect(() => {
     if (!active) return
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'KeyE' || e.repeat || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return
       if ((e.target as HTMLElement | null)?.closest('input, textarea, select, [contenteditable="true"]')) return
-      if (!talk.view().candidate) return
+      const now = talk.view()
+      if (!now.candidate && now.card?.reach !== 'near') return
       e.preventDefault()
       pressRef.current?.()
       talk.invite()
@@ -192,6 +208,16 @@ export default function TalkLayer({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [active, talk])
+
+  // Esc — 열린 카드를 닫는다(빈 곳을 눌러도 닫힌다 — 씬이 처리한다)
+  useEffect(() => {
+    if (!view.card) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') talk.select(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [view.card, talk])
 
   // 대화가 끝나면 쓰던 글과 입력 중 상태를 풀고, 다음 대화는 맨 아래를 따라가며 시작한다
   useEffect(() => {
@@ -250,31 +276,58 @@ export default function TalkLayer({
     if (talk.send(inputRef.current?.value ?? draft)) setDraft('')
   }
 
-  const target = view.asking ?? view.candidate
+  const candidate = view.card ? null : view.candidate
+  const card = view.card
   return (
     <div className="tk-layer">
       <style>{CSS}</style>
 
-      {/* 말 걸기 — 가까이 온 사람 머리 위 */}
+      {/* 버튼 상대 — 말 걸 수 있는 사람 머리 위의 작은 말풍선(누르면 카드). 건 요청을 기다리는 동안은 "기다리는 중…" */}
       <div ref={refs.target} className="tk-anchor">
-        {target && (
+        {view.asking ? (
           <div className="tk-over">
-            <button
-              type="button"
-              className="tk-prompt"
-              disabled={view.asking !== null}
-              onPointerDown={onPress}
-              onClick={() => talk.invite()}
-            >
+            <button type="button" className="tk-prompt" disabled>
               <span className="tk-bang" aria-hidden>
-                <span className="tk-bang-mark">!</span>
-                <svg className="tk-bang-arrow" viewBox="0 0 12 12" fill="none">
-                  <path d="M6 10.5V2M2.4 5.6 6 2l3.6 3.6" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                !
               </span>
-              {view.asking ? '기다리는 중…' : '말 걸기'}
-              {!view.asking && <kbd className="tk-key">E</kbd>}
+              기다리는 중…
             </button>
+          </div>
+        ) : (
+          candidate && (
+            <div className="tk-over">
+              <button
+                type="button"
+                className="tk-hint"
+                aria-label="말 걸 수 있어요 — 눌러서 카드 열기"
+                title="말 걸기 (E)"
+                onPointerDown={onPress}
+                onClick={() => talk.select(candidate)}
+              >
+                <TalkIcon />
+                <kbd className="tk-key">E</kbd>
+              </button>
+            </div>
+          )
+        )}
+      </div>
+
+      {/* 카드 — 누른 사람 머리 위. [말 걸기]는 4m 안에서 켜진다 */}
+      <div ref={refs.card} className="tk-anchor">
+        {card && (
+          <div className="tk-over">
+            <div className="tk-pcard" role="dialog" aria-label="이 사람에게 할 수 있는 것">
+              <button
+                type="button"
+                className="tk-act"
+                disabled={card.reach !== 'near'}
+                onPointerDown={onPress}
+                onClick={() => talk.invite(card.id)}
+              >
+                <TalkIcon />
+                {card.reach === 'near' ? '말 걸기' : card.reach === 'far' ? '가까이 가면 말 걸기' : '잠시 뒤에 다시 걸 수 있어요'}
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -442,5 +495,15 @@ function QuickReplies({ onPick }: { onPick: (phrase: string) => void }) {
         </button>
       ))}
     </div>
+  )
+}
+
+/** 말풍선 아이콘 — 우상단 말 걸기 받기 버튼과 같은 모양. 몸은 글자색, 줄은 --tk-ico-line */
+function TalkIcon() {
+  return (
+    <svg className="tk-ico" width="16" height="15" viewBox="0 0 18 16" fill="none" aria-hidden>
+      <path d="M3 1h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H8.5L4.5 15v-3H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2Z" fill="currentColor" />
+      <path d="M5 6.5h8M5 9h5" stroke="var(--tk-ico-line, #f9efdc)" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
   )
 }
