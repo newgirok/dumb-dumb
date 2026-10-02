@@ -17,8 +17,10 @@ const jetbrains = JetBrains_Mono({
   display: 'block',
 })
 
-/** 한글 UI 글씨 폰트(globals.css의 Pretendard) — 모든 페이지의 로더 안내가 쓰니 여기서 먼저 받아 둔다 */
+/** 한글 UI 글씨 폰트(globals.css의 Pretendard) — 모든 페이지의 로더 안내 줄이 쓰니 여기서 먼저 받아 둔다 */
 const PRETENDARD_WOFF2 = 'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/packages/pretendard/dist/web/static/woff2/Pretendard-Regular.woff2'
+/** 로더 첫 줄 글씨 — 로더 문구 글자만 담은 Stylish(components/ui/loader.tsx). 어느 페이지든 첫 화면이 로더일 수 있어 여기서 받는다 */
+const STYLISH_LOADER_WOFF2 = '/fonts/stylish-loader.woff2'
 
 export const metadata: Metadata = {
   // 탭 제목 — 선택 페이지는 제품 이름만, 나머지는 페이지 이름을 앞에 둔다("플레이 · Dumb Dumb").
@@ -29,6 +31,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   preload(PRETENDARD_WOFF2, { as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' })
+  preload(STYLISH_LOADER_WOFF2, { as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' })
 
   return (
     <html lang="ko" className={`${nunito.variable} ${jetbrains.variable}`}>

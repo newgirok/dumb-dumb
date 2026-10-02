@@ -33,10 +33,17 @@ const CSS = `
   .ld-spinner { display: block; flex: none; width: 54px; height: 54px; animation: ld-spin ${SPIN_MS}ms linear infinite; will-change: transform; }
   .ld-spinner svg { display: block; width: 100%; height: 100%; }
   .ld-spinner .path { stroke: #BDBCB8; stroke-dasharray: 58 200; }
-  /* 문구가 바뀌면(로딩 단계 안내 등) 살짝 떠오르며 바뀐다 — 글자만 갈아 끼우면 깜빡인 것처럼 보인다 */
+  /* 첫 줄 — 프로젝트 제목 글씨인 Stylish(지도 쪽지 제목과 같은 19px·#5d5a57), 아래 안내 줄은 Pretendard다. 로더 문구 글자만
+     담은 작은 폰트(public/fonts/stylish-loader.woff2, 21KB)를 루트 레이아웃이 미리 받아 첫 로더부터 바로 그린다. 글자는 로더
+     첫 줄(페이지 전환·플레이 씬·내 주변·에셋 미리보기 로더의 message)과 GPS 상태 제목에서 모은다 — 문구를 바꾸면 다시 만든다
+     (공식 배포본에서 fontTools로, 라이선스 정보는 그대로 둔다. 빠진 글자는 뒤의 전체 Stylish로 그려진다):
+       pyftsubset Stylish-Regular.ttf --flavor=woff2 --name-IDs='*' --output-file=public/fonts/stylish-loader.woff2
+         --text=" .,!?()-+0123456789GPSkm±·…가걸게결고권금기길깔꺼나내네는늦다대들또라략러려렷로를릿만맞멈면목못받방변보불브비산살서세셋수시신써쓸아안았약어없에연열오요용우위으을음이인임있잠저적제져조주준줄중지직짝찾채책챙처추췄치펼하한해했허호화흐흔"
+     문구가 바뀌면(로딩 단계 안내 등) 살짝 떠오르며 바뀐다 — 글자만 갈아 끼우면 깜빡인 것처럼 보인다 */
+  @font-face { font-family: 'Stylish Loader'; src: url('/fonts/stylish-loader.woff2') format('woff2'); font-weight: 400; font-display: block; }
   @keyframes ld-message { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
-  .ld-message { margin-top: 22px; font-family: Pretendard, sans-serif; font-size: 15px; line-height: 1.5; color: #9a968f; word-break: keep-all;
-    animation: ld-message 0.25s cubic-bezier(0.33, 1, 0.68, 1); }
+  .ld-message { margin-top: 22px; font-family: 'Stylish Loader', Stylish, Pretendard, sans-serif; font-size: 19px; line-height: 1.35; color: #5d5a57;
+    word-break: keep-all; animation: ld-message 0.25s cubic-bezier(0.33, 1, 0.68, 1); }
   @media (prefers-reduced-motion: reduce) { .ld-message { animation: none; } }
   .ld-hint { margin-top: 6px; max-width: 24rem; font-family: Pretendard, sans-serif; font-size: 12.5px; line-height: 1.55; color: #b3aea6; word-break: keep-all; }
   .ld-detail { margin-top: 10px; max-width: 26rem; font-family: Pretendard, sans-serif; font-size: 12.5px; line-height: 1.55; color: #9a968f;
