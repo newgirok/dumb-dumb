@@ -200,7 +200,7 @@ export default function PlayScene() {
   const [gps, setGps] = useState<GpsTracker | null>(null)
   const gpsView = useGpsSnapshot(gps)
   const [error, setError] = useState<string | null>(null)
-  // 원본처럼 소리 꺼짐으로 시작하고, 첫 입력 때 켜진다
+  // 원본처럼 소리 꺼짐으로 시작하고, 오디오가 실제로 돌기 시작하면 켜짐으로 바뀐다(브라우저가 막는 동안은 꺼짐 표시)
   const [muted, setMuted] = useState(true)
   // 캐릭터 옷 색(원본 color-square 버튼) — 첫 색은 로드 때 무작위로 정한다
   const [charColor, setCharColor] = useState('#F0EADE')
@@ -807,9 +807,11 @@ export default function PlayScene() {
     })
 
     // 브라우저 자동재생 정책상 오디오는 사용자 제스처 안에서 만들어야 한다. 원본처럼
-    // 첫 입력(페이지 클릭·캔버스 터치·키)에서 음소거를 풀고, 인트로 1.5초 뒤부터 소리를 낸다.
+    // 첫 입력(페이지 클릭·캔버스 터치·키)에서 오디오를 만들고, 인트로 1.5초 뒤부터 소리를 낸다.
     // 이 입력(같은 이벤트)으로 시작됐으면 true — 사운드 버튼은 이때 토글하지 않는다(원본
     // 결과와 같게). body 리스너와 React onClick 중 어느 쪽이 먼저 불려도 같은 결과가 난다.
+    // 켜짐 표시는 오디오가 실제로 돌 때 바꾼다 — 휴대폰에서 끌어 걷기는 브라우저가 소리를 켜 주는 입력이 아니어서
+    // 오디오가 막힌 채 만들어지고(꺼짐 표시 그대로), 다음 탭·클릭·키에서 풀리며 켜진다
     let audioStarted = false
     let startEvent: Event | null = null
     const canvas = renderer.domElement
@@ -820,8 +822,6 @@ export default function PlayScene() {
       document.body.removeEventListener('click', startAudio)
       canvas.removeEventListener('pointerup', startAudio)
       window.removeEventListener('keydown', onFirstKey)
-      setMuted(false)
-      mutedRef.current = false
       const canPlay = new Promise<void>((resolve) => {
         const wait = () => {
           if (destroyed) return
@@ -830,7 +830,15 @@ export default function PlayScene() {
         }
         wait()
       })
-      const audio = createSceneAudio({ muted: false, canPlay })
+      const audio = createSceneAudio({
+        muted: false,
+        canPlay,
+        onUnlock: () => {
+          if (destroyed) return
+          mutedRef.current = false
+          setMuted(false)
+        },
+      })
       audioRef.current = audio
       return true
     }
@@ -844,6 +852,9 @@ export default function PlayScene() {
     document.body.addEventListener('click', startAudio)
     canvas.addEventListener('pointerup', startAudio)
     window.addEventListener('keydown', onFirstKey)
+    // 선택 페이지에서 '플레이'를 누르고 들어왔으면(같은 문서라 그 누름이 남아 있다) 첫 입력을 기다리지 않고 오디오를 만든다 —
+    // 브라우저가 그 누름으로 허락하면(크롬 등) 인트로 뒤 바로 소리가 나고, 막으면 꺼짐 표시로 두었다가 첫 탭·클릭·키에서 풀린다
+    if (navigator.userActivation?.hasBeenActive) startAudio()
 
     // 만남 대화 — 발 위치 위 lift(m)를 캔버스 화면 좌표(CSS px)로 옮긴다. 카메라 뒤·화면 밖이면 false
     const projected = new THREE.Vector3()
@@ -1039,21 +1050,30 @@ export default function PlayScene() {
   /** 원본 버튼 — 누르는 순간 클릭음(키보드로 누르면 클릭 때) */
   const pressSound = () => audioRef.current?.click()
 
+  // 사운드 버튼·Ctrl+M — 첫 입력이면 원본처럼 소리를 켜는 것으로 끝난다. 오디오가 아직 막혀 있으면(휴대폰에서 끌어 걷기만
+  // 했을 때) 이 누름으로 풀어 켠다 — 꺼짐 표시라고 해서 끄는 쪽으로 뒤집지 않는다
+  const toggleSound = useCallback((event: Event) => {
+    if (startAudioRef.current(event)) return
+    const audio = audioRef.current
+    if (audio && !audio.unlocked) audio.unlock()
+    else setMuted((m) => !m)
+  }, [])
+
   const playing = phase === 'playing' && !unsupported
   useMapHotkey(playing, setMapOpen)
 
-  // Ctrl+M — 사운드 버튼과 같다. 첫 입력이 이 키면 원본처럼 소리를 켜는 것으로 끝난다
+  // Ctrl+M — 사운드 버튼과 같다
   useEffect(() => {
     if (!playing) return
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'KeyM' || !e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || e.repeat) return
       e.preventDefault()
       audioRef.current?.click()
-      if (!startAudioRef.current(e)) setMuted((m) => !m)
+      toggleSound(e)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [playing])
+  }, [playing, toggleSound])
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#FFFDF8] select-none">
@@ -1136,10 +1156,7 @@ export default function PlayScene() {
             <ToolButton
               label="소리 켜기·끄기 (Ctrl+M)"
               onPress={pressSound}
-              onClick={(e) => {
-                // 첫 입력이 이 버튼이면 원본처럼 소리를 켜는 것으로 끝난다
-                if (!startAudioRef.current(e.nativeEvent)) setMuted((m) => !m)
-              }}
+              onClick={(e) => toggleSound(e.nativeEvent)}
             >
               {/* 원본 아이콘: 꺼짐=사선 그은 스피커, 켜짐=스피커+막대(sound2) */}
               {muted ? (

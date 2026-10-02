@@ -21,8 +21,11 @@ const STEPS_OFFSET = 0.125
 const START_WAIT_MS = 500
 /** 탭이 숨으면 소리를 줄이는 시상수(초) — 그 5배가 지나 거의 0이 되면 오디오를 멈춘다 */
 const HIDE_FADE_S = 0.5
-/** 보이는데 멈춰 있는 오디오를 다시 켜는 제스처 */
-const RESUME_EVENTS = ['pointerup', 'touchend', 'keydown'] as const
+/**
+ * 막혀 있거나 멈춘 오디오를 켜는 입력 — 브라우저가 소리를 켜 주는 입력(탭을 뗄 때·클릭·키)만 쓴다.
+ * 누르는 순간(touchstart·pointerdown)과 끌기는 치지 않으므로, 휴대폰에서 끌어 걷기만 하면 오디오는 막힌 채 남는다
+ */
+const RESUME_EVENTS = ['pointerup', 'touchend', 'click', 'keydown'] as const
 
 export interface SceneAudio {
   /** 매 프레임 — 캐릭터 x(숲↔해변)·수평 속도(m/프레임)·땅 위에 서 있는지로 볼륨을 맞춘다 */
@@ -30,6 +33,10 @@ export interface SceneAudio {
   /** UI 버튼 클릭음(누르는 순간 처음부터 다시 재생) */
   click(): void
   setMuted(muted: boolean): void
+  /** 오디오가 한 번이라도 실제로 돌았는지 — 아직이면 브라우저가 막아 둔 것이다 */
+  readonly unlocked: boolean
+  /** 탭·클릭·키 처리 안에서 부른다 — 막힌 오디오를 켜 본다 */
+  unlock(): void
   dispose(): void
 }
 
@@ -43,18 +50,28 @@ type SyncedAudio = THREE.Audio & { _progress: number }
 /**
  * 사용자 제스처 안에서 부른다 — 리스너를 곧바로 만들고, 로딩·canPlay 대기는 뒤에서 한다.
  * canPlay가 풀리기 전의 음소거 토글은 상태만 바꾸고 소리는 내지 않는다(원본과 동일).
+ * 브라우저가 막아 오디오가 돌지 않으면 다음 탭·클릭·키에서 다시 켜 보고, 처음 실제로 돌 때 onUnlock을 한 번 부른다.
  */
 export function createSceneAudio({
   muted: initialMuted,
   canPlay,
+  onUnlock,
 }: {
   muted: boolean
   canPlay: Promise<void>
+  onUnlock?: () => void
 }): SceneAudio {
   const listener = new THREE.AudioListener()
   listener.setMasterVolume(0)
   const ctx = listener.context
-  void ctx.resume()
+  let unlocked = false
+  const markUnlocked = () => {
+    if (unlocked || ctx.state !== 'running') return
+    unlocked = true
+    onUnlock?.()
+  }
+  ctx.addEventListener('statechange', markUnlocked)
+  void ctx.resume().then(markUnlocked, () => {})
   const gain = listener.gain.gain
 
   const loops = new Map<string, THREE.Audio>()
@@ -165,8 +182,15 @@ export function createSceneAudio({
       if (muted) fadeTo(0, 0.25)
       else if (visible) fadeTo(MASTER_VOLUME, 0.5)
     },
+    get unlocked() {
+      return unlocked
+    },
+    unlock() {
+      if (ctx.state !== 'running') ctx.resume().catch(() => {})
+    },
     dispose() {
       disposed = true
+      ctx.removeEventListener('statechange', markUnlocked)
       document.removeEventListener('visibilitychange', onVisibility)
       for (const type of RESUME_EVENTS) window.removeEventListener(type, resumeOnGesture, true)
       window.clearTimeout(suspendTimer)
