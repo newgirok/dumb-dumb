@@ -38,7 +38,7 @@ const CSS = `
      첫 줄(페이지 전환·플레이 씬·내 주변·에셋 미리보기 로더의 message)과 GPS 상태 제목에서 모은다 — 문구를 바꾸면 다시 만든다
      (공식 배포본에서 fontTools로, 라이선스 정보는 그대로 둔다. 빠진 글자는 뒤의 전체 Stylish로 그려진다):
        pyftsubset Stylish-Regular.ttf --flavor=woff2 --name-IDs='*' --output-file=public/fonts/stylish-loader.woff2
-         --text=" .,!?()-+0123456789GPSkm±·…가걸게결고권금기길깔꺼나내네는늦다대들또라략러려렷로를릿만맞멈면목못받방변보불브비산살서세셋수시신써쓸아안았약어없에연열오요용우위으을음이인임있잠저적제져조주준줄중지직짝찾채책챙처추췄치펼하한해했허호화흐흔"
+         --text=" .,!?()-+0123456789GPSkm±·…가걸게결고권금기길깔꺼끈나내네는늦다대들또라략러려렷로를릿만맞멈면목못묶받발방변보불브비산살서세셋수시신써쓸아안았약어없에연열오요용우위으을음이인임있잠저적제져조주준줄중지직짝찾채책챙처추췄치하한해했허호화흐흔"
      문구가 바뀌면(로딩 단계 안내 등) 살짝 떠오르며 바뀐다 — 글자만 갈아 끼우면 깜빡인 것처럼 보인다 */
   @font-face { font-family: 'Stylish Loader'; src: url('/fonts/stylish-loader.woff2') format('woff2'); font-weight: 400; font-display: block; }
   @keyframes ld-message { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
