@@ -18,16 +18,18 @@ export function waitSpinTurn(since: number): Promise<void> {
 // (호 길이를 바꾸는 stroke-dashoffset 애니메이션은 매 프레임 메인 스레드에서 다시 그려야 해 그때마다 멈춘다).
 // 준비되면 0.75s(cubic in-out)에 걸쳐 사라진다.
 // 스피너는 늘 화면 한가운데에 두고 글은 그 아래로만 늘어나게 해, 로더끼리 넘겨받아도(페이지 전환 로더 → 씬 로더,
-// 상태별 로더) 스피너와 첫 줄이 제자리에 있다
+// 상태별 로더) 스피너와 첫 줄이 제자리에 있다. 글이 아래 절반에 다 들지 않는 낮은 화면(휴대폰 가로)에서만
+// 스피너가 위로 비키고, 그래도 넘치면 스크롤된다 — 위아래 끝에는 16px을 남긴다(min-height라 넉넉할 때는 가운데가 그대로다)
 const CSS = `
   @keyframes ld-spin { to { transform: rotate(360deg); } }
   .ld-root { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
-    padding: 0 24px; background-color: #FFFDF8; text-align: center; }
-  .ld-root::before { content: ''; flex: 1 1 0; }
+    padding: 0 24px; background-color: #FFFDF8; text-align: center; overflow-y: auto; }
+  .ld-root::before { content: ''; flex: 1 1 0; min-height: 16px; }
   .ld-root > * { transition: opacity 0.75s cubic-bezier(0.645, 0.045, 0.355, 1); }
   .ld-root.fading > * { opacity: 0; }
   .ld-root > .ld-spinner.off { visibility: hidden; }
   .ld-body { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; }
+  .ld-body::after { content: ''; flex: none; height: 16px; }
   .ld-spinner { display: block; flex: none; width: 54px; height: 54px; animation: ld-spin ${SPIN_MS}ms linear infinite; will-change: transform; }
   .ld-spinner svg { display: block; width: 100%; height: 100%; }
   .ld-spinner .path { stroke: #BDBCB8; stroke-dasharray: 58 200; }
