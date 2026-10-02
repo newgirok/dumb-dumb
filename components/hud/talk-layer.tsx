@@ -93,9 +93,15 @@ const CSS = `
     font-size: 14px; line-height: 1.45; word-break: keep-all; overflow-wrap: anywhere; }
   .tk-line.tk-mine { align-self: flex-end; border-radius: 12px 12px 4px 12px; background: #716c66; color: #fbf3df; }
   .tk-empty { margin: auto; font-size: 13px; color: #8d8981; }
-  /* 빠른 문구 — 한 줄에 다 들지 않으면 다음 줄로 넘긴다(가로로 숨겨 두면 끝 문구가 잘려 보인다) */
-  .tk-quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 8px; }
-  .tk-chip { flex: none; padding: 5px 11px; border-radius: 999px; background: #fffdf8; color: #5d5a57; font-size: 13px; box-shadow: 1px 1px 0 0 #716c66; }
+  /* 빠른 문구 — 메신저 빠른 답장처럼 한 줄로 두고 넘치면 옆으로 넘긴다(Material 칩 가이드). 더 있는 쪽 끝은 흐려져
+     잘린 게 아니라 더 있다는 것을 알리고, 마우스 휠로도 옆으로 넘어간다(QuickReplies) */
+  .tk-quick { flex: none; display: flex; gap: 6px; padding: 0 12px 8px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+  .tk-quick::-webkit-scrollbar { display: none; }
+  .tk-quick[data-more='end'] { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); }
+  .tk-quick[data-more='start'] { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent); }
+  .tk-quick[data-more='both'] { -webkit-mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent); }
+  .tk-chip { flex: none; white-space: nowrap; padding: 5px 11px; border-radius: 999px; background: #fffdf8; color: #5d5a57; font-size: 13px; box-shadow: 1px 1px 0 0 #716c66; }
   .tk-chip:active { transform: translate(1px, 1px); box-shadow: 0 0 0 0 transparent; }
   .tk-form { display: flex; gap: 8px; padding: 0 12px 12px; }
   .tk-input { flex: 1; min-width: 0; padding: 9px 12px; border: 1.5px solid #716c66; border-radius: 10px; background: #fffdf8; color: #4a4744;
@@ -292,13 +298,7 @@ export default function TalkLayer({
               ))
             )}
           </div>
-          <div className="tk-quick">
-            {QUICK.map((phrase) => (
-              <button key={phrase} type="button" className="tk-chip" onClick={() => talk.send(phrase)}>
-                {phrase}
-              </button>
-            ))}
-          </div>
+          <QuickReplies onPick={(phrase) => talk.send(phrase)} />
           <form
             className="tk-form"
             onSubmit={(e) => {
@@ -338,6 +338,48 @@ export default function TalkLayer({
           {view.notice.text}
         </div>
       )}
+    </div>
+  )
+}
+
+/** 빠른 문구 한 줄 — 넘치면 옆으로 넘기고, 더 있는 쪽 끝을 흐린다(data-more: start·end·both). 세로 휠도 옆으로 넘기는 데 쓴다 */
+function QuickReplies({ onPick }: { onPick: (phrase: string) => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const mark = () => {
+      const start = el.scrollLeft > 1
+      const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+      const more = start && end ? 'both' : start ? 'start' : end ? 'end' : ''
+      if (el.dataset.more !== more) el.dataset.more = more
+    }
+    // 마우스 휠은 세로로만 돈다 — 옆으로 넘길 게 있으면 그만큼 옆으로 민다(터치·트랙패드의 가로 밀기는 브라우저가 처리한다)
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX) || el.scrollWidth <= el.clientWidth) return
+      e.preventDefault()
+      el.scrollLeft += e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY
+    }
+    mark()
+    const resize = new ResizeObserver(mark)
+    resize.observe(el)
+    el.addEventListener('scroll', mark, { passive: true })
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      resize.disconnect()
+      el.removeEventListener('scroll', mark)
+      el.removeEventListener('wheel', onWheel)
+    }
+  }, [])
+
+  return (
+    <div ref={ref} className="tk-quick">
+      {QUICK.map((phrase) => (
+        <button key={phrase} type="button" className="tk-chip" onClick={() => onPick(phrase)}>
+          {phrase}
+        </button>
+      ))}
     </div>
   )
 }
