@@ -212,7 +212,7 @@ export default function PlayScene() {
     mapIdleRef.current.idle = idle
     if (idle) mapIdleRef.current.wake?.()
   }, [])
-  // 만남 대화 — 같은 방 30m 안의 사람과 1:1로 말한다. 상태는 씬 밖에 두고 소켓이 생기면 잇는다
+  // 만남 대화 — 같은 방에서 말소리가 닿는 거리(TALK) 안의 사람과 1:1로 말한다. 상태는 씬 밖에 두고 소켓이 생기면 잇는다
   const talkRef = useRef<Talk | null>(null)
   if (!talkRef.current) talkRef.current = createTalk()
   const talk = talkRef.current
