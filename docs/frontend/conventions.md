@@ -37,8 +37,9 @@ Tailwind CSS v4 + `@theme` 블록 기반 커스텀 디자인 시스템. 색상 �
 - **Display / Body**: Nunito (Google Fonts, `next/font/google`)
 - **Mono**: JetBrains Mono (코드, 시리얼 번호 등)
 - **Luckiest Guy**(선택 페이지 제목): `app/page.tsx`가 `next/font/google`로 받아 `--font-title` 변수로 제목 "Dumb Dumb"에만 쓴다. 두툼한 만화 로고체라 장난꾸러기 같은 이름과 어울린다
-- **Stylish**(버튼 이름·지도 글씨): `app/globals.css`가 `@font-face 'Stylish'`(`/ref-assets/fonts/Stylish-Regular.woff2`·`.woff`)를 전역으로 선언한다. 선택 페이지 버튼 이름과 펼침 지도 글씨(지도 라벨·제목 태그·표지·범례·축척·쪽지 제목·도장·마커 라벨)가 쓴다. woff2 파일이 1MB 가까이 돼 선택 페이지가 `react-dom`의 `preload`로 미리 받아 둔다(펼침 지도가 같은 파일을 쓴다)
-- **Pretendard**(한글 UI 글씨): `app/globals.css`가 `@font-face 'Pretendard'`(굵기 400 하나, jsDelivr의 `pretendard@v1.3.9` woff2·woff)를 선언하고, 루트 레이아웃이 woff2(약 770KB)를 `preload`로 미리 받는다. 로더 안내 글씨, 선택 페이지 버튼의 배지, 펼침 지도 쪽지의 안내 글씨·버튼이 쓴다
+- **Stylish**(버튼 이름·지도 글씨): `app/globals.css`가 `@font-face 'Stylish'`(`/ref-assets/fonts/Stylish-Regular.woff2`·`.woff`)를 전역으로 선언한다. 펼침 지도 글씨(지도 라벨·제목 태그·표지·범례·축척·쪽지 제목·도장·마커 라벨)가 쓴다. woff2 파일이 1MB 가까이 돼 선택 페이지가 `react-dom`의 `preload`로 미리 받아 두되 `fetchPriority: 'low'`로 받아 첫 화면 글자와 대역폭을 다투지 않는다(Mapbox가 그린 글자 모양을 저장해 다시 쓰므로 지도는 조각이 아닌 전체 파일이 먼저 와 있어야 한다)
+- **선택 페이지 글자 전용 폰트**: 선택 페이지 버튼 이름은 `'Stylish Home'`(`public/fonts/stylish-home.woff2`, 4KB — "플레이 내 주변 에셋 미리보기"), 배지는 `'Pretendard Home'`(`public/fonts/pretendard-home.woff2`, 2KB — "베타 개발용")으로 그리고, 두 파일을 `preload`로 먼저 받는다. 느린 휴대폰 망(1.6Mbps)에서 전체 폰트(936KB·748KB)를 기다리면 글자가 14초 뒤에야 제 글꼴로 뜨던 것이 0.7초 안으로 줄었다. 공식 배포본(Google Fonts의 Stylish TTF, Pretendard v1.3.9 OTF)에서 fontTools `pyftsubset --text=… --flavor=woff2 --name-IDs='*'`로 만들어 OFL 라이선스 정보를 폰트 안에 남긴다(명령은 `app/page.tsx` 주석). 버튼 이름·배지 글자를 바꾸면 다시 만들고, 빠진 글자는 뒤의 전체 폰트로 그려진다
+- **Pretendard**(한글 UI 글씨): `app/globals.css`가 `@font-face 'Pretendard'`(굵기 400 하나, jsDelivr의 `pretendard@v1.3.9` woff2·woff)를 선언하고, 루트 레이아웃이 woff2(약 770KB)를 `preload`로 미리 받는다. 로더 안내 글씨, 펼침 지도 쪽지의 안내 글씨·버튼이 쓴다(선택 페이지 배지는 아래 글자 전용 폰트)
 - 웹 폰트는 모두 `font-display: block`이다(`next/font`도 `display: 'block'`). 기본 글꼴로 먼저 그렸다가 바꿔 끼우지 않고, 폰트가 오면 바로 그 폰트로 그린다 — 3초 안에 오지 않을 때만 기본 글꼴로 보인다
 
 ```tsx

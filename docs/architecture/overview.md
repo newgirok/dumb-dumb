@@ -97,7 +97,7 @@ NestJS 가드와 PostgreSQL RLS가 담당한다.
 | **맵 렌더링 (예정)** | Mapbox GL JS v3 + Three.js 커스텀 레이어 | Mapbox 캔버스의 WebGL 컨텍스트 공유 ([ADR 001](../adr/001-webgl-context-sharing.md)) |
 | **지도 엔진** | Mapbox GL JS v3 | 펼침 지도(플레이 씬·내 주변) — Streets v8 벡터 타일과 지형 DEM을 게임 화풍으로 칠한 자체 스타일(`paper-map-style.ts`). 맵 베이스 지도(예정, Standard 스타일). 무료 티어 20만 건/월 |
 | **길 데이터** | OpenStreetMap 벡터 타일 (OpenFreeMap, OpenMapTiles 스키마) | 내 주변 바닥. z14 타일을 브라우저 워커가 직접 받아 `@mapbox/vector-tile`·`pbf`로 해석 |
-| **UI 스타일** | Tailwind CSS v4 + oklch 디자인 시스템 | 루트 레이아웃 기본 글꼴 Nunito, 한글 UI 글씨 Pretendard, 선택 페이지 제목 Luckiest Guy, 선택 페이지 버튼 이름·펼침 지도 글씨 Stylish(웹 폰트는 모두 `font-display: block`). 플레이 씬 HUD는 `sa-*` 스타일 |
+| **UI 스타일** | Tailwind CSS v4 + oklch 디자인 시스템 | 루트 레이아웃 기본 글꼴 Nunito, 한글 UI 글씨 Pretendard, 선택 페이지 제목 Luckiest Guy, 선택 페이지 버튼 이름·펼침 지도 글씨 Stylish(선택 페이지 버튼 이름·배지는 쓰는 글자만 담은 4KB·2KB 폰트로 먼저 그린다. 웹 폰트는 모두 `font-display: block`). 플레이 씬 HUD는 `sa-*` 스타일 |
 | **프론트 배포** | Vercel Edge Network | Next.js 서버(`output: 'standalone'`, Route Handler `/api/health`) + ref-assets 정적 파일 |
 | **API 서버** | NestJS 11 (`apps/api`) | 자체 호스팅. REST 전용(9001) |
 | **실시간 서버** | NestJS 11 (`apps/realtime`) | 자체 호스팅. socket.io 게이트웨이 전용(9002), DB 없음 ([ADR 007](../adr/007-realtime-server-split.md)) |
