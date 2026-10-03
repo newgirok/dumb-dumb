@@ -13,8 +13,6 @@
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
-    "@mapbox/mapbox-gl-supported": "^4.1.0",
-    "@mapbox/tilebelt": "^2.0.3",
     "@mapbox/vector-tile": "^3.0.0",
     "cheap-ruler": "^4.1.0",
     "clsx": "^2.1.1",
