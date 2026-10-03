@@ -240,6 +240,11 @@ export interface ThirdPerson {
   setEnabled(enabled: boolean): void
   /** 그 자리(바닥 위)로 곧장 옮긴다 — 카메라도 같은 만큼 옮겨 따라오게 한다(휴대폰 GPS가 멀리 튀었을 때) */
   snap(x: number, z: number): void
+  /**
+   * 걷지 않고 그 자리로 옮긴다 — 탈것에 실려 가는 것처럼 선 채로 매 프레임 조금씩 옮기고, 몸은 가는 쪽으로 돌며
+   * 카메라는 걸을 때처럼 등 뒤로 따라 돈다. 그 프레임의 update보다 먼저 부른다
+   */
+  glide(x: number, z: number): void
   /** 수평 속도 — 원본 velocityHorizontal(60fps 한 프레임당 m). 잔디 반응·애니메이션 블렌드용 */
   velocityHorizontal: number
   /** 이동 입력이 들어오고 있는가 */
@@ -298,6 +303,8 @@ export function createThirdPerson({
   let jumpLocked = false
   let jumpRequestUntil = 0
   let rightDownMs = -Infinity
+  // 이번 프레임에 glide로 옮겨졌나 — 카메라가 걸을 때처럼 등 뒤로 따라 돈다
+  let gliding = false
   // 인트로·흔들림은 벽시계(performance.now)로 구동한다 — 에셋 로딩 직후 첫
   // 프레임의 큰 dt가 누적돼 인트로가 통째로 스킵되던 문제를 막는다.
   let introStartMs = -1
@@ -637,7 +644,7 @@ export function createThirdPerson({
     // 카메라 쪽으로 곧장 걸어오면(정반대) 배수 0이라 카메라가 안 돈다. 이게
     // 없으면 "카메라가 돌면 이동 방향이 또 바뀌는" 되먹임으로 화면이 계속 돈다.
     const alignment = Math.cos(charThetaTarget - camTheta)
-    const rotateMul = state.moving
+    const rotateMul = state.moving || gliding
       ? THREE.MathUtils.clamp(alignment + 1, 0, 1)
       : CAMERA_INACTIVE_MUL
     camThetaTarget +=
@@ -814,6 +821,22 @@ export function createThirdPerson({
       character.position.copy(position)
     },
 
+    glide(x: number, z: number) {
+      const dx = x - position.x
+      const dz = z - position.z
+      if (Math.hypot(dx, dz) > 1e-4) {
+        // 가는 쪽(의 등 뒤 방위)으로 서서히 돈다 — 걸을 때 입력 방향으로 도는 것과 같은 방위다
+        charThetaTarget = charTheta + shortestAngle(Math.atan2(dx, dz) + Math.PI - charTheta)
+        gliding = true
+      }
+      lookTarget.x += dx
+      lookTarget.z += dz
+      position.x = x
+      position.z = z
+      velocity.set(0, 0, 0)
+      character.position.copy(position)
+    },
+
     update(dt: number) {
       const nowMs = performance.now()
       if (clockBaseMs < 0) clockBaseMs = nowMs
@@ -877,6 +900,7 @@ export function createThirdPerson({
         inactiveMs = 0
         state.bored = false
       }
+      gliding = false
     },
 
     dispose() {
