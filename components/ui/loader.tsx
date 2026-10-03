@@ -155,14 +155,17 @@ const CSS = `
 export function LoaderSpinner({ size = 54, className = '' }: { size?: number; className?: string }) {
   const ref = useRef<HTMLSpanElement>(null)
   // 새로 붙는 스피너는 먼저 떠 있던 스피너(페이지 전환 로더의 것은 늘 붙어 있다)와 같은 박자로 돈다 —
-  // 로더가 바뀌어도 스피너가 처음부터 다시 돌거나 두 개가 어긋나 겹쳐 보이지 않는다
+  // 로더가 바뀌어도 스피너가 처음부터 다시 돌거나 두 개가 어긋나 겹쳐 보이지 않는다. 회전(ld-spin)끼리만 맞춘다 — 떠 있던
+  // 스피너가 나타나는 중이면 크기·투명도 전환이 회전보다 앞에 놓여, 첫 애니메이션에 맞추면 박자가 어긋나 넘겨받을 때 튄다
   useLayoutEffect(() => {
     const el = ref.current
     if (!el || typeof el.getAnimations !== 'function') return
-    const lead = [...document.querySelectorAll<HTMLElement>('.ld-spinner')].find((other) => other !== el)
-    const startTime = lead?.getAnimations({ subtree: true })[0]?.startTime
-    if (startTime == null) return
-    for (const animation of el.getAnimations({ subtree: true })) animation.startTime = startTime
+    const spin = (node: Element) => node.getAnimations().find((a) => (a as CSSAnimation).animationName === 'ld-spin')
+    const lead = [...document.querySelectorAll<HTMLElement>('.ld-spinner')].find((other) => other !== el && spin(other))
+    const startTime = lead && spin(lead)?.startTime
+    const own = spin(el)
+    if (startTime == null || !own) return
+    own.startTime = startTime
   }, [])
 
   return (
