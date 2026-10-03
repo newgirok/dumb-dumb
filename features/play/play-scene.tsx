@@ -56,7 +56,7 @@ import { createTalk, type Project, type Talk } from '@/lib/realtime/talk'
 import TalkLayer from '@/components/hud/talk-layer'
 import type { RelayMotion } from '@/shared/relay/contract'
 import PaperMap, { GpsBadge, MapIcon, useMapHotkey } from '@/components/map/paper-map'
-import Loader, { SPIN_MS, waitSpinTurn } from '@/components/ui/loader'
+import Loader, { SPIN_MS, useLoadingSteps, waitSpinTurn } from '@/components/ui/loader'
 import { createGpsTracker, useGpsSnapshot, type GpsTracker } from '@/lib/geo/gps'
 
 /**
@@ -156,8 +156,6 @@ const LOADER_HIDDEN_MS = 250
  * 아니라는 걸 보인다(10초를 넘길 수 있는 기다림은 진행을 보여 준다). 첫 줄은 페이지 전환 로더와 같아 넘겨받아도 그대로다
  */
 const LOADING_STEPS = ['산책 가방 챙기는 중이에요', '신발 끈 묶는 중이에요', '목줄 채우는 중이에요', '이제 나가요!']
-/** 문구 하나를 적어도 이만큼 보여 준다 — 빠른 기기에서 단계가 금방 지나가도 문구가 휙휙 바뀌며 깜빡이지 않게 */
-const LOADING_STEP_MIN_MS = 700
 /** 인트로 리빌 4초(원본 uTransition 0→1, ease none) */
 const INTRO_REVEAL_MS = 4000
 /** 오디오는 인트로 시작 1.5초 뒤부터 소리를 낼 수 있다(원본 canPlaySound) */
@@ -199,21 +197,8 @@ export default function PlayScene() {
   const mountRef = useRef<HTMLDivElement>(null)
   // 'loading' → 에셋 로드 중, 'fading' → 로더가 사라지는 중, 'playing' → 인트로·조작 시작
   const [phase, setPhase] = useState<'loading' | 'fading' | 'playing'>('loading')
-  // 로딩 단계 — 로딩이 닿은 단계(loadStep)를 문구 단계(shownStep)가 한 칸씩, 한 문구를 LOADING_STEP_MIN_MS는 보여 주며 따라간다
-  const [loadStep, setLoadStep] = useState(0)
-  const [shownStep, setShownStep] = useState(0)
-  const shownAtRef = useRef(0)
-  useEffect(() => {
-    if (shownStep >= loadStep) return
-    const timer = setTimeout(
-      () => {
-        shownAtRef.current = performance.now()
-        setShownStep((step) => step + 1)
-      },
-      Math.max(0, LOADING_STEP_MIN_MS - (performance.now() - shownAtRef.current)),
-    )
-    return () => clearTimeout(timer)
-  }, [loadStep, shownStep])
+  // 로딩 단계 — 로딩이 닿은 단계(setLoadStep)를 문구 단계(shownStep)가 한 칸씩 따라간다
+  const [shownStep, setLoadStep] = useLoadingSteps()
   const [unsupported, setUnsupported] = useState(false)
   // 펼침 지도(M) — 지도가 화면에 있는 동안은 캐릭터 조작을 끈다(원본이 모달을 띄울 때처럼).
   // 접을 때는 다 접혀 배경(dim)까지 걷힌 뒤에 켠다
