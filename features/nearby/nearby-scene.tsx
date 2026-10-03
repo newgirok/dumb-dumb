@@ -30,7 +30,8 @@ import { createLocalFrame, type LocalFrame } from '@/lib/geo/local-frame'
 import { createSkin, createSkinAnimation, loadBinGeometry } from '@/lib/three/bin-loader'
 import { createRampMaterial, createSharedUniforms, createSkyMaterial, loadKtx2Lut } from '@/lib/three/ramp-shader'
 import { createThirdPerson, type ThirdPerson } from '@/lib/three/third-person'
-import { createSunLight } from '@/lib/three/shadows'
+import { compileShadowDepth, createSunLight } from '@/lib/three/shadows'
+import { compileGradually, compileMaterialsGradually, drawAllGradually, settle, uploadTexturesGradually } from '@/lib/three/warm-up'
 import { createFinalPass } from '@/lib/three/postprocess'
 import { blendKidAnimation, createKidAnimation, type KidAnimation } from '@/lib/three/kid-animation'
 import { createRemotes, type Remotes } from '@/lib/three/remote-players'
@@ -172,7 +173,8 @@ export default function NearbyScene() {
     const finalPass = createFinalPass()
     finalPass.uniforms.uIntro.value = 0
     composer.addPass(finalPass)
-    composer.addPass(new SMAAPass(1, 1))
+    const smaaPass = new SMAAPass(1, 1)
+    composer.addPass(smaaPass)
     composer.addPass(new OutputPass())
 
     const resize = () => {
@@ -190,6 +192,8 @@ export default function NearbyScene() {
 
     let destroyed = false
     let raf = 0
+    // 로더 뒤 GPU 예열이 끝나기 전에는 씬을 그리지 않는다(첫 렌더가 셰이더 컴파일·텍스처 업로드를 한꺼번에 몰고 온다)
+    let prepared = false
     let frame: LocalFrame | null = null
     let controller: ThirdPerson | null = null
     let kid: THREE.SkinnedMesh | null = null
@@ -452,6 +456,26 @@ export default function NearbyScene() {
       unwatch = gps.subscribe(follow)
       // 캐릭터를 세운 위치부터 센다 — 구독 전에 받은 위치는 알림이 다시 오지 않는다
       follow(gps.snapshot)
+
+      // GPU 예열 — 플레이 씬처럼 로더 뒤에서 셰이더를 병렬 컴파일하고(새 프로그램마다 한 프레임 쉰다) 텍스처를 하나씩
+      // 올린 뒤에 그리기 시작한다. 첫 렌더에 몰린 컴파일·업로드가 GPU를 붙잡아 로더 스피너가 끊기지 않게 한다
+      const cancelled = () => destroyed
+      const postMaterials = [finalPass.material, smaaPass.materialEdges, smaaPass.materialWeights, smaaPass.materialBlend]
+      await compileGradually(renderer, scene, camera, composer.readBuffer, cancelled)
+      await compileMaterialsGradually(renderer, postMaterials, composer.writeBuffer, cancelled)
+      const shadowDepth = await compileShadowDepth(renderer, scene, camera, composer.readBuffer, cancelled)
+      if (destroyed) {
+        shadowDepth.forEach((material) => material.dispose())
+        return
+      }
+      disposables.push(...shadowDepth)
+      await uploadTexturesGradually(renderer, scene, postMaterials, cancelled)
+      // 물체를 묶음마다 한 번씩 그려 두고 묶음마다 GPU가 끝낼 때까지 쉰다 — 첫 그리기의 드라이버 준비가 한 프레임에 몰려
+      // 화면 표시(Present)가 0.2초 가까이 막히지 않게 한다
+      await drawAllGradually(renderer, scene, camera, composer.readBuffer, cancelled)
+      await settle(renderer)
+      if (destroyed) return
+      prepared = true
       // 같은 동네 사람들 — 원점이 저마다 달라 실제 좌표(경위도)로 주고받고, 받은 위치는
       // 내 원점 기준으로 바꿔 세운다. 서버에 닿지 못하면 혼자인 채로 돈다
       const peers = createRemotes({
@@ -544,7 +568,7 @@ export default function NearbyScene() {
         remotes?.update(ratio, camera, kid.position)
       }
       sky?.position.copy(camera.position)
-      composer.render()
+      if (prepared) composer.render()
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
