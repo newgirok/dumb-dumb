@@ -12,17 +12,30 @@ const KEEP_RING = 2
 /** 구역이 깔리기 전 빈 곳을 받치는 잔디 바닥 — 구역보다 살짝 아래에 둔다 */
 const BASE_SIZE = 4000
 const BASE_Y = -0.05
+/** 마스크 한 칸 크기의 역수(칸/m)와, 걸을 수 있는 곳을 찾아보는 최대 거리 */
+const PIXELS_PER_M = RESOLUTION / CHUNK
+const WALK_SEARCH_M = 150
+/** 막힌 곳 가장자리에서 안쪽으로 들어가 보는 거리 — 차도 옆 인도 폭이라 인도 위에 서고, 그보다 좁은 틈이면 그 폭의 가운데에 선다 */
+const WALK_INSET_M = 1
 
 export interface GroundStream {
   /** 처음 자리 둘레 구역을 모두 깐다 */
   prime(x: number, z: number): Promise<void>
   /** 매 프레임 — 캐릭터가 다른 구역으로 넘어가면 앞쪽을 깔고 멀어진 구역을 치운다 */
   update(x: number, z: number): void
+  /**
+   * 가장 가까운 걸을 수 있는 곳 — 화면에 그린 막힌 곳(차도)만 피한다. 잔디·공터·광장·인도 위면 그 자리를, 차도 위면
+   * 가장 가까운 칸에서 같은 방향으로 인도 폭(1m)까지 들어가 본 그 폭의 가운데 자리를 돌려준다.
+   * 그 자리 구역이 아직 안 깔렸거나 150m 안에 없으면 null
+   */
+  nearestWalk(x: number, z: number): { x: number; z: number } | null
   dispose(): void
 }
 
 interface GroundChunk {
   mesh: THREE.Mesh
+  /** RGBA 마스크(r 차도 · b 인도·보행로·광장) — 막힌 곳(차도)을 피해 설 곳을 찾을 때 읽는다 */
+  masks: Uint8Array
   dispose(): void
 }
 
@@ -125,6 +138,7 @@ export function createGroundStream({
     mesh.receiveShadow = true
     return {
       mesh,
+      masks: pixels.masks,
       dispose() {
         material.dispose()
         masks.dispose()
@@ -187,7 +201,61 @@ export function createGroundStream({
 
   const cellOf = (x: number, z: number) => [Math.floor(x / CHUNK), Math.floor(z / CHUNK)] as const
 
+  /**
+   * 세계 칸(gx, gz — 구역 경계가 칸 경계와 맞는다)이 걸을 수 있는 곳인가. 차도(r)가 아니면 잔디·공터·광장·인도 모두 걷는다.
+   * 마스크 첫 줄은 남쪽 끝이라 구역 안 줄을 뒤집어 읽는다. 안 깔린 구역은 null
+   */
+  function walkable(gx: number, gz: number): boolean | null {
+    const cx = Math.floor(gx / RESOLUTION)
+    const cz = Math.floor(gz / RESOLUTION)
+    const chunk = chunks.get(`${cx},${cz}`)
+    if (!chunk || chunk === 'loading') return null
+    const col = gx - cx * RESOLUTION
+    const row = RESOLUTION - 1 - (gz - cz * RESOLUTION)
+    return chunk.masks[(row * RESOLUTION + col) * 4] < 128
+  }
+
   return {
+    nearestWalk(x, z) {
+      const gx = Math.floor(x * PIXELS_PER_M)
+      const gz = Math.floor(z * PIXELS_PER_M)
+      const here = walkable(gx, gz)
+      if (here === null) return null
+      if (here) return { x, z }
+      // 둘레를 한 겹씩 넓혀 가며 찾는다 — 처음 찾은 겹보다 바깥에서도 대각선 쪽이 더 가까울 수 있어 그 거리까지는 더 본다
+      let best = Infinity
+      let bx = 0
+      let bz = 0
+      const consider = (px: number, pz: number) => {
+        const dist = Math.hypot(px - gx, pz - gz)
+        if (dist < best && walkable(px, pz)) {
+          best = dist
+          bx = px
+          bz = pz
+        }
+      }
+      const limit = WALK_SEARCH_M * PIXELS_PER_M
+      for (let r = 1; r <= limit && r <= best; r++) {
+        for (let d = -r; d <= r; d++) {
+          consider(gx + d, gz - r)
+          consider(gx + d, gz + r)
+        }
+        for (let d = 1 - r; d < r; d++) {
+          consider(gx - r, gz + d)
+          consider(gx + r, gz + d)
+        }
+      }
+      if (best === Infinity) return null
+      // 가장자리 칸에서 같은 방향으로 더 들어가 인도 위에 세운다 — 가장자리에 서면 몸이 차도에 걸친다
+      const ux = (bx - gx) / best
+      const uz = (bz - gz) / best
+      let inside = 0
+      while (inside < WALK_INSET_M * PIXELS_PER_M && walkable(Math.round(bx + ux * (inside + 1)), Math.round(bz + uz * (inside + 1)))) {
+        inside++
+      }
+      return { x: (bx + 0.5 + (ux * inside) / 2) / PIXELS_PER_M, z: (bz + 0.5 + (uz * inside) / 2) / PIXELS_PER_M }
+    },
+
     async prime(x, z) {
       const [cx, cz] = cellOf(x, z)
       current = `${cx},${cz}`

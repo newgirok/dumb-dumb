@@ -260,6 +260,7 @@ export function createThirdPerson({
   collider,
   domElement,
   start,
+  spawnRadius = SPAWN_RADIUS,
   mobile,
   onTouchJump,
   steer,
@@ -269,6 +270,8 @@ export function createThirdPerson({
   collider: THREE.Mesh
   domElement: HTMLElement
   start: THREE.Vector3
+  /** 시작 지점을 start 둘레 이 반경(정육면체) 안에서 무작위로 고른다 — 실제 위치에 세우는 내 주변은 0 */
+  spawnRadius?: number
   /** 휴대폰 — 카메라가 조금 더 빨리 따라오고 위아래 패럴랙스가 없다(원본 client.device) */
   mobile: boolean
   /** 두 번째 손가락으로 탭해 점프했을 때 그 자리(NDC)를 알린다(점프 원 UI) */
@@ -318,7 +321,7 @@ export function createThirdPerson({
     .clone()
     .add(
       new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1)
-        .multiplyScalar(SPAWN_RADIUS),
+        .multiplyScalar(spawnRadius),
     )
   const initialPosition = bvh.closestPointToPoint(spawn)?.point.clone() ?? spawn
   const position = initialPosition.clone()

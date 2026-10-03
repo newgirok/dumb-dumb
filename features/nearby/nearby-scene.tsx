@@ -37,8 +37,11 @@ import { createGroundStream, type GroundStream } from './ground-stream'
 
 /** 원점은 0.001° 격자에 맞춘다 — 정확한 내 위치를 원점으로 두지 않고, 같은 동네면 같은 바닥이 나온다 */
 const ORIGIN_GRID = 0.001
-/** 휴대폰 GPS 따라가기 — 이 안이면 서고, 여기서 이만큼 더 멀어지면 최고 속도로 걷는다 */
-const GPS_STOP_M = 1.5
+/**
+ * 휴대폰 GPS 따라가기 — 이 안이면 서고, 여기서 이만큼 더 멀어지면 최고 속도로 걷는다. 차도 위 목표는 폭 1m인 인도
+ * 가운데로 옮기므로 그 안에 들어가 서도록 서는 거리를 짧게 둔다(멈춰 섰다 다시 걷는 건 GPS_STEP_M이 막는다)
+ */
+const GPS_STOP_M = 0.3
 const GPS_FULL_M = 4
 /** GPS 거르기(칼만 필터) — 위치 사이에 사람이 초당 이만큼 움직일 수 있다고 보고, 시간이 지날수록 새 위치를 더 믿는다 */
 const GPS_MOTION_MPS = 2
@@ -48,6 +51,13 @@ const GPS_JUMP_MIN_M = 3
 const GPS_JUMP_COUNT = 3
 /** 서 있던 캐릭터는 지금 자리가 이만큼(정확도의 절반이 더 크면 그만큼) 떨어져야 걷기 시작한다 */
 const GPS_STEP_M = 3
+/**
+ * 걸을 때 붙인 자리가 지난번 붙인 자리에서 이보다 멀리 옮겨 가면(차도 위에서 길 건너편 인도로) 그쪽이 지금 자리보다
+ * WALK_HOP_MARGIN_M 넘게 가까운 위치가 잇달아 찍혀야 옮긴다 — 차도 위에서 흔들려도 이쪽저쪽 인도를 오가지 않는다
+ */
+const WALK_HOP_M = 6
+const WALK_HOP_MARGIN_M = 6
+const WALK_HOP_COUNT = 3
 /** GPS가 한 번에 이보다 멀리 튀면(지하철·차) 걸어가지 않고 곧장 옮긴다 */
 const GPS_TELEPORT_M = 150
 /** 캐릭터가 서는 바닥 — 평평하니 충돌은 끝없이 넓은 평면 하나로 충분하다 */
@@ -159,6 +169,9 @@ export default function NearbyScene() {
     // 지금 자리에서 멀리 튄 위치 — 마지막으로 찍힌 곳과 잇달아 찍힌 횟수
     const gpsJump = { x: 0, z: 0, count: 0 }
     let gpsSeenAt = -1
+    // 걸을 때 붙인 자리(차도 위면 옮긴 인도 자리)와, 거기서 멀리 옮겨 간 자리가 잇달아 찍힌 횟수
+    let walkHere: { x: number; z: number } | null = null
+    const walkHop = { x: 0, z: 0, count: 0 }
     let unwatch = () => {}
     const disposables: { dispose(): void }[] = []
     const abort = new AbortController()
@@ -243,6 +256,9 @@ export default function NearbyScene() {
       disposables.push(stream)
       await stream.prime(start.x, start.z)
       if (destroyed) return
+      // 차도 위에서 시작하지 않는다 — 가장 가까운 인도로 옮겨 세운다(잔디·공터·광장·인도면 그 자리)
+      const spawn = stream.nearestWalk(start.x, start.z) ?? start
+      const ground = stream
       const colliderGeometry = new THREE.PlaneGeometry(COLLIDER_SIZE, COLLIDER_SIZE).rotateX(-Math.PI / 2)
       disposables.push(colliderGeometry)
 
@@ -268,14 +284,15 @@ export default function NearbyScene() {
       kidAnimation = createKidAnimation(mixer, kidClips)
       mixer.setTime(Math.random() * 100)
 
-      // 내 실제 위치에 세우고, 처음엔 북쪽을 바라본다(카메라는 남쪽 뒤)
+      // 내 실제 위치(가장 가까운 걸을 수 있는 곳)에 세우고, 처음엔 북쪽을 바라본다(카메라는 남쪽 뒤)
       kid.rotation.y = Math.PI
       controller = createThirdPerson({
         camera,
         character: kid,
         collider: new THREE.Mesh(colliderGeometry),
         domElement: renderer.domElement,
-        start: new THREE.Vector3(start.x, 0, start.z),
+        start: new THREE.Vector3(spawn.x, 0, spawn.z),
+        spawnRadius: 0,
         mobile,
         steer,
       })
@@ -315,12 +332,30 @@ export default function NearbyScene() {
           gpsJump.count = 0
           gpsHere = { x, z, variance: noise, at: next.timestamp }
         }
-        const distance = Math.hypot(gpsHere.x - me.position.x, gpsHere.z - me.position.z)
+        // 걷기 — 지금 자리를 걸을 수 있는 곳에 붙인다(차도 위면 가장 가까운 인도로 옮긴다). 붙인 자리가 멀리(길 건너편 인도로)
+        // 옮겨 가면 그쪽이 확실히 더 가까운 위치가 잇달아 찍혀야 옮긴다(차도 위 흔들림에 이쪽저쪽 인도를 오가지 않게)
+        const onWalk = ground.nearestWalk(gpsHere.x, gpsHere.z) ?? { x: gpsHere.x, z: gpsHere.z }
+        if (!walkHere || Math.hypot(onWalk.x - walkHere.x, onWalk.z - walkHere.z) <= WALK_HOP_M) {
+          walkHere = onWalk
+          walkHop.count = 0
+        } else {
+          const closer =
+            Math.hypot(gpsHere.x - walkHere.x, gpsHere.z - walkHere.z) - Math.hypot(gpsHere.x - onWalk.x, gpsHere.z - onWalk.z)
+          const again = walkHop.count > 0 && Math.hypot(onWalk.x - walkHop.x, onWalk.z - walkHop.z) <= WALK_HOP_M
+          Object.assign(walkHop, { x: onWalk.x, z: onWalk.z, count: closer < WALK_HOP_MARGIN_M ? 0 : again ? walkHop.count + 1 : 1 })
+          if (walkHop.count >= WALK_HOP_COUNT) {
+            walkHere = onWalk
+            walkHop.count = 0
+          }
+        }
+        const distance = Math.hypot(walkHere.x - me.position.x, walkHere.z - me.position.z)
         // 서 있던 캐릭터는 지금 자리가 조금 떨어진 것으로는 출발하지 않는다 — 몇 m 옮기려고 몸을 돌리면
-        // 카메라까지 따라 돈다. 걷던 중이면 닿을 때까지 계속 따라간다
-        if (gpsTarget || distance >= Math.max(GPS_STEP_M, next.accuracy / 2)) gpsTarget = gpsHere
+        // 카메라까지 따라 돈다. 걷던 중이거나 차도 위에 서 있으면 닿을 때까지 간다
+        const standing = ground.nearestWalk(me.position.x, me.position.z)
+        const offWalk = standing !== null && (standing.x !== me.position.x || standing.z !== me.position.z)
+        if (gpsTarget || offWalk || distance >= Math.max(GPS_STEP_M, next.accuracy / 2)) gpsTarget = walkHere
         // 지하철·차로 멀리 옮겨 갔으면 걸어가지 않고 그 자리로 옮긴다(앞쪽 구역은 다음 프레임부터 깔린다)
-        if (distance > GPS_TELEPORT_M) walker.snap(gpsHere.x, gpsHere.z)
+        if (distance > GPS_TELEPORT_M) walker.snap(walkHere.x, walkHere.z)
       }
       unwatch = gps.subscribe(follow)
       // 캐릭터를 세운 위치부터 센다 — 구독 전에 받은 위치는 알림이 다시 오지 않는다
