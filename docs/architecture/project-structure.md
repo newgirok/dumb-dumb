@@ -50,7 +50,7 @@ project/
 │   │   ├── third-person.ts       ← 3인칭 조작·캡슐 충돌·카메라 리그·반응형 구도(framingFor)
 │   │   ├── touch-circles.ts      ← 터치 조작 원 (씬 안 화면 공간 메시)
 │   │   ├── shadows.ts            ← 해와 동적 그림자(시선 앞 ±12m)·정적 그림자(CSM) 굽기
-│   │   ├── warm-up.ts            ← 로더 뒤 GPU 예열 — 셰이더 나눠 컴파일·텍스처 하나씩 업로드·모든 물체 한 번 그리기·GPU 펜스로 기다리기(플레이 씬)
+│   │   ├── warm-up.ts            ← 로더 뒤 GPU 예열 — 셰이더 나눠 컴파일·텍스처 하나씩 업로드·모든 물체 한 번 그리기·GPU 펜스로 기다리기(플레이 씬·내 주변)
 │   │   ├── postprocess.ts        ← 최종 화면 패스 (LUT·인트로)
 │   │   ├── kid-animation.ts      ← 캐릭터 idle·run·air·bored 가중치 규칙 (내 캐릭터·다른 캐릭터 공통)
 │   │   ├── remote-players.ts     ← 함께 보이는 다른 캐릭터들 — 2단 보간·등장·퇴장 크기 연출
