@@ -160,8 +160,6 @@ const LOADING_STEPS = ['산책 가방을 챙기는 중이에요', '신발 끈을
 const INTRO_REVEAL_MS = 4000
 /** 오디오는 인트로 시작 1.5초 뒤부터 소리를 낼 수 있다(원본 canPlaySound) */
 const AUDIO_DELAY_MS = 1500
-/** 펼침 지도가 다 그려지기를 로더가 기다리는 최대 시간 — 네트워크가 막혀 지도가 끝나지 않아도 씬은 시작한다 */
-const MAP_IDLE_TIMEOUT_MS = 8000
 /** 캐릭터를 눌렀다 뗀 것으로 치는 범위 — 이만큼 안 움직이고 이 시간 안에 떼면 원형 메뉴를 연다 */
 const PICK_SLOP_PX = 12
 const PICK_MS = 600
@@ -216,12 +214,6 @@ export default function PlayScene() {
   const mutedRef = useRef(true)
   const controllerRef = useRef<ThirdPerson | null>(null)
   const mapShownRef = useRef(false)
-  // 펼침 지도가 다 그려져 쉬는지 — 로더는 지도까지 다 그려진 뒤에 걷는다(wake: 기다리는 쪽을 깨운다)
-  const mapIdleRef = useRef<{ idle: boolean; wake: (() => void) | null }>({ idle: false, wake: null })
-  const onMapIdleChange = useCallback((idle: boolean) => {
-    mapIdleRef.current.idle = idle
-    if (idle) mapIdleRef.current.wake?.()
-  }, [])
   // 만남 대화 — 같은 방에서 말소리가 닿는 거리(TALK) 안의 사람과 1:1로 말한다. 상태는 씬 밖에 두고 소켓이 생기면 잇는다
   const talkRef = useRef<Talk | null>(null)
   if (!talkRef.current) talkRef.current = createTalk()
@@ -346,19 +338,6 @@ export default function PlayScene() {
     let prepared = false
     const materials: THREE.Material[] = []
     const disposables: { dispose(): void }[] = [circles]
-    /** 펼침 지도가 다 그려져 쉴 때까지 기다린다 — 길어야 timeout(ms) */
-    const waitMapIdle = (timeout: number) =>
-      new Promise<void>((resolve) => {
-        const state = mapIdleRef.current
-        if (state.idle) return resolve()
-        const done = () => {
-          clearTimeout(timer)
-          state.wake = null
-          resolve()
-        }
-        const timer = setTimeout(done, timeout)
-        state.wake = done
-      })
     // NPC 상호작용(비활성) — 발동한 비밀 이름
     // const found = new Set<string>()
 
@@ -785,10 +764,6 @@ export default function PlayScene() {
       })
       talk.bind(connection.talk)
 
-      // 펼침 지도까지 다 그려지기를 기다린다(타일·셰이더까지) — 네트워크가 막혀 끝나지 않으면 MAP_IDLE_TIMEOUT_MS 뒤에 넘어간다
-      await waitMapIdle(MAP_IDLE_TIMEOUT_MS)
-      if (destroyed) return
-
       // 예열이 끝났다 — GPU가 비면 그리기 시작해 로더 뒤에서 몇 프레임 그려 첫 렌더의 버퍼 업로드를 마친 뒤
       // 로더를 걷으며(스피너 한 바퀴를 채운 뒤 글이 흐려지기 시작할 때) 인트로를 시작한다
       await settle(renderer)
@@ -1131,15 +1106,14 @@ export default function PlayScene() {
           />
         )}
 
-        {/* 펼침 지도 — 실제 내 위치(GPS)를 게임 화풍 종이 지도로. Mapbox 지도를 만드는 동안 메인 스레드가 0.1초 넘게
-            막혀, 씬이 돌 때 만들면 화면이 한 번 멈춘다 — 씬을 불러오는 동안 로더 뒤에서 만들어 둔다(로더 스피너는
-            GPU 합성 스레드에서 돌아 메인 스레드가 막혀도 멈추지 않는다). 펼치는 건 인트로가 시작된 뒤부터다 */}
+        {/* 펼침 지도 — 실제 내 위치(GPS)를 게임 화풍 종이 지도로. 지도는 처음 펼칠 때 만든다 — 만드는 동안 셰이더 링크로
+            GPU가 잠깐 막히는데, 윈도 크롬은 CSS 합성도 같은 GPU 스레드에서 돌아 로더 뒤에서 만들면 스피너까지 끊긴다.
+            펼치는 건 인트로가 시작된 뒤부터다 */}
         {!unsupported && !error && gps && (
           <PaperMap
             open={mapOpen}
             onClose={() => setMapOpen(false)}
             onClosed={onMapClosed}
-            onIdleChange={onMapIdleChange}
             gps={gps}
             title="지도"
             accent={charColor}

@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/copy-maplibre-worker.mjs",
     "dev": "next dev --turbopack",
+    "prebuild": "node scripts/copy-maplibre-worker.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -20,7 +22,7 @@
     "geojson-vt": "^5.0.2",
     "gsap": "^3.15.0",
     "lucide-react": "^1.41.0",
-    "mapbox-gl": "^3.0.0",
+    "maplibre-gl": "^6.11.2",
     "next": "^15.0.0",
     "pbf": "^5.1.2",
     "react": "^19.0.0",

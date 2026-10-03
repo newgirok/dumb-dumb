@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
-import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import type { Map as MapLibreMap, Marker } from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
 import { PAPER, PAPER_STYLE, PATTERNS } from './paper-map-style'
 import { formatAccuracy, isGpsBlocked, useGpsSnapshot, type GpsSnapshot, type GpsTracker } from '@/lib/geo/gps'
 import { detectGpsEnv, gpsNote, type GpsEnv } from '@/lib/geo/gps-messages'
@@ -62,6 +62,11 @@ const HANDOFF_TO = 0.04
 const FLIP_EASE = 'cubic-bezier(0.65, 0, 0.35, 1)'
 /** 펼칠 때 대략적인 위치면 원 전체가 보이게 물러난다(짧은 변의 이 비율) */
 const COARSE_FIT = 0.8
+/**
+ * 출처 표기(OSM 등)를 펼친 채 보여 주는 시간(ms) — 다 펼친 뒤 이만큼 지나면 (i) 버튼으로 접는다(OSM 표기 지침).
+ * 지도를 끌면 MapLibre가 바로 접는다
+ */
+const ATTRIBUTION_MS = 5000
 
 type Phase = 'closed' | 'opening' | 'open' | 'closing'
 /** 펼친 종이의 면 수 — 3단·반·한 장(접지 않음) */
@@ -86,7 +91,7 @@ const CSS = `
   @media (orientation: portrait) { .pm-sheet { width: 94vw; height: min(80vh, 780px); } }
   .pm-shadow { position: absolute; inset: 0; transform: translate(5px, 5px); background: rgba(113, 108, 102, 0.9); border-radius: 4px; }
   .pm-live { position: absolute; inset: 0; border-radius: 4px; background: ${PAPER}; overflow: hidden; }
-  .pm-mapbox { position: absolute; inset: ${MARGIN}px; border-radius: 2px; overflow: hidden; background: ${PAPER}; }
+  .pm-map { position: absolute; inset: ${MARGIN}px; border-radius: 2px; overflow: hidden; background: ${PAPER}; }
   .pm-grain { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: multiply; opacity: 0.5;
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.47 0 0 0 0 0.39 0 0 0 0 0.3 0 0 0 0.32 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
     box-shadow: inset 0 0 70px rgba(122, 94, 62, 0.3); }
@@ -122,16 +127,19 @@ const CSS = `
   .pm-root[data-phase='open'] .pm-ui :is(.pm-btn, .pm-note) { pointer-events: auto; }
   .pm-root[data-phase='open'] .pm-live { pointer-events: auto; }
   .pm-live { pointer-events: none; }
-  .pm-mapbox .mapboxgl-marker, .pm-mapbox .mapboxgl-control-container { opacity: 0; transition: opacity 0.25s ease-out; }
-  .pm-root[data-phase='open'] .pm-mapbox .mapboxgl-marker, .pm-root[data-phase='open'] .pm-mapbox .mapboxgl-control-container { opacity: 1; }
-  .pm-mapbox .mapboxgl-ctrl-scale { background: rgba(251, 243, 223, 0.85); border-color: #716c66; color: #5d5a57; font-family: Stylish, sans-serif; font-size: 12px; }
-  .pm-mapbox .mapboxgl-ctrl-attrib { background: rgba(251, 243, 223, 0.8); }
-  .pm-mapbox .mapboxgl-canvas { transition: filter 0.6s ease-out; }
-  .pm-root[data-off='true'] .pm-mapbox .mapboxgl-canvas { filter: grayscale(0.55) sepia(0.25) brightness(1.03); }
+  .pm-map .maplibregl-marker, .pm-map .maplibregl-control-container { opacity: 0; transition: opacity 0.25s ease-out; }
+  .pm-root[data-phase='open'] .pm-map .maplibregl-marker, .pm-root[data-phase='open'] .pm-map .maplibregl-control-container { opacity: 1; }
+  .pm-map .maplibregl-ctrl-scale { background: rgba(251, 243, 223, 0.85); border-color: #716c66; color: #5d5a57; font-family: Stylish, sans-serif; font-size: 12px; }
+  .pm-map .maplibregl-ctrl-attrib { background: rgba(251, 243, 223, 0.8); }
+  /* 출처 표기를 펼쳐 보이는 동안(처음 펼친 뒤 잠깐)은 내 자리 버튼 위로 띄운다 — 아래 줄의 축척·쪽지·버튼을 가리지 않게 */
+  .pm-map .maplibregl-ctrl-bottom-right { transition: bottom 0.3s ease-out; }
+  .pm-map .maplibregl-ctrl-bottom-right:has(.maplibregl-compact-show) { bottom: 76px; }
+  .pm-map .maplibregl-canvas { transition: filter 0.6s ease-out; }
+  .pm-root[data-off='true'] .pm-map .maplibregl-canvas { filter: grayscale(0.55) sepia(0.25) brightness(1.03); }
   /* 어디를 보여 줄지 모르면(위치 없음) 지도를 가리고 빈 종이만 둔다 — 엉뚱한 동네를 보여 주지 않는다 */
-  .pm-mapbox .mapboxgl-canvas-container { transition: opacity 0.5s ease-out; }
-  .pm-root[data-nowhere='true'] .pm-mapbox .mapboxgl-canvas-container,
-  .pm-root[data-nowhere='true'] .pm-mapbox .mapboxgl-control-container { opacity: 0; }
+  .pm-map .maplibregl-canvas-container { transition: opacity 0.5s ease-out; }
+  .pm-root[data-nowhere='true'] .pm-map .maplibregl-canvas-container,
+  .pm-root[data-nowhere='true'] .pm-map .maplibregl-control-container { opacity: 0; }
   .pm-blank { position: absolute; inset: 10px; pointer-events: none; opacity: 0; transition: opacity 0.5s ease-out;
     background-image: linear-gradient(rgba(113, 108, 102, 0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(113, 108, 102, 0.07) 1px, transparent 1px);
     background-size: 48px 48px; background-position: center; }
@@ -187,7 +195,7 @@ const CSS = `
     mix-blend-mode: multiply; }
   @keyframes pm-stamp { from { opacity: 0; transform: translate(-50%, -50%) rotate(-12deg) scale(1.9); } to { opacity: 1; transform: translate(-50%, -50%) rotate(-12deg) scale(1); } }
 
-  /* 마커 요소는 Mapbox가 position: absolute로 둔다 — position을 덮어쓰지 않는다 */
+  /* 마커 요소는 MapLibre가 position: absolute로 둔다 — position을 덮어쓰지 않는다 */
   .pm-me { width: 26px; height: 26px; pointer-events: none; }
   .pm-me-dot { position: absolute; inset: 0; border-radius: 50%; background: #f9efdc; border: 2.5px solid #716c66; box-shadow: 2px 2px 0 0 rgba(113, 108, 102, 0.9); }
   .pm-me-dot::after { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: var(--pm-accent); }
@@ -231,7 +239,7 @@ const CSS = `
   }
 `
 
-/** 미터를 지금 줌의 화면 픽셀로 — Mapbox는 512px 타일 기준이다 */
+/** 미터를 지금 줌의 화면 픽셀로 — 지도 줌은 512px 타일 기준이다 */
 function metersToPixels(meters: number, lat: number, zoom: number): number {
   const metersPerPixel = (40_075_016.686 * Math.cos((lat * Math.PI) / 180)) / (512 * 2 ** zoom)
   return meters / metersPerPixel
@@ -294,13 +302,12 @@ export function GpsBadge({ snapshot }: { snapshot: GpsSnapshot | null }) {
 }
 
 /**
- * 게임 지도처럼 펼치는 종이 지도 — 씬과 따로 도는 독립 Mapbox 캔버스(ADR 001).
+ * 게임 지도처럼 펼치는 종이 지도 — 씬과 따로 도는 독립 MapLibre 캔버스(ADR 001). 지도는 처음 펼칠 때 만든다.
  *
  * 접힌 종이가 옆으로 펼쳐진다 — 넓은 화면은 3단(두 번), 중간은 반(한 번), 좁은 화면은 접지 않고 바로 펼친
  * 모양으로 나타난다. 날개 안쪽 면에는 살아 있는 지도의 그 부분을
  * 렌더가 끝날 때마다 옮겨 그려(render 이벤트 안에서 drawImage), 다 펴지는 순간 진짜 지도와
- * 이음매 없이 바뀐다. Mapbox는 컨테이너 조상의 CSS 변환을 읽어 크기를 재므로, 접혀 있을 때는
- * 애니메이션을 모두 걷어 변환이 없게 두고, 크기 재기는 애니메이션이 끝난 뒤에만 한다.
+ * 이음매 없이 바뀐다. 다 접히면 애니메이션을 모두 걷어 변환이 남지 않게 둔다.
  *
  * track을 주면 캐릭터 자리(내 주변)가, 없으면 GPS 위치(플레이 씬)가 '나'다. 플레이 씬에서 위치를 아직
  * 모르면 엉뚱한 곳을 보여 주지 않도록 지도를 가리고 빈 종이에 상태만 띄운다.
@@ -314,7 +321,6 @@ export default function PaperMap({
   title,
   accent = '#8875ad',
   onClosed,
-  onIdleChange,
 }: {
   open: boolean
   onClose: () => void
@@ -325,31 +331,26 @@ export default function PaperMap({
   accent?: string
   /** 다 접혀 배경(dim)까지 걷힌 순간 — 씬은 이때 캐릭터 조작을 다시 켠다 */
   onClosed?: () => void
-  /**
-   * 지도가 다 그려져 쉬는지(Mapbox idle — 타일·셰이더·전환까지 끝남) 바뀔 때. 새 데이터를 받기 시작하거나 움직이면
-   * false, 다 그려지면 true다. 지도를 만들 수 없으면(토큰 없음·WebGL 실패) 바로 true — 플레이 씬 로더가 기다린다
-   */
-  onIdleChange?: (idle: boolean) => void
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
   const mapBoxRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<mapboxgl.Map | null>(null)
-  const meRef = useRef<{ marker: mapboxgl.Marker; el: HTMLDivElement; arrow: HTMLDivElement } | null>(null)
-  const haloRef = useRef<{ marker: mapboxgl.Marker; el: HTMLDivElement; label: HTMLSpanElement } | null>(null)
-  const gpsDotRef = useRef<mapboxgl.Marker | null>(null)
+  const mapRef = useRef<MapLibreMap | null>(null)
+  const meRef = useRef<{ marker: Marker; el: HTMLDivElement; arrow: HTMLDivElement } | null>(null)
+  const haloRef = useRef<{ marker: Marker; el: HTMLDivElement; label: HTMLSpanElement } | null>(null)
+  const gpsDotRef = useRef<Marker | null>(null)
   const animsRef = useRef<Animation[]>([])
   /** 지금 애니메이션이 만들어진 면 수 — 펼친 채 창 크기가 바뀌면 접기 전에 새 면 수로 다시 만든다 */
   const animPanelsRef = useRef<Panels>(3)
   const phaseRef = useRef<Phase>('closed')
-  const needsResizeRef = useRef(false)
+  const attributionTimerRef = useRef(0)
   const returnFocusRef = useRef<Element | null>(null)
   // 접기 애니메이션 끝(onfinish)에서 부른다 — 애니메이션은 펼칠 때 만들어지므로 그때의 콜백이 아닌 지금 것을 읽는다
   const onClosedRef = useRef(onClosed)
-  // 지도는 한 번만 만들므로 그 안의 이벤트도 지금 콜백을 읽는다
-  const onIdleChangeRef = useRef(onIdleChange)
   const [phase, setPhase] = useState<Phase>('closed')
   const [panels, setPanels] = useState<Panels>(3)
+  // 한 번이라도 펼쳤는지 — 지도는 그때 만든다
+  const [wanted, setWanted] = useState(false)
   const [mapState, setMapState] = useState<'loading' | 'ready' | 'none'>('loading')
   const [env, setEnv] = useState<GpsEnv | null>(null)
   const snapshot = useGpsSnapshot(gps)
@@ -366,8 +367,8 @@ export default function PaperMap({
   }, [onClosed])
 
   useEffect(() => {
-    onIdleChangeRef.current = onIdleChange
-  }, [onIdleChange])
+    if (open) setWanted(true)
+  }, [open])
 
   // 종이 폭이 바뀌면(창 크기·회전) 접는 횟수를 바꾼다 — 레이아웃 크기라 변환과 무관하다
   useEffect(() => {
@@ -378,102 +379,87 @@ export default function PaperMap({
       setPanels(width >= TRIFOLD_MIN_PX ? 3 : width >= BIFOLD_MIN_PX ? 2 : 1)
     }
     measure()
-    const ro = new ResizeObserver(() => {
-      measure()
-      // 펼치거나 접는 중에는 조상에 변환이 걸려 있다 — 끝난 뒤에 잰다
-      if (phaseRef.current === 'opening' || phaseRef.current === 'closing') needsResizeRef.current = true
-      else mapRef.current?.resize()
-    })
+    const ro = new ResizeObserver(measure)
     ro.observe(sheet)
     return () => ro.disconnect()
   }, [])
 
-  // 지도 — 한 번 만들어 두고 접힌 동안은 숨겨 둔다. 글씨(Stylish)가 온 뒤에 만들어야 라벨이 그 폰트로 그려진다
+  // 지도 — 처음 펼칠 때 만들어 두고 접힌 동안은 숨겨 둔다. 만들 때 셰이더를 컴파일하느라 GPU가 잠깐 막혀, 로더나
+  // 씬이 도는 동안 미리 만들면 그 화면이 끊긴다. 글씨(Stylish)가 온 뒤에 만들어야 한글 라벨이 그 폰트로 그려진다
   useEffect(() => {
     const container = mapBoxRef.current
-    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
-    if (!container) return
-    if (!token) {
-      setMapState('none')
-      onIdleChangeRef.current?.(true)
-      return
-    }
+    if (!wanted || !container) return
     let cancelled = false
-    let map: mapboxgl.Map | null = null
+    let map: MapLibreMap | null = null
     const fontReady = document.fonts?.load('24px Stylish').catch(() => null) ?? Promise.resolve(null)
-    void fontReady.then(() => {
-      if (cancelled) return
-      mapboxgl.accessToken = token
-      const fix = gps.snapshot.fix
-      const t = track?.current
-      try {
-        map = new mapboxgl.Map({
+    Promise.all([import('maplibre-gl'), fontReady])
+      .then(([maplibre]) => {
+        if (cancelled) return
+        // 워커는 페이지 번들과 따로 받는다(scripts/copy-maplibre-worker.mjs가 public/maplibre에 둔다)
+        maplibre.setWorkerUrl('/maplibre/maplibre-gl-worker.mjs')
+        const fix = gps.snapshot.fix
+        const t = track?.current
+        // WebGL을 못 쓰면 여기서 던진다
+        map = new maplibre.Map({
           container,
           style: PAPER_STYLE,
           center: t ? [t.lng, t.lat] : fix ? [fix.lng, fix.lat] : INITIAL_CENTER,
-          zoom: OPEN_ZOOM,
+          zoom: t ? OPEN_ZOOM : openZoom(gps.snapshot),
           minZoom: MIN_ZOOM,
           maxZoom: MAX_ZOOM,
-          projection: 'mercator',
           // 종이 지도는 북쪽이 위, 평평하게 — 돌리기·기울이기는 막는다
           dragRotate: false,
           pitchWithRotate: false,
           touchPitch: false,
           attributionControl: false,
-          // 크기 재기는 직접 한다(펼치는 중에는 조상 변환 때문에 틀리게 잰다)
-          trackResize: false,
-          localFontFamily: 'Stylish',
+          localIdeographFontFamily: 'Stylish',
         })
-      } catch {
-        setMapState('none') // WebGL 미지원 등 — 쪽지로만 안내한다
-        onIdleChangeRef.current?.(true)
-        return
-      }
-      const m = map
-      // 핀치·Shift+방향키로도 돌리거나 기울이지 않는다(방향키 이동·± 확대는 남긴다)
-      m.touchZoomRotate.disableRotation()
-      m.keyboard.disableRotation()
-      m.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right')
-      m.addControl(new mapboxgl.ScaleControl({ maxWidth: 90, unit: 'metric' }), 'bottom-left')
-      m.on('styleimagemissing', (e: { id: string }) => {
-        const make = PATTERNS[e.id]
-        if (make && !m.hasImage(e.id)) m.addImage(e.id, make(), { pixelRatio: 2 })
-      })
-      m.on('load', () => setMapState('ready'))
-      m.on('idle', () => onIdleChangeRef.current?.(true))
-      m.on('dataloading', () => onIdleChangeRef.current?.(false))
-      m.on('movestart', () => onIdleChangeRef.current?.(false))
-      // 펼치고 접는 동안 날개 안쪽 면을 살아 있는 지도와 같게 — 렌더 직후라 캔버스 버퍼가 살아 있다
-      m.on('render', () => {
-        if (phaseRef.current === 'opening' || phaseRef.current === 'closing') copyMirrors(m)
-      })
-      m.on('zoom', () => placeGps())
+        const m = map
+        // 핀치·Shift+방향키로도 돌리거나 기울이지 않는다(방향키 이동·± 확대는 남긴다)
+        m.touchZoomRotate.disableRotation()
+        m.keyboard.disableRotation()
+        m.addControl(new maplibre.AttributionControl({ compact: true }), 'bottom-right')
+        m.addControl(new maplibre.ScaleControl({ maxWidth: 90, unit: 'metric' }), 'bottom-left')
+        m.setMissingStyleImageResolver((id) => {
+          const make = PATTERNS[id]
+          if (make && !m.hasImage(id)) m.addImage(id, make(), { pixelRatio: 2 })
+        })
+        m.on('load', () => setMapState('ready'))
+        // 펼치고 접는 동안 날개 안쪽 면을 살아 있는 지도와 같게 — 렌더 직후라 캔버스 버퍼가 살아 있다
+        m.on('render', () => {
+          if (phaseRef.current === 'opening' || phaseRef.current === 'closing') copyMirrors(m)
+        })
+        m.on('zoom', () => placeGps())
 
-      const meEl = document.createElement('div')
-      meEl.className = 'pm-me'
-      meEl.innerHTML = `<div class="pm-me-arrow"></div><div class="pm-me-dot"></div><span class="pm-me-label">나</span>`
-      const arrow = meEl.querySelector('.pm-me-arrow') as HTMLDivElement
-      arrow.style.display = track ? '' : 'none'
-      meRef.current = { marker: new mapboxgl.Marker({ element: meEl }).setLngLat(m.getCenter()), el: meEl, arrow }
+        const meEl = document.createElement('div')
+        meEl.className = 'pm-me'
+        meEl.innerHTML = `<div class="pm-me-arrow"></div><div class="pm-me-dot"></div><span class="pm-me-label">나</span>`
+        const arrow = meEl.querySelector('.pm-me-arrow') as HTMLDivElement
+        arrow.style.display = track ? '' : 'none'
+        meRef.current = { marker: new maplibre.Marker({ element: meEl }).setLngLat(m.getCenter()), el: meEl, arrow }
 
-      const haloEl = document.createElement('div')
-      haloEl.className = 'pm-halo'
-      haloEl.innerHTML = `<div class="pm-halo-ring"></div><span class="pm-halo-label">이 근처 어딘가</span>`
-      haloRef.current = {
-        marker: new mapboxgl.Marker({ element: haloEl }).setLngLat(m.getCenter()),
-        el: haloEl,
-        label: haloEl.querySelector('.pm-halo-label') as HTMLSpanElement,
-      }
-      if (track) {
-        const dot = document.createElement('div')
-        dot.className = 'pm-gps-dot'
-        dot.title = 'GPS가 잡은 자리'
-        gpsDotRef.current = new mapboxgl.Marker({ element: dot }).setLngLat(m.getCenter())
-      }
-      mapRef.current = m
-      placeGps()
-      placeMe()
-    })
+        const haloEl = document.createElement('div')
+        haloEl.className = 'pm-halo'
+        haloEl.innerHTML = `<div class="pm-halo-ring"></div><span class="pm-halo-label">이 근처 어딘가</span>`
+        haloRef.current = {
+          marker: new maplibre.Marker({ element: haloEl }).setLngLat(m.getCenter()),
+          el: haloEl,
+          label: haloEl.querySelector('.pm-halo-label') as HTMLSpanElement,
+        }
+        if (track) {
+          const dot = document.createElement('div')
+          dot.className = 'pm-gps-dot'
+          dot.title = 'GPS가 잡은 자리'
+          gpsDotRef.current = new maplibre.Marker({ element: dot }).setLngLat(m.getCenter())
+        }
+        mapRef.current = m
+        placeGps()
+        placeMe()
+      })
+      .catch(() => {
+        // 지도 코드를 받지 못했거나(오프라인) WebGL을 못 쓰면 쪽지로만 안내한다
+        if (!cancelled) setMapState('none')
+      })
     return () => {
       cancelled = true
       meRef.current?.marker.remove()
@@ -487,7 +473,7 @@ export default function PaperMap({
     }
     // 지도는 한 번만 만든다(gps·track은 ref처럼 읽는다)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [wanted])
 
   /** 펼칠 때 줌 — 흐린 위치면 정확도 원 전체가 보이게 물러난다 */
   function openZoom({ status, fix }: GpsSnapshot): number {
@@ -499,7 +485,7 @@ export default function PaperMap({
   }
 
   /** 날개 안쪽 면 캔버스에 살아 있는 지도의 그 부분을 옮겨 그린다 */
-  function copyMirrors(map: mapboxgl.Map) {
+  function copyMirrors(map: MapLibreMap) {
     const sheet = sheetRef.current
     const box = mapBoxRef.current
     if (!sheet || !box) return
@@ -750,12 +736,8 @@ export default function PaperMap({
 
     if (open && current === 'closed') {
       returnFocusRef.current = document.activeElement
-      // 변환이 없는 지금 크기를 맞추고, 펼치기 전에 '나'에게 맞춘다
+      // 펼치기 전에 '나'에게 맞춘다(처음 펼칠 때는 지도를 만들며 맞춘다)
       if (map) {
-        if (needsResizeRef.current) {
-          map.resize()
-          needsResizeRef.current = false
-        }
         const t = track?.current
         const fix = gps.snapshot.fix
         const center: [number, number] | null = t ? [t.lng, t.lat] : fix ? [fix.lng, fix.lat] : null
@@ -798,26 +780,21 @@ export default function PaperMap({
       a.playbackRate = rate
       a.play()
     })
-    const map = mapRef.current
     const master = anims[0]
     if (master) {
       master.onfinish = () => {
         if (master.playbackRate > 0) {
           changePhase('open')
-          if (needsResizeRef.current) {
-            map?.resize()
-            needsResizeRef.current = false
-          }
+          window.clearTimeout(attributionTimerRef.current)
+          attributionTimerRef.current = window.setTimeout(() => {
+            mapBoxRef.current?.querySelector('.maplibregl-compact-show')?.classList.remove('maplibregl-compact-show')
+          }, ATTRIBUTION_MS)
           // 포커스는 대화상자에 둔다 — 닫기 버튼에 주면 키보드로 펼쳤을 때 버튼에 포커스 테두리가 그려진다(Tab으로 버튼에 간다)
           rootRef.current?.focus({ preventScroll: true })
         } else {
           anims.forEach((a) => a.cancel())
           root.style.visibility = 'hidden'
           changePhase('closed')
-          if (needsResizeRef.current) {
-            mapRef.current?.resize()
-            needsResizeRef.current = false
-          }
           const back = returnFocusRef.current as HTMLElement | null
           if (back?.isConnected) back.focus?.({ preventScroll: true })
           onClosedRef.current?.()
@@ -826,7 +803,13 @@ export default function PaperMap({
     }
   }
 
-  useEffect(() => () => animsRef.current.forEach((a) => a.cancel()), [])
+  useEffect(
+    () => () => {
+      animsRef.current.forEach((a) => a.cancel())
+      window.clearTimeout(attributionTimerRef.current)
+    },
+    [],
+  )
 
   const note = snapshot && env ? gpsNote(snapshot, env, { walking: !!track }) : null
   const off = note?.tone === 'off'
@@ -857,7 +840,7 @@ export default function PaperMap({
         <div ref={sheetRef} className="pm-sheet">
           <div className="pm-shadow" />
           <div className="pm-live">
-            <div ref={mapBoxRef} className="pm-mapbox" />
+            <div ref={mapBoxRef} className="pm-map" />
             <div className="pm-blank" />
             <div className={`pm-creases p${panels}`} />
             <div className="pm-grain" />
@@ -899,7 +882,7 @@ export default function PaperMap({
               {mapState === 'none' && (
                 <div className="pm-note">
                   <div className="pm-note-title">지도를 그릴 수 없어요</div>
-                  <div className="pm-note-hint">지도 키가 없거나 이 기기에서 WebGL을 쓸 수 없어요</div>
+                  <div className="pm-note-hint">지도를 받지 못했거나 이 기기에서 WebGL을 쓸 수 없어요</div>
                 </div>
               )}
               {mapState !== 'none' && note && (
