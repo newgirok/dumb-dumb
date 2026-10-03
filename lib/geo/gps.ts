@@ -48,6 +48,11 @@ export interface GpsFix {
   lat: number
   /** 이 반경(m) 안에 실제 위치가 있을 가능성이 높다(명세상 95%, 안드로이드 크롬은 68%) */
   accuracy: number
+  /**
+   * 수평 속도(m/s) — 위치 차이가 아니라 GPS 칩이 도플러로 잰 값이라 위치가 튀어도 튀지 않는다.
+   * 못 재면(와이파이·기지국 위치 등) null
+   */
+  speed: number | null
   /** 위치를 잡은 시각(ms) */
   timestamp: number
 }
@@ -90,6 +95,15 @@ export function isWalkableFix(fix: GpsFix | null | undefined): boolean {
 /** 위치를 받을 수 없는 상태 — 기다려도 소용없다 */
 export function isGpsBlocked(status: GpsStatus): boolean {
   return status === 'denied' || status === 'insecure' || status === 'unsupported'
+}
+
+/** 위치 권한 — 묻지 않고 알아본다(Permissions API가 없으면 null) */
+export function queryGpsPermission(): Promise<PermissionState | null> {
+  if (!navigator.permissions?.query) return Promise.resolve(null)
+  return navigator.permissions.query({ name: 'geolocation' }).then(
+    (status) => status.state,
+    () => null,
+  )
 }
 
 export interface GpsTracker {
@@ -144,7 +158,7 @@ export function createGpsTracker({ watchStale = false }: { watchStale?: boolean 
   }
 
   const onPosition = (position: GeolocationPosition) => {
-    const { longitude, latitude, accuracy } = position.coords
+    const { longitude, latitude, accuracy, speed } = position.coords
     const previous = snapshot.fix
     // 순서가 뒤바뀌었거나 너무 오래된 위치는 버린다
     if (previous && position.timestamp < previous.timestamp) return
@@ -153,7 +167,8 @@ export function createGpsTracker({ watchStale = false }: { watchStale?: boolean 
     armStale()
     set({
       status: accuracyStatus(accuracy),
-      fix: { lng: longitude, lat: latitude, accuracy, timestamp: position.timestamp },
+      // 옛 iOS는 못 잰 속도를 −1로 보낸다
+      fix: { lng: longitude, lat: latitude, accuracy, speed: speed !== null && speed >= 0 ? speed : null, timestamp: position.timestamp },
       slow: false,
     })
   }

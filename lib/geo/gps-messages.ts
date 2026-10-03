@@ -29,8 +29,8 @@ export interface GpsNote {
   steps?: string[]
   /** 지도에 찍는 도장 글씨(쓸 수 없을 때) */
   stamp?: string
-  /** 다시 시도 버튼 — iOS 사파리는 거부한 뒤로 새로고침해야 권한이 바뀐다 */
-  action?: 'retry' | 'reload'
+  /** 다시 시도 버튼 — iOS 사파리는 거부한 뒤로 새로고침해야 권한이 바뀐다. allow는 iOS 동작 권한 창을 띄우는 '허용' 버튼 */
+  action?: 'retry' | 'reload' | 'allow'
 }
 
 export function detectGpsEnv(): GpsEnv {
@@ -178,6 +178,19 @@ export function startWaitNote(snapshot: GpsSnapshot, env: GpsEnv): GpsNote | nul
       return snapshot.slow ? gpsNote(snapshot, env, { walking: true }) : null
     default:
       return null
+  }
+}
+
+/**
+ * 내 주변 시작 전 iOS 권한 단계 — 동작 권한 창은 탭 안에서만 띄울 수 있어 '허용' 하나로 동작 권한과(아직 안 물었으면) 위치 권한을
+ * 차례로 묻는다. 동작은 걷는지 탈것에 탔는지 가리는 데 쓴다. 세계에 들어가기 전이라 운전 중 사용도 이때 당부한다
+ */
+export function motionAskNote({ withLocation }: { withLocation: boolean }): GpsNote {
+  return {
+    tone: 'wait',
+    title: withLocation ? '위치와 동작 권한을 허용해 주세요' : '동작 권한을 허용해 주세요',
+    hint: `‘허용’을 누르고 뜨는 창에서 ${withLocation ? '모두 허용하면 내 주변 길이 깔려요' : '허용해 주세요'}. 동작은 걷는지 타고 가는지 알아보는 데만 써요. 운전 중에는 화면을 보지 말아 주세요`,
+    action: 'allow',
   }
 }
 
