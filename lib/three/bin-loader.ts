@@ -152,6 +152,13 @@ export function createSkin(
     else boneList[parent].add(boneList[i])
   }
 
+  // 뼈 번호(skinIndex)는 정수(Uint16)로 오지만 셰이더는 float로 읽는다 — 윈도 크롬(ANGLE D3D11)은 이 조합을 처음 그릴 때
+  // 그 형식에 맞는 정점 셰이더를 새로 컴파일하느라 GPU가 40~50ms 멈춰 로더 스피너가 끊긴다. float로 바꿔 둔다
+  const skinIndex = geometry.attributes.skinIndex
+  if (skinIndex && !(skinIndex.array instanceof Float32Array)) {
+    geometry.setAttribute('skinIndex', new THREE.BufferAttribute(new Float32Array(skinIndex.array), skinIndex.itemSize))
+  }
+
   const skeleton = new THREE.Skeleton(boneList)
   const mesh = new THREE.SkinnedMesh(geometry, material)
   roots.forEach((i) => mesh.add(skeleton.bones[i]))
