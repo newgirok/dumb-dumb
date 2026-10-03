@@ -14,7 +14,14 @@ import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js'
 import PaperMap, { GpsBadge, MapIcon, useMapHotkey, type MapTrack } from '@/components/map/paper-map'
 import Loader, { LOADER_EXIT_MS, useLoadingSteps, waitSpinTurn } from '@/components/ui/loader'
 import GpsSteps from '@/components/location/gps-steps'
-import { createGpsTracker, isWalkableFix, useGpsSnapshot, waitForStartFix, type GpsTracker } from '@/lib/geo/gps'
+import {
+  createGpsTracker,
+  isWalkableFix,
+  useGpsSnapshot,
+  waitForStartFix,
+  type GpsSnapshot,
+  type GpsTracker,
+} from '@/lib/geo/gps'
 import { detectGpsEnv, startWaitNote, walkNote, type GpsEnv } from '@/lib/geo/gps-messages'
 import { createLocalFrame, type LocalFrame } from '@/lib/geo/local-frame'
 import { createSkin, createSkinAnimation, loadBinGeometry } from '@/lib/three/bin-loader'
@@ -33,6 +40,14 @@ const ORIGIN_GRID = 0.001
 /** 휴대폰 GPS 따라가기 — 이 안이면 서고, 여기서 이만큼 더 멀어지면 최고 속도로 걷는다 */
 const GPS_STOP_M = 1.5
 const GPS_FULL_M = 4
+/** GPS 거르기(칼만 필터) — 위치 사이에 사람이 초당 이만큼 움직일 수 있다고 보고, 시간이 지날수록 새 위치를 더 믿는다 */
+const GPS_MOTION_MPS = 2
+/** 지금 자리에서 정확도의 두 배(최소 이만큼)보다 멀리 찍힌 위치는 튄 값으로 보고 섞지 않는다 */
+const GPS_JUMP_MIN_M = 3
+/** 튄 위치가 잇달아 이만큼 같은 곳에 찍히면 그리로 옮겨 간 것으로 본다(정확도가 갑자기 좋아졌을 때, 지하철·차) */
+const GPS_JUMP_COUNT = 3
+/** 서 있던 캐릭터는 지금 자리가 이만큼(정확도의 절반이 더 크면 그만큼) 떨어져야 걷기 시작한다 */
+const GPS_STEP_M = 3
 /** GPS가 한 번에 이보다 멀리 튀면(지하철·차) 걸어가지 않고 곧장 옮긴다 */
 const GPS_TELEPORT_M = 150
 /** 캐릭터가 서는 바닥 — 평평하니 충돌은 끝없이 넓은 평면 하나로 충분하다 */
@@ -139,6 +154,11 @@ export default function NearbyScene() {
     let remotes: Remotes | null = null
     let connection: RelayConnection | null = null
     let gpsTarget: { x: number; z: number } | null = null
+    // 휴대폰의 지금 자리 — GPS 위치를 칼만 필터로 거른 값(variance는 m², 음수면 아직 위치가 없다)
+    let gpsHere = { x: 0, z: 0, variance: -1, at: 0 }
+    // 지금 자리에서 멀리 튄 위치 — 마지막으로 찍힌 곳과 잇달아 찍힌 횟수
+    const gpsJump = { x: 0, z: 0, count: 0 }
+    let gpsSeenAt = -1
     let unwatch = () => {}
     const disposables: { dispose(): void }[] = []
     const abort = new AbortController()
@@ -154,7 +174,11 @@ export default function NearbyScene() {
       const dx = gpsTarget.x - kid.position.x
       const dz = gpsTarget.z - kid.position.z
       const distance = Math.hypot(dx, dz)
-      if (distance < GPS_STOP_M) return null
+      if (distance < GPS_STOP_M) {
+        // 닿았다 — 다시 걸으려면 지금 자리가 GPS_STEP_M 넘게 떨어져야 한다
+        gpsTarget = null
+        return null
+      }
       const k = Math.min(1, (distance - GPS_STOP_M) / GPS_FULL_M) / distance
       return { x: dx * k, z: dz * k }
     }
@@ -258,20 +282,49 @@ export default function NearbyScene() {
       controller.update(0)
       controller.startIntro()
       controllerRef.current = controller
-      controller.setEnabled(!mapShownRef.current)
+      // 휴대폰은 GPS로만 걷는다 — 터치로 걸으면 실제 위치에서 멀어져 GPS가 도로 끌어당긴다
+      controller.setEnabled(!mobile && !mapShownRef.current)
       const me = kid
       const walker = controller
-      // 휴대폰은 늘 GPS를 따라 걷고, PC는 시작한 자리에서 키보드로 걷는다(흐린 위치로 시작했어도 나중에 옮기지 않는다).
+      // 휴대폰은 GPS로만 걷고, PC는 시작한 자리에서 키보드로 걷는다(흐린 위치로 시작했어도 나중에 옮기지 않는다).
       // ±50m 밖 위치(건물 사이·와이파이·IP 추정)로는 걷지도 옮기지도 않는다
-      unwatch = gps.subscribe(({ fix: next }) => {
-        if (!mobile || !next || !isWalkableFix(next)) return
-        const target = local.toLocal(next.lng, next.lat)
-        gpsTarget = target
-        // 지하철·차로 멀리 옮겨 갔으면 걸어가지 않고 그 자리로 옮긴다(앞쪽 구역은 다음 프레임부터 깔린다)
-        if (Math.hypot(target.x - me.position.x, target.z - me.position.z) > GPS_TELEPORT_M) {
-          walker.snap(target.x, target.z)
+      const follow = ({ fix: next }: GpsSnapshot) => {
+        // 상태만 바뀐 알림도 같은 위치를 다시 싣고 온다 — 위치마다 한 번만 센다
+        if (!mobile || !next || !isWalkableFix(next) || next.timestamp === gpsSeenAt) return
+        gpsSeenAt = next.timestamp
+        const { x, z } = local.toLocal(next.lng, next.lat)
+        const noise = Math.max(next.accuracy, 1) ** 2
+        const jump = Math.max(next.accuracy * 2, GPS_JUMP_MIN_M)
+        if (gpsHere.variance >= 0 && Math.hypot(x - gpsHere.x, z - gpsHere.z) <= jump) {
+          // 가만히 서 있어도 GPS는 수 m씩 흔들린다 — 지금 자리와 새 위치를 정확도에 맞춰 섞는다(칼만 필터).
+          // 흐린 위치일수록 조금만 옮기고, 지난 위치에서 시간이 흐를수록(걸었을 수 있으니) 새 위치를 더 믿는다
+          gpsJump.count = 0
+          const prior = gpsHere.variance + ((next.timestamp - gpsHere.at) / 1000) * GPS_MOTION_MPS ** 2
+          const gain = prior / (prior + noise)
+          gpsHere = {
+            x: gpsHere.x + (x - gpsHere.x) * gain,
+            z: gpsHere.z + (z - gpsHere.z) * gain,
+            variance: (1 - gain) * prior,
+            at: next.timestamp,
+          }
+        } else {
+          // 멀리 튀었다 — 잇달아 같은 곳에 찍혀야 그리로 옮겨 간 것으로 보고 거기서 새로 시작한다(첫 위치는 곧장)
+          const again = gpsJump.count > 0 && Math.hypot(x - gpsJump.x, z - gpsJump.z) <= jump
+          Object.assign(gpsJump, { x, z, count: again ? gpsJump.count + 1 : 1 })
+          if (gpsHere.variance >= 0 && gpsJump.count < GPS_JUMP_COUNT) return
+          gpsJump.count = 0
+          gpsHere = { x, z, variance: noise, at: next.timestamp }
         }
-      })
+        const distance = Math.hypot(gpsHere.x - me.position.x, gpsHere.z - me.position.z)
+        // 서 있던 캐릭터는 지금 자리가 조금 떨어진 것으로는 출발하지 않는다 — 몇 m 옮기려고 몸을 돌리면
+        // 카메라까지 따라 돈다. 걷던 중이면 닿을 때까지 계속 따라간다
+        if (gpsTarget || distance >= Math.max(GPS_STEP_M, next.accuracy / 2)) gpsTarget = gpsHere
+        // 지하철·차로 멀리 옮겨 갔으면 걸어가지 않고 그 자리로 옮긴다(앞쪽 구역은 다음 프레임부터 깔린다)
+        if (distance > GPS_TELEPORT_M) walker.snap(gpsHere.x, gpsHere.z)
+      }
+      unwatch = gps.subscribe(follow)
+      // 캐릭터를 세운 위치부터 센다 — 구독 전에 받은 위치는 알림이 다시 오지 않는다
+      follow(gps.snapshot)
       // 같은 동네 사람들 — 원점이 저마다 달라 실제 좌표(경위도)로 주고받고, 받은 위치는
       // 내 원점 기준으로 바꿔 세운다. 서버에 닿지 못하면 혼자인 채로 돈다
       const peers = createRemotes({
@@ -373,7 +426,7 @@ export default function NearbyScene() {
     }
   }, [attempt])
 
-  // 펼치면 곧바로 조작을 끄고, 접으면 다 접혀 배경까지 걷힌 뒤(onClosed)에 켠다
+  // 펼치면 곧바로 조작을 끄고, 접으면 다 접혀 배경까지 걷힌 뒤(onClosed)에 켠다(휴대폰은 늘 꺼 둔다)
   useEffect(() => {
     if (!mapOpen) return
     mapShownRef.current = true
@@ -381,7 +434,7 @@ export default function NearbyScene() {
   }, [mapOpen])
   const onMapClosed = () => {
     mapShownRef.current = false
-    controllerRef.current?.setEnabled(true)
+    controllerRef.current?.setEnabled(!mobile)
   }
 
   useMapHotkey(phase === 'playing', setMapOpen)
