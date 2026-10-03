@@ -102,6 +102,7 @@ NestJS 가드와 PostgreSQL RLS가 담당한다.
 | **API 서버** | NestJS 11 (`apps/api`) | 자체 호스팅. REST 전용(9001) |
 | **실시간 서버** | NestJS 11 (`apps/realtime`) | 자체 호스팅. socket.io 게이트웨이 전용(9002), DB 없음 ([ADR 007](../adr/007-realtime-server-split.md)) |
 | **데이터베이스** | PostgreSQL + PostGIS (자체 호스팅, 단일 공유 DB) | 공간 연산 내장 ([ADR 002](../adr/002-self-hosted-backend.md)) |
+| **DB 접근** | Drizzle ORM 0.45 + drizzle-kit (`apps/api`) | 쿼리 빌더·스키마(`schema.ts`)·마이그레이션 SQL 생성. 적용은 psql로 번호 순서대로 ([ADR 011](../adr/011-drizzle-orm.md)) |
 | **실시간 소켓** | socket.io 4 (실시간 서버의 NestJS WebSocket 게이트웨이) | 플레이 씬 익명 방 단위 변경분 중계·만남 대화(`/room`), 내 주변 익명 가까운 사람 중계(`/proximity`), 맵 섹터 단위 묶음 브로드캐스트(`/sector`, 붙는 화면은 예정) |
 | **인증** | 자체 JWT + bcrypt, 카카오/구글 OAuth | NestJS `auth` 모듈. 액세스 15분 / 리프레시 30일. 로그인 화면은 예정 |
 | **PG 결제** | 토스페이먼츠 / 카카오페이 | 원화 직행 ([ADR 003](../adr/003-direct-krw-payment.md)). 승인 웹훅은 API 서버가 받고, 결제창은 상점 화면과 함께 예정 |

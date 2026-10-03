@@ -4,6 +4,7 @@ PostgreSQL + PostGIS 기반 단일 공유 스키마. 공간 연산 상세는 [AD
 
 마이그레이션 SQL은 `apps/api/migrations/`의 `0000`~`0010` 파일로 관리하며(`0000`은 `0002`·`0004`가 참조하는 `auth.users` 스텁), PostGIS·pg_cron·pgcrypto·citext
 확장을 사용한다. 사용자 소유 데이터의 외래 키는 애플리케이션 테이블 `users`를 참조하고, `characters.order_id`는 `orders`, `ad_impressions.building_id`는 `sponsor_buildings`를 참조한다.
+API 서버는 같은 스키마를 Drizzle 스키마(`apps/api/src/database/schema.ts`)로 들고 쿼리하며, 다음 마이그레이션도 이 파일에서 만든다([ADR 011](../adr/011-drizzle-orm.md)).
 
 ---
 

@@ -40,8 +40,16 @@ apps/api/src/[domain]/
 
 ### RLS 컨텍스트 트랜잭션
 
-- 유저 요청은 `DatabaseService.withUser({ userId, role }, fn)`로 감싼다. 트랜잭션 안에서 `set_config('app.user_id', ..., true)` / `set_config('app.user_role', ..., true)`로 컨텍스트를 넣고 RLS 정책이 이를 읽는다. **반드시 트랜잭션 범위**여야 하며 전역 `SET` 금지(커넥션 풀에 컨텍스트 잔존 시 유출).
+- 유저 요청은 `DatabaseService.withUser({ userId, role }, fn)`로 감싼다. Drizzle 트랜잭션을 열고 `set_config('app.user_id', ..., true), set_config('app.user_role', ..., true)`를 한 문장으로 넣은 뒤, 그 트랜잭션(`tx`)을 `fn`에 넘긴다. RLS 정책은 이 값을 읽는다. **반드시 트랜잭션 범위**여야 하며 전역 `SET` 금지(커넥션 풀에 컨텍스트 잔존 시 유출).
 - 서버 전용 작업과 인증 흐름만 `withAdmin`(admin 컨텍스트)로 RLS를 우회한다 — 결제 웹훅·발급 워커, 그리고 가입·로그인·리프레시·OAuth·로그아웃에서 `users.service`가 사용자 행을 조회·생성·갱신할 때다. 그 밖의 인증된 유저 요청은 `withUser`를 쓴다.
+
+### DB 접근 (Drizzle ORM)
+
+- 쿼리는 `withUser`·`withAdmin`이 넘겨준 `tx`에 Drizzle 쿼리 빌더(`select`·`insert`·`update`·`delete`)로 쓴다. 테이블·컬럼은 `src/database/schema.ts`에서 가져온다([ADR 011](../adr/011-drizzle-orm.md))
+- SQL 조각이 꼭 필요할 때(`GREATEST`·`now()`·`nextval`·`col + 1`)만 `sql` 템플릿을 쓴다. 값은 `${}`로 넣어 바인딩되게 하고 `sql.raw`·문자열 조합은 쓰지 않는다
+- 행 잠금은 `.for('update')`, 대기열 집기는 `.for('update', { skipLocked: true })`, 중복 무시는 `.onConflictDoNothing({ target })`, 넣은 행 돌려받기는 `.returning({...})`로 쓴다
+- Drizzle은 pg 오류를 `DrizzleQueryError`의 `cause`에 담아 던진다. UNIQUE 위반(23505)과 걸린 제약 이름은 `uniqueViolation(error)`로 확인한다
+- 스키마를 바꿀 때는 `schema.ts`를 고치고 `npm run db:generate -- --name 설명`으로 다음 번호 마이그레이션 SQL을 만든다(적용은 psql, [ADR 010](../adr/010-db-migrations.md)). 함수·트리거·pg_cron·롤·GRANT는 `--custom`으로 빈 번호 파일을 만들어 직접 쓴다
 
 ### 에러 처리
 
@@ -50,12 +58,12 @@ apps/api/src/[domain]/
 ```typescript
 // billing.service.ts — 결제 승인 반영. 같은 승인번호가 이미 반영됐으면 흡수한다
 try {
-  await client.query(
-    `UPDATE orders SET status = 'PAID', pg_approval_number = $2, completed_at = now() WHERE id = $1`,
-    [orderId, approvalNumber],
-  )
+  await tx
+    .update(orders)
+    .set({ status: 'PAID', pgApprovalNumber: approvalNumber, completedAt: sql`now()` })
+    .where(eq(orders.id, orderId))
 } catch (error) {
-  if ((error as { code?: string }).code === '23505') return { applied: false }
+  if (uniqueViolation(error)) return { applied: false }
   throw error
 }
 ```
@@ -157,7 +165,7 @@ CORS 같은 서버 옵션은 게이트웨이 데코레이터에 두지 않고, `
 - TypeScript strict mode 사용, `any` 타입 금지
 - Node.js/NestJS 런타임 기준으로 작성
 - 환경변수는 NestJS `ConfigService`로 주입해 사용(두 서버 모두 `ConfigModule` 전역, `.env.local` → `.env` 순). DI 밖인 `main.ts` 부트스트랩(`PORT`, `WEB_ORIGIN`)만 `process.env`를 읽는다 — 모듈을 만든 뒤에 읽으므로 `.env.local` 값도 들어 있다. 데코레이터 인자에서는 `process.env`를 읽지 않는다. 모듈 import 시점, 즉 `ConfigModule`이 `.env.local`을 읽기 전에 평가되어 파일 값을 쓰지 못하기 때문이다(그래서 소켓 CORS도 게이트웨이 데코레이터가 아니라 실시간 서버 `main.ts`의 어댑터가 넣는다)
-- 모든 DB 접근은 `pg` 파라미터 바인딩(`$1`, `$2` …)으로 수행, SQL 문자열 조합 금지 (SQL Injection 방어)
+- 모든 DB 접근은 Drizzle 쿼리 빌더로 수행하고 SQL 문자열 조합 금지 (SQL Injection 방어) — 값은 쿼리 빌더와 `sql` 템플릿이 바인딩한다
 
 ---
 
@@ -166,4 +174,5 @@ CORS 같은 서버 옵션은 게이트웨이 데코레이터에 두지 않고, `
 - [보안 규격](./security/encryption.md)
 - [ADR 002 — 자체 백엔드(NestJS + 공유 Postgres)](../adr/002-self-hosted-backend.md)
 - [ADR 007 — 실시간 서버 분리](../adr/007-realtime-server-split.md)
+- [ADR 011 — API DB 접근(Drizzle ORM)](../adr/011-drizzle-orm.md)
 - [아키텍처 개요 — API 원칙](../architecture/overview.md)

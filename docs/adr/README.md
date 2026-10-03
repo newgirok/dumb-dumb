@@ -14,3 +14,4 @@
 | [ADR 008](./008-interest-management-naming.md) | 실시간 이름 — 받는 사람을 고르는 방식(방·근접·섹터)으로 부른다 | Accepted |
 | [ADR 009](./009-web-structure-and-naming.md) | 웹 구조와 이름 — app은 라우트만, 화면 코드는 features, 파일은 kebab-case | Accepted |
 | [ADR 010](./010-db-migrations.md) | DB 마이그레이션 — apps/api/migrations에 두고 번호 순서대로 적용한다 | Accepted |
+| [ADR 011](./011-drizzle-orm.md) | API DB 접근 — PostgreSQL을 두고 Drizzle ORM으로 쿼리한다 | Accepted |

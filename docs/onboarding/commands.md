@@ -67,13 +67,21 @@ npm run start:prod
 
 # TypeScript 타입 체크
 npm run type-check
+
+# DB 통합 테스트 (Vitest + Testcontainers — Docker가 떠 있어야 한다)
+npm test
+
+# 스키마(src/database/schema.ts)를 고친 만큼 다음 번호 마이그레이션 SQL 만들기
+npm run db:generate -- --name 설명
+# Drizzle이 다루지 않는 함수·트리거·pg_cron·롤·GRANT는 빈 번호 파일을 만들어 직접 쓴다
+npm run db:generate -- --custom --name 설명
 ```
 
 ---
 
 ## DB 마이그레이션
 
-`apps/api/migrations/`의 SQL을 **번호 순서대로**(`0000`~`0010`) PostgreSQL에 적용한다. 전용 CLI 러너는 없으며 psql로 직접 적용한다(`0000`은 `auth.users` 스텁을 만든다). 적용 뒤 `app_api` 로그인을 켠다([로컬 환경 세팅](./local-setup.md) 3-2·3-3).
+`apps/api/migrations/`의 SQL을 **번호 순서대로**(`0000`~`0010`) PostgreSQL에 적용한다. 새 마이그레이션은 위 `db:generate`로 만든다([ADR 011](../adr/011-drizzle-orm.md)). 전용 CLI 러너는 없으며 psql로 직접 적용한다(`0000`은 `auth.users` 스텁을 만든다). 적용 뒤 `app_api` 로그인을 켠다([로컬 환경 세팅](./local-setup.md) 3-2·3-3).
 
 ```bash
 # 전체 순서 적용

@@ -66,12 +66,14 @@ project/
 │   ├── main.ts                   ← 부트스트랩 (raw body 보존 · CORS · 포트)
 │   ├── app.module.ts
 │   ├── health.controller.ts
-│   ├── database/                 ← pg Pool + RLS 컨텍스트 (module, service)
+│   ├── database/                 ← Drizzle 스키마(schema.ts) + pg Pool·RLS 컨텍스트 트랜잭션 (module, service)
 │   ├── users/                    ← me.controller, user.entity, users.service, module
 │   ├── auth/                     ← controller, service, types, module (decorator/ dto/ guard/ oauth/)
 │   ├── billing/                  ← controller, service, fulfillment.service, fulfillment.worker, module
 │   └── avatars/                  ← service, module (외형 조합 · 고유 시리얼 발급)
-├── apps/api/migrations/          ← PostgreSQL 마이그레이션 SQL 0000~0010 (PostGIS, pg_cron, pgcrypto, citext · 0000은 auth.users 스텁)
+├── apps/api/migrations/          ← PostgreSQL 마이그레이션 SQL 0000~0010 (PostGIS, pg_cron, pgcrypto, citext · 0000은 auth.users 스텁) · meta/는 drizzle-kit 스냅숏
+├── apps/api/test/                ← DB 통합 테스트 (Vitest + Testcontainers, db.Dockerfile = PostgreSQL 16 + PostGIS + pg_cron)
+├── apps/api/drizzle.config.ts    ← drizzle-kit 설정 (schema.ts → migrations/ 다음 번호 SQL)
 │
 ├── apps/realtime/                ← NestJS 실시간 서버 (socket.io, 9002, DB 없음)
 │   ├── src/
@@ -181,7 +183,8 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 | `shared/sector/contract.ts` | 섹터 중계 소켓 이벤트 이름·페이로드 계약 — socket.io 제네릭 단일 소스 |
 | `shared/sector/grid.ts` | 섹터 격자(500m)·거리·이동 속도 검증 계산 — 단일 소스 |
 | `apps/api/src/billing/fulfillment.worker.ts` | 결제 완료 주문을 폴링해 아바타·라이선스 발급 |
-| `apps/api/src/database/database.service.ts` | pg Pool + 트랜잭션별 `app.user_id`/`app.user_role` RLS 컨텍스트 주입 |
+| `apps/api/src/database/database.service.ts` | pg Pool 위의 Drizzle — 트랜잭션별 `app.user_id`/`app.user_role` RLS 컨텍스트를 넣고 트랜잭션(`Tx`)을 넘김(`withUser`·`withAdmin`), UNIQUE 위반 판별(`uniqueViolation`) |
+| `apps/api/src/database/schema.ts` | Drizzle 스키마 — 마이그레이션 0000~0010을 적용한 테이블·enum·시퀀스·인덱스·RLS 정책과 같음. 고치면 `npm run db:generate`로 다음 번호 마이그레이션을 만든다 |
 
 ---
 

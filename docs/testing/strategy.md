@@ -18,7 +18,7 @@
 
 ## 단위 테스트 대상
 
-저장소에는 아직 테스트 러너가 설정되어 있지 않다. 아래는 테스트 러너를 붙일 때 우선 작성할 대상이다.
+테스트 러너는 API 서버(`apps/api`)에만 있고, DB 통합 테스트를 Vitest로 돌린다(아래 [API 통합 테스트](#api-통합-테스트-appsapitest)). 아래 표는 테스트 러너를 붙일 때(API는 단위 테스트로 더할 때) 우선 작성할 대상이다.
 
 ### 클라이언트 로직 — `shared/`·`lib/`·`features/`
 
@@ -42,9 +42,28 @@
 | 대상 | 테스트 케이스 |
 |---|---|
 | `auth.service` | 이메일+비밀번호 검증 / bcrypt 해싱 / 리프레시 토큰 `ver`가 `token_version`과 다르면 폐기 / OAuth 코드 교환(`OauthService.exchangeCode`) |
-| `billing`(controller/service) | 웹훅 HMAC 서명 검증(`x-pg-signature`, 길이 불일치 거부) / 주문 금액 서버 결정 / 동일 승인번호 재수신 시 상태 미변경(`orders_pg_approval_uniq`) |
-| `billing/fulfillment` | 동시 조회 시 `FOR UPDATE SKIP LOCKED`로 같은 주문을 겹쳐 집지 않음 / 잠금이 풀린 뒤 다시 집힌 주문도 UNIQUE·`GREATEST`로 중복 발급 없음 / 아바타 상품은 수량만큼 발급·라이선스 상품은 가시거리 `GREATEST` 갱신 / 지급 실패 건 다음 폴링에서 재처리 |
-| `avatars` | 외형 충돌(23505) 시 재추첨(최대 8회) / `(order_id, order_seq)` 중복 발급은 거부하고 `null` 반환 / 시리얼 `OW-` + 8자리 |
+| `billing`(controller/service) | 웹훅 HMAC 서명 검증(`x-pg-signature`, 길이 불일치 거부) |
+| `billing/fulfillment.worker` | 지급 실패 건 다음 폴링에서 재처리 / 앞 tick이 끝나기 전에는 건너뜀 / 한 건이 실패해도 나머지를 처리 |
+| `avatars` | 외형이 8회 연속 겹치면 오류를 던짐 |
+
+## API 통합 테스트 (`apps/api/test`)
+
+API 서버의 DB 쿼리는 실제 PostgreSQL에서 확인한다. `apps/api`에서 `npm test`(Vitest)로 돌리며, Docker가 떠 있어야 한다.
+
+- `test/global-setup.ts`가 Testcontainers로 테스트 DB를 하나 띄운다.
+  - 이미지는 `test/db.Dockerfile`(PostgreSQL 16 + PostGIS + pg_cron)이다.
+  - `migrations/`의 SQL을 번호 순서대로 적용하고 `app_api` 로그인을 켠다.
+  - 첫 실행은 이미지를 만드느라 1~2분, 그 뒤로는 15초 안팎이 걸린다.
+- 서비스는 `app_api` 롤로 붙어 RLS를 그대로 받고, 확인·정리는 관리 롤로 한다.
+- 테스트마다 테이블을 비우고 시리얼을 `OW-00000001`부터 다시 센다.
+- 지급 대기열처럼 테이블 전체를 보는 테스트가 있어 파일은 하나씩 돈다.
+
+| 파일 | 확인하는 것 |
+|---|---|
+| `users.test.ts` | 가입하면 기본 라이선스(25m)도 생김 / 이메일 대소문자만 다른 중복 가입 거절 / 인증 경로만 비밀번호 해시를 받음 / 소셜 가입은 비밀번호 없이 로그인 수단을 붙임 / 소셜 가입 중 하나라도 실패하면 유저도 남지 않음(트랜잭션) / 같은 소셜 계정을 다시 붙여도 하나만 남음 / 토큰 버전이 1씩 늚 |
+| `billing.test.ts` | 주문 금액은 서버가 정하고 결제 대기로 시작 / 알 수 없는 상품 거절 / 내 주문만 최근 순 / 같은 웹훅이 다시 와도 한 번만 반영 / 금액 불일치·없는 주문 거절 / 다른 주문에 쓴 승인번호는 반영하지 않음(`orders_pg_approval_uniq`) |
+| `fulfillment.test.ts` | 결제된 주문만 오래된 순으로 집고 지급됨·8번 실패한 주문은 건너뜀 / 다른 워커가 잠근 주문은 건너뜀(`SKIP LOCKED`) / 아바타 시리얼(`OW-` + 8자리)을 붙여 발급하고 워커가 다시 돌아도 더 발급하지 않음(`characters_order_item_uniq`) / 묶음 10개를 차례 번호로 발급 / 가시거리는 넓은 쪽이 남음(`GREATEST`) / 외형이 겹치면 다시 뽑고 실패 횟수를 남김 / 이미 발급한 항목은 `null` |
+| `rls.test.ts` | 내 아바타·라이선스만 내려줌 / 라이선스 행이 없으면 25m / 조건 없이 읽어도 RLS가 남의 주문을 걸러 냄 |
 
 ### `apps/realtime/src/` — NestJS 실시간 서버 (socket.io)
 

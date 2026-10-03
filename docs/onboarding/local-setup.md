@@ -13,7 +13,7 @@
 | Node.js | 20 이상 (Docker 이미지는 22) | https://nodejs.org |
 | PostgreSQL | 16+ (PostGIS 포함) | https://www.postgresql.org / https://postgis.net |
 | psql | PostgreSQL 클라이언트 | PostgreSQL 설치에 포함 |
-| Docker Desktop | 최신 (프론트·실시간 서버 컨테이너 실행용, 선택) | https://docker.com |
+| Docker Desktop | 최신 (API 통합 테스트 `npm test`의 테스트 DB, 프론트·실시간 서버 컨테이너 실행용) | https://docker.com |
 | Git | 최신 | https://git-scm.com |
 
 PostgreSQL에는 다음 확장이 필요하다: **PostGIS**, **pg_cron**, **pgcrypto**, **citext**.
