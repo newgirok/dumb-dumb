@@ -12,7 +12,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js'
 import PaperMap, { GpsBadge, MapIcon, useMapHotkey, type MapTrack } from '@/components/map/paper-map'
-import Loader, { LOADER_EXIT_MS, useLoadingSteps, waitSpinTurn } from '@/components/ui/loader'
+import Loader, { LOADER_DISSOLVE_MS, LOADER_EXIT_MS, useLoadingSteps, waitSpinTurn } from '@/components/ui/loader'
 import GpsSteps from '@/components/location/gps-steps'
 import {
   createGpsTracker,
@@ -192,7 +192,8 @@ export default function NearbyScene() {
 
     let destroyed = false
     let raf = 0
-    // 로더 뒤 GPU 예열이 끝나기 전에는 씬을 그리지 않는다(첫 렌더가 셰이더 컴파일·텍스처 업로드를 한꺼번에 몰고 온다)
+    // 로더가 녹기 시작하기 전에는 씬을 그리지 않는다(예열이 끝나기 전에 그리면 첫 렌더가 셰이더 컴파일·텍스처 업로드를
+    // 한꺼번에 몰고 오고, 덮인 동안 그리면 GPU에 일이 밀려 쌓인다)
     let prepared = false
     let frame: LocalFrame | null = null
     let controller: ThirdPerson | null = null
@@ -475,7 +476,11 @@ export default function NearbyScene() {
       await drawAllGradually(renderer, scene, camera, composer.readBuffer, cancelled)
       await settle(renderer)
       if (destroyed) return
-      prepared = true
+      // 로더 뒤에서 한 프레임만 그려 첫 렌더의 버퍼 업로드를 마친다. 덮인 동안 더 그리면 GPU에 일이 밀려 쌓였다가 로더가
+      // 녹아 씬이 처음 보이는 순간 한꺼번에 기다리느라 화면이 멈춘다(플레이 씬과 같다) — 배경이 녹기 시작할 때부터 그린다
+      composer.render()
+      await settle(renderer)
+      if (destroyed) return
       // 같은 동네 사람들 — 원점이 저마다 달라 실제 좌표(경위도)로 주고받고, 받은 위치는
       // 내 원점 기준으로 바꿔 세운다. 서버에 닿지 못하면 혼자인 채로 돈다
       const peers = createRemotes({
@@ -525,6 +530,9 @@ export default function NearbyScene() {
       await waitSpinTurn(loaderSince)
       if (destroyed) return
       setPhase('playing')
+      await new Promise((resolve) => setTimeout(resolve, LOADER_DISSOLVE_MS))
+      if (destroyed) return
+      prepared = true
     })().catch((err) => {
       if (destroyed) return
       console.error(err)
