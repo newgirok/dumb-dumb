@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { and, eq, isNull, lt, sql } from 'drizzle-orm'
 import { DatabaseService } from '../database/database.service'
+import { orders, userLicenses } from '../database/schema'
 import { AvatarsService } from '../avatars/avatars.service'
 import type { ProductType } from './billing.service'
 
@@ -48,24 +50,15 @@ export class FulfillmentService {
    * 결제와 지급이 같은 DB에 있으니 트랜잭션으로 묶을 수 있다.
    */
   async claimPendingOrders(limit = 5): Promise<PendingOrder[]> {
-    return this.db.withAdmin(async (client) => {
-      const { rows } = await client.query(
-        `SELECT id, user_id, product_type
-           FROM orders
-          WHERE status = 'PAID'
-            AND fulfilled_at IS NULL
-            AND fulfill_attempts < $2
-          ORDER BY created_at
-          FOR UPDATE SKIP LOCKED
-          LIMIT $1`,
-        [limit, MAX_ATTEMPTS],
-      )
-      return rows.map((r) => ({
-        orderId: r.id,
-        userId: r.user_id,
-        productType: r.product_type as ProductType,
-      }))
-    })
+    return this.db.withAdmin((tx) =>
+      tx
+        .select({ orderId: orders.id, userId: orders.userId, productType: orders.productType })
+        .from(orders)
+        .where(and(eq(orders.status, 'PAID'), isNull(orders.fulfilledAt), lt(orders.fulfillAttempts, MAX_ATTEMPTS)))
+        .orderBy(orders.createdAt)
+        .limit(limit)
+        .for('update', { skipLocked: true }),
+    )
   }
 
   /** 주문 한 건을 지급한다. 이미 지급된 항목은 DB 제약이 걸러낸다 */
@@ -82,16 +75,14 @@ export class FulfillmentService {
 
     const radius = LICENSE_RADIUS[order.productType]
     if (radius) {
-      await this.db.withAdmin(async (client) => {
+      await this.db.withAdmin(async (tx) => {
         // GREATEST 라서 낮은 등급을 나중에 사도 이미 산 가시거리가 줄지 않고,
         // 워커가 중복 실행돼도 결과가 같다
-        await client.query(
-          `UPDATE user_licenses
-              SET visibility_radius_m = GREATEST(visibility_radius_m, $2), updated_at = now()
-            WHERE user_id = $1`,
-          [order.userId, radius],
-        )
-        await client.query(`UPDATE orders SET fulfilled_at = now() WHERE id = $1`, [order.orderId])
+        await tx
+          .update(userLicenses)
+          .set({ visibilityRadiusM: sql`GREATEST(${userLicenses.visibilityRadiusM}, ${radius})`, updatedAt: sql`now()` })
+          .where(eq(userLicenses.userId, order.userId))
+        await tx.update(orders).set({ fulfilledAt: sql`now()` }).where(eq(orders.id, order.orderId))
       })
       this.logger.log(`가시거리 ${radius}m order=${order.orderId}`)
       return
@@ -103,8 +94,6 @@ export class FulfillmentService {
   }
 
   private async markFulfilled(orderId: string): Promise<void> {
-    await this.db.withAdmin((client) =>
-      client.query(`UPDATE orders SET fulfilled_at = now() WHERE id = $1`, [orderId]),
-    )
+    await this.db.withAdmin((tx) => tx.update(orders).set({ fulfilledAt: sql`now()` }).where(eq(orders.id, orderId)))
   }
 }

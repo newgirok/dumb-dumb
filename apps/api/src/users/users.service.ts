@@ -1,18 +1,19 @@
 import { ConflictException, Injectable } from '@nestjs/common'
+import { and, eq, sql } from 'drizzle-orm'
 import { DatabaseService } from '../database/database.service'
+import { authProvider, userIdentities, userLicenses, users } from '../database/schema'
 import type { User, UserWithSecret } from './user.entity'
 
-const COLUMNS = `id, email, nickname, role, token_version, created_at`
+type Provider = (typeof authProvider.enumValues)[number]
 
-function toUser(row: Record<string, unknown>): User {
-  return {
-    id: row.id as string,
-    email: row.email as string,
-    nickname: row.nickname as string,
-    role: row.role as User['role'],
-    tokenVersion: row.token_version as number,
-    createdAt: row.created_at as Date,
-  }
+/** 밖으로 내보내는 유저 컬럼 — 비밀번호 해시는 빠진다 */
+const COLUMNS = {
+  id: users.id,
+  email: users.email,
+  nickname: users.nickname,
+  role: users.role,
+  tokenVersion: users.tokenVersion,
+  createdAt: users.createdAt,
 }
 
 @Injectable()
@@ -24,20 +25,19 @@ export class UsersService {
    * 비밀번호 해시를 함께 돌려주므로 호출부를 인증 로직으로 제한할 것.
    */
   async findByEmailWithSecret(email: string): Promise<UserWithSecret | null> {
-    return this.db.withAdmin(async (client) => {
-      const { rows } = await client.query(
-        `SELECT ${COLUMNS}, password_hash FROM users WHERE email = $1`,
-        [email],
-      )
-      if (rows.length === 0) return null
-      return { ...toUser(rows[0]), passwordHash: rows[0].password_hash }
+    return this.db.withAdmin(async (tx) => {
+      const [user] = await tx
+        .select({ ...COLUMNS, passwordHash: users.passwordHash })
+        .from(users)
+        .where(eq(users.email, email))
+      return user ?? null
     })
   }
 
   async findById(id: string): Promise<User | null> {
-    return this.db.withAdmin(async (client) => {
-      const { rows } = await client.query(`SELECT ${COLUMNS} FROM users WHERE id = $1`, [id])
-      return rows.length ? toUser(rows[0]) : null
+    return this.db.withAdmin(async (tx) => {
+      const [user] = await tx.select(COLUMNS).from(users).where(eq(users.id, id))
+      return user ?? null
     })
   }
 
@@ -49,50 +49,40 @@ export class UsersService {
     passwordHash: string
     nickname: string
   }): Promise<User> {
-    return this.db.withAdmin(async (client) => {
-      const existing = await client.query('SELECT 1 FROM users WHERE email = $1', [input.email])
-      if (existing.rowCount) throw new ConflictException('이미 가입된 이메일입니다.')
+    return this.db.withAdmin(async (tx) => {
+      const [existing] = await tx.select({ id: users.id }).from(users).where(eq(users.email, input.email))
+      if (existing) throw new ConflictException('이미 가입된 이메일입니다.')
 
-      const { rows } = await client.query(
-        `INSERT INTO users (email, password_hash, nickname)
-         VALUES ($1, $2, $3)
-         RETURNING ${COLUMNS}`,
-        [input.email, input.passwordHash, input.nickname],
-      )
-      const user = toUser(rows[0])
-      await client.query('INSERT INTO user_licenses (user_id) VALUES ($1)', [user.id])
+      const [user] = await tx.insert(users).values(input).returning(COLUMNS)
+      await tx.insert(userLicenses).values({ userId: user.id })
       return user
     })
   }
 
   /** 연결된 소셜 계정으로 유저를 찾는다 */
-  async findBySocial(provider: string, providerUserId: string): Promise<User | null> {
-    return this.db.withAdmin(async (client) => {
-      const { rows } = await client.query(
-        `SELECT u.id, u.email, u.nickname, u.role, u.token_version, u.created_at
-           FROM user_identities i
-           JOIN users u ON u.id = i.user_id
-          WHERE i.provider = $1 AND i.provider_user_id = $2`,
-        [provider, providerUserId],
-      )
-      return rows.length ? toUser(rows[0]) : null
+  async findBySocial(provider: Provider, providerUserId: string): Promise<User | null> {
+    return this.db.withAdmin(async (tx) => {
+      const [user] = await tx
+        .select(COLUMNS)
+        .from(userIdentities)
+        .innerJoin(users, eq(users.id, userIdentities.userId))
+        .where(and(eq(userIdentities.provider, provider), eq(userIdentities.providerUserId, providerUserId)))
+      return user ?? null
     })
   }
 
   /** 기존 계정에 소셜 로그인 수단을 붙인다 */
   async linkIdentity(input: {
     userId: string
-    provider: string
+    provider: Provider
     providerUserId: string
     email: string | null
   }): Promise<void> {
-    await this.db.withAdmin((client) =>
-      client.query(
-        `INSERT INTO user_identities (user_id, provider, provider_user_id, email)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (provider, provider_user_id) DO NOTHING`,
-        [input.userId, input.provider, input.providerUserId, input.email],
-      ),
+    await this.db.withAdmin((tx) =>
+      tx
+        .insert(userIdentities)
+        .values(input)
+        .onConflictDoNothing({ target: [userIdentities.provider, userIdentities.providerUserId] }),
     )
   }
 
@@ -105,43 +95,41 @@ export class UsersService {
   async createFromSocial(input: {
     email: string
     nickname: string
-    provider: string
+    provider: Provider
     providerUserId: string
     providerEmail: string | null
   }): Promise<User> {
-    return this.db.withAdmin(async (client) => {
-      const { rows } = await client.query(
-        `INSERT INTO users (email, password_hash, nickname)
-         VALUES ($1, NULL, $2)
-         RETURNING ${COLUMNS}`,
-        [input.email, input.nickname],
-      )
-      const user = toUser(rows[0])
-      await client.query('INSERT INTO user_licenses (user_id) VALUES ($1)', [user.id])
-      await client.query(
-        `INSERT INTO user_identities (user_id, provider, provider_user_id, email)
-         VALUES ($1, $2, $3, $4)`,
-        [user.id, input.provider, input.providerUserId, input.providerEmail],
-      )
+    return this.db.withAdmin(async (tx) => {
+      const [user] = await tx
+        .insert(users)
+        .values({ email: input.email, passwordHash: null, nickname: input.nickname })
+        .returning(COLUMNS)
+      await tx.insert(userLicenses).values({ userId: user.id })
+      await tx.insert(userIdentities).values({
+        userId: user.id,
+        provider: input.provider,
+        providerUserId: input.providerUserId,
+        email: input.providerEmail,
+      })
       return user
     })
   }
 
   /** 이메일로 찾는다 (비밀번호 해시 없이) */
   async findByEmail(email: string): Promise<User | null> {
-    return this.db.withAdmin(async (client) => {
-      const { rows } = await client.query(`SELECT ${COLUMNS} FROM users WHERE email = $1`, [email])
-      return rows.length ? toUser(rows[0]) : null
+    return this.db.withAdmin(async (tx) => {
+      const [user] = await tx.select(COLUMNS).from(users).where(eq(users.email, email))
+      return user ?? null
     })
   }
 
   /** 리프레시 토큰 일괄 폐기 — 로그아웃·비밀번호 변경 시 */
   async bumpTokenVersion(id: string): Promise<void> {
-    await this.db.withAdmin((client) =>
-      client.query(
-        'UPDATE users SET token_version = token_version + 1, updated_at = now() WHERE id = $1',
-        [id],
-      ),
+    await this.db.withAdmin((tx) =>
+      tx
+        .update(users)
+        .set({ tokenVersion: sql`${users.tokenVersion} + 1`, updatedAt: sql`now()` })
+        .where(eq(users.id, id)),
     )
   }
 }

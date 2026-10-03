@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { ConfigService } from '@nestjs/config'
-import { DatabaseService } from '../database/database.service'
+import { desc, eq, sql } from 'drizzle-orm'
+import { DatabaseService, uniqueViolation } from '../database/database.service'
+import { orders } from '../database/schema'
 import type { AuthUser } from '../auth/auth.types'
 
 /**
@@ -39,38 +41,36 @@ export class BillingService {
     const product = PRODUCTS[productType]
     if (!product) throw new BadRequestException('알 수 없는 상품입니다.')
 
-    return this.db.withUser({ userId: user.id, role: user.role }, async (client) => {
-      const { rows } = await client.query(
-        `INSERT INTO orders (user_id, product_type, amount_krw, status)
-         VALUES ($1, $2, $3, 'PENDING')
-         RETURNING id, product_type, amount_krw, status`,
-        [user.id, productType, product.amountKrw],
-      )
-      return {
-        id: rows[0].id,
-        productType: rows[0].product_type,
-        amountKrw: rows[0].amount_krw,
-        status: rows[0].status,
-      }
+    return this.db.withUser({ userId: user.id, role: user.role }, async (tx) => {
+      const [order] = await tx
+        .insert(orders)
+        .values({ userId: user.id, productType, amountKrw: product.amountKrw, status: 'PENDING' })
+        .returning({
+          id: orders.id,
+          productType: orders.productType,
+          amountKrw: orders.amountKrw,
+          status: orders.status,
+        })
+      return order
     })
   }
 
   /** 내 주문 내역. RLS 가 남의 주문을 걸러준다 */
   async listOrders(user: AuthUser): Promise<(Order & { fulfilledAt: Date | null })[]> {
-    return this.db.withUser({ userId: user.id, role: user.role }, async (client) => {
-      const { rows } = await client.query(
-        `SELECT id, product_type, amount_krw, status, fulfilled_at
-           FROM orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`,
-        [user.id],
-      )
-      return rows.map((r) => ({
-        id: r.id,
-        productType: r.product_type,
-        amountKrw: r.amount_krw,
-        status: r.status,
-        fulfilledAt: r.fulfilled_at,
-      }))
-    })
+    return this.db.withUser({ userId: user.id, role: user.role }, (tx) =>
+      tx
+        .select({
+          id: orders.id,
+          productType: orders.productType,
+          amountKrw: orders.amountKrw,
+          status: orders.status,
+          fulfilledAt: orders.fulfilledAt,
+        })
+        .from(orders)
+        .where(eq(orders.userId, user.id))
+        .orderBy(desc(orders.createdAt))
+        .limit(50),
+    )
   }
 
   /**
@@ -102,36 +102,34 @@ export class BillingService {
     approvalNumber: string
     amountKrw: number
   }): Promise<{ applied: boolean }> {
-    return this.db.withAdmin(async (client) => {
-      const { rows } = await client.query(
-        `SELECT id, amount_krw, status FROM orders WHERE id = $1 FOR UPDATE`,
-        [input.orderId],
-      )
-      if (rows.length === 0) throw new BadRequestException('존재하지 않는 주문입니다.')
+    return this.db.withAdmin(async (tx) => {
+      const [order] = await tx
+        .select({ amountKrw: orders.amountKrw, status: orders.status })
+        .from(orders)
+        .where(eq(orders.id, input.orderId))
+        .for('update')
+      if (!order) throw new BadRequestException('존재하지 않는 주문입니다.')
 
-      const order = rows[0]
       if (order.status === 'PAID') return { applied: false }
 
       // 금액이 다르면 위조이거나 우리 쪽 버그다. 어느 쪽이든 처리하면 안 된다
-      if (Number(order.amount_krw) !== input.amountKrw) {
+      if (order.amountKrw !== input.amountKrw) {
         this.logger.error(
-          `결제 금액 불일치 order=${input.orderId} 기대=${order.amount_krw} 수신=${input.amountKrw}`,
+          `결제 금액 불일치 order=${input.orderId} 기대=${order.amountKrw} 수신=${input.amountKrw}`,
         )
         throw new BadRequestException('결제 금액이 일치하지 않습니다.')
       }
 
       try {
-        await client.query(
-          `UPDATE orders
-              SET status = 'PAID', pg_approval_number = $2, completed_at = now()
-            WHERE id = $1`,
-          [input.orderId, input.approvalNumber],
-        )
+        await tx
+          .update(orders)
+          .set({ status: 'PAID', pgApprovalNumber: input.approvalNumber, completedAt: sql`now()` })
+          .where(eq(orders.id, input.orderId))
       } catch (error) {
         // 23505 = unique_violation. 같은 승인번호가 이미 반영됐다는 뜻인데,
         // 다른 주문에 붙은 승인번호라면 PG 버그이거나 승인 재사용 시도다.
         // 어느 쪽이든 반영하지 않되, 조용히 넘기지 않고 남긴다
-        if ((error as { code?: string }).code === '23505') {
+        if (uniqueViolation(error)) {
           this.logger.warn(
             `이미 사용된 승인번호 order=${input.orderId} approval=${input.approvalNumber}`,
           )

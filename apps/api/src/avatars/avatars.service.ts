@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { createHash, randomBytes } from 'node:crypto'
-import { DatabaseService } from '../database/database.service'
+import { eq, sql } from 'drizzle-orm'
+import { DatabaseService, uniqueViolation } from '../database/database.service'
+import { characters, orders } from '../database/schema'
 
 /**
  * 아바타 발급 (PRD: 전 세계 단 1종, 고유 시리얼).
@@ -75,40 +77,41 @@ export class AvatarsService {
       const { data, hash } = this.rollAppearance()
 
       try {
-        return await this.db.withAdmin(async (client) => {
-          const { rows } = await client.query(
-            `INSERT INTO characters
-               (serial_number, owner_id, appearance_hash, appearance_data, order_id, order_seq)
-             VALUES ('OW-' || lpad(nextval('character_serial_seq')::text, 8, '0'),
-                     $1, $2, $3, $4, $5)
-             RETURNING id, serial_number, appearance_hash`,
-            [ownerId, hash, JSON.stringify(data), orderId, seq],
-          )
-          return {
-            id: rows[0].id,
-            serialNumber: rows[0].serial_number,
-            appearanceHash: rows[0].appearance_hash,
-          }
+        return await this.db.withAdmin(async (tx) => {
+          const [character] = await tx
+            .insert(characters)
+            .values({
+              serialNumber: sql`'OW-' || lpad(nextval('character_serial_seq')::text, 8, '0')`,
+              ownerId,
+              appearanceHash: hash,
+              appearanceData: data,
+              orderId,
+              orderSeq: seq,
+            })
+            .returning({
+              id: characters.id,
+              serialNumber: characters.serialNumber,
+              appearanceHash: characters.appearanceHash,
+            })
+          return character
         })
       } catch (error) {
-        const code = (error as { code?: string; constraint?: string }).code
-        const constraint = (error as { constraint?: string }).constraint
-
-        if (code !== '23505') throw error
+        const violation = uniqueViolation(error)
+        if (!violation) throw error
 
         // 이 항목은 이미 발급됐다 — 워커 중복 실행. 재시도할 일이 아니다
-        if (constraint === 'characters_order_item_uniq') {
+        if (violation.constraint === 'characters_order_item_uniq') {
           this.logger.warn(`이미 발급된 항목 order=${orderId} seq=${seq}`)
           return null
         }
 
         // 외형이 겹쳤다 — 다시 뽑는다
         this.logger.debug(`외형 충돌, 재시도 ${attempt}/${MAX_ATTEMPTS}`)
-        await this.db.withAdmin((client) =>
-          client.query(
-            `UPDATE orders SET fulfill_attempts = fulfill_attempts + 1 WHERE id = $1`,
-            [orderId],
-          ),
+        await this.db.withAdmin((tx) =>
+          tx
+            .update(orders)
+            .set({ fulfillAttempts: sql`${orders.fulfillAttempts} + 1` })
+            .where(eq(orders.id, orderId)),
         )
       }
     }
