@@ -59,6 +59,13 @@ const CSS = `
   @keyframes home-fade { from { opacity: 0; } }
   .home-title { animation: home-rise 0.6s cubic-bezier(0.05, 0.7, 0.1, 1) both; }
   .home-card { animation: home-rise 0.55s cubic-bezier(0.05, 0.7, 0.1, 1) calc(0.12s + var(--i) * 0.06s) both; }
+  /* 조금 낮은 화면(창 높이 521~640px — 노트북 배율 등) — 제목·카드 크기는 두고 여백과 카드 위아래 안쪽만 줄여 한 화면에 담는다.
+     넘치면 문서 스크롤바가 생기고, 씬으로 옮길 때 이 화면이 빠지며 스크롤바가 사라져 전환 로더 스피너가 옆으로 튄다 */
+  @media (max-height: 640px) {
+    .home-hero { padding: 3vh 0 18vh; }
+    .home-places { margin-top: 4vh; }
+    .home-card { padding-block: clamp(12px, 2.6vh, 16px); }
+  }
   /* 낮은 화면(휴대폰 가로) — 언덕을 낮추고 제목·카드를 줄여 세 장이 한 화면에 들어오게 한다 */
   @media (max-height: 520px) {
     .home-land { height: 38vh; min-height: 0; }
