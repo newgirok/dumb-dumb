@@ -12,7 +12,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js'
 import PaperMap, { GpsBadge, MapIcon, useMapHotkey, type MapTrack } from '@/components/map/paper-map'
-import Loader, { waitSpinTurn } from '@/components/ui/loader'
+import Loader, { LOADER_EXIT_MS, useLoadingSteps, waitSpinTurn } from '@/components/ui/loader'
 import GpsSteps from '@/components/location/gps-steps'
 import { createGpsTracker, isWalkableFix, useGpsSnapshot, waitForStartFix, type GpsTracker } from '@/lib/geo/gps'
 import { detectGpsEnv, startWaitNote, walkNote, type GpsEnv } from '@/lib/geo/gps-messages'
@@ -37,6 +37,12 @@ const GPS_FULL_M = 4
 const GPS_TELEPORT_M = 150
 /** 캐릭터가 서는 바닥 — 평평하니 충돌은 끝없이 넓은 평면 하나로 충분하다 */
 const COLLIDER_SIZE = 200_000
+/**
+ * 로딩 문구 — 플레이 씬(산책 채비)처럼 화면을 만드는 일이 아니라 내가 동네로 나서는 순서로 말한다. 단계는 실제 로딩
+ * (위치 받기 → 하늘·땅 텍스처와 캐릭터 → 주변 길 → 캐릭터 세우기·실시간 연결 → 시작 직전)을 따라 넘어가고, 첫 줄은 페이지
+ * 전환 로더와 같아 넘겨받아도 그대로다. 위치를 기다리는 동안은 첫 줄만 두고, 해야 할 일이 있을 때만 GPS 안내로 바꾼다
+ */
+const LOADING_STEPS = ['내 위치 찾는 중이에요', '창밖 날씨 보는 중이에요', '현관문 나서는 중이에요', '엘리베이터 기다리는 중이에요', '동네로 나가요!']
 
 type Phase = 'locating' | 'loading' | 'playing' | 'error'
 
@@ -48,6 +54,9 @@ export default function NearbyScene() {
   const mountRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<MapTrack | null>(null)
   const [phase, setPhase] = useState<Phase>('locating')
+  const [shownStep, reachStep] = useLoadingSteps()
+  // 준비가 끝나면 로더가 LOADER_EXIT_MS에 걸쳐 녹아 씬이 드러난 뒤에 걷힌다
+  const [loaderGone, setLoaderGone] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [gps, setGps] = useState<GpsTracker | null>(null)
   const gpsView = useGpsSnapshot(gps)
@@ -66,6 +75,7 @@ export default function NearbyScene() {
     if (!mount) return
     // 로더가 뜬 때 — 준비가 일찍 끝나도 스피너가 한 바퀴는 돈 뒤에 걷는다
     const loaderSince = performance.now()
+    reachStep(0)
 
     const mobile = isMobileDevice()
     const shared = createSharedUniforms()
@@ -153,6 +163,7 @@ export default function NearbyScene() {
       const local = createLocalFrame(Math.round(fix.lng / ORIGIN_GRID) * ORIGIN_GRID, Math.round(fix.lat / ORIGIN_GRID) * ORIGIN_GRID)
       const start = local.toLocal(fix.lng, fix.lat)
       setPhase('loading')
+      reachStep(1)
 
       const loader = new THREE.TextureLoader().setPath('/ref-assets/images/')
       const ktx2 = new KTX2Loader().setTranscoderPath('/ref-assets/libs/basis/').detectSupport(renderer)
@@ -193,6 +204,7 @@ export default function NearbyScene() {
       scene.add(sky)
 
       // 바닥 — 선 자리 둘레 구역부터 깔고, 걸으면 앞쪽을 이어 깐다
+      reachStep(2)
       stream = createGroundStream({
         scene,
         frame: local,
@@ -203,6 +215,7 @@ export default function NearbyScene() {
       disposables.push(stream)
       await stream.prime(start.x, start.z)
       if (destroyed) return
+      reachStep(3)
       const colliderGeometry = new THREE.PlaneGeometry(COLLIDER_SIZE, COLLIDER_SIZE).rotateX(-Math.PI / 2)
       disposables.push(colliderGeometry)
 
@@ -292,6 +305,7 @@ export default function NearbyScene() {
 
       frame = local
       trackRef.current = track
+      reachStep(LOADING_STEPS.length - 1)
       await waitSpinTurn(loaderSince)
       if (destroyed) return
       setPhase('playing')
@@ -374,6 +388,12 @@ export default function NearbyScene() {
     return () => window.clearTimeout(timer)
   }, [phase])
 
+  useEffect(() => {
+    if (phase !== 'playing') return
+    const timer = window.setTimeout(() => setLoaderGone(true), LOADER_EXIT_MS)
+    return () => window.clearTimeout(timer)
+  }, [phase])
+
   // 기기 정보는 브라우저에서만 안다 — 서버 렌더와 첫 화면을 맞추려고 마운트 뒤에 읽는다
   useEffect(() => {
     setEnv(detectGpsEnv())
@@ -416,7 +436,8 @@ export default function NearbyScene() {
         </nav>
       )}
 
-      {/* 로더 — 위치를 받을 때까지 기다리고(받을 수 없는 상태면 스피너 없이 안내와 버튼만), 받은 뒤 길을 깐다 */}
+      {/* 로더 — 위치를 받을 때까지 기다리고(받을 수 없는 상태면 스피너 없이 안내와 버튼만), 받은 뒤 길을 깔고,
+          준비되면 배경까지 녹아 씬이 드러난다. 한 로더로 이어 띄워 문구만 바뀐다 */}
       {phase === 'error' && (
         <Loader spinning={false} message="내 주변 길을 불러오지 못했어요" hint="잠시 후 다시 시도해 주세요">
           <button
@@ -431,10 +452,13 @@ export default function NearbyScene() {
           </button>
         </Loader>
       )}
-      {phase === 'locating' && (
+      {phase !== 'error' && !loaderGone && (
         <Loader
+          fading={phase === 'playing'}
+          dissolve
           spinning={waiting?.tone !== 'off'}
-          message={waiting?.title ?? '위치를 찾고 있어요…'}
+          // 사라지기 시작하면 문구가 따라오는 중이어도 바로 마지막 줄을 띄운다
+          message={waiting?.title ?? LOADING_STEPS[phase === 'playing' ? LOADING_STEPS.length - 1 : shownStep]}
           hint={waiting?.hint}
           detail={waiting?.steps && <GpsSteps steps={waiting.steps} />}
         >
@@ -449,7 +473,6 @@ export default function NearbyScene() {
           )}
         </Loader>
       )}
-      {phase === 'loading' && <Loader message="내 주변 길을 깔고 있어요. 잠시만 기다려 주세요." />}
 
       {phase === 'playing' && (
         <div className="absolute bottom-2 left-3 flex items-center gap-1.5 text-[11px] text-[#716c66]/80">
