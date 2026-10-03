@@ -89,7 +89,8 @@ const CSS = `
   .ld-root::before { content: ''; flex: 1 1 0; min-height: 16px; }
   .ld-root > * { transition: opacity 0.75s cubic-bezier(0.645, 0.045, 0.355, 1); }
   .ld-root.fading > * { opacity: 0; }
-  /* dissolve — 글이 거의 흐려질 무렵 배경도 녹아 뒤의 씬이 드러난다(플레이 씬은 인트로가 같은 크림색에서 장면을 드러내 배경을 둔다).
+  /* dissolve — 글이 거의 흐려질 무렵 배경도 녹아 뒤의 씬이 드러난다(플레이 씬은 글이 흐려지기 시작할 때 인트로를 함께 시작해,
+     같은 크림색 덮개에서 소용돌이가 열리는 장면이 드러난다).
      씬 위의 HUD(지도 버튼 등)도 장면과 함께 드러나게 그 위에 둔다 */
   .ld-root.dissolve { z-index: 30; }
   .ld-root.fading.dissolve { opacity: 0; pointer-events: none; transition: opacity 0.5s var(--ld-standard) 0.5s; }

@@ -56,7 +56,7 @@ import { createTalk, type Project, type Talk } from '@/lib/realtime/talk'
 import TalkLayer from '@/components/hud/talk-layer'
 import type { RelayMotion } from '@/shared/relay/contract'
 import PaperMap, { GpsBadge, MapIcon, useMapHotkey } from '@/components/map/paper-map'
-import Loader, { SPIN_MS, useLoadingSteps, waitSpinTurn } from '@/components/ui/loader'
+import Loader, { LOADER_EXIT_MS, SPIN_MS, useLoadingSteps, waitSpinTurn } from '@/components/ui/loader'
 import { createGpsTracker, useGpsSnapshot, type GpsTracker } from '@/lib/geo/gps'
 
 /**
@@ -148,7 +148,7 @@ const GOSSIP_ROTATION_Y = rad(-87.0408)
 /** 원본 오프닝 — initialPosition [12.2, 2.25, -58]. 도로 위에서 +Z를 바라보며 시작한다 */
 const START = new THREE.Vector3(12.2, 2.25, -58)
 
-/** 로더 — 글자·스피너가 0.75초에 사라진 뒤 0.25초 쉬고 인트로를 시작한다(원본 Loader.hide) */
+/** WebGL2가 없을 때 — 로더 글자·스피너가 0.75초에 사라진 뒤 0.25초 쉬고 안내로 바꾼다(원본 Loader.hide) */
 const LOADER_FADE_MS = 750
 const LOADER_HIDDEN_MS = 250
 /**
@@ -790,7 +790,7 @@ export default function PlayScene() {
       if (destroyed) return
 
       // 예열이 끝났다 — GPU가 비면 그리기 시작해 로더 뒤에서 몇 프레임 그려 첫 렌더의 버퍼 업로드를 마친 뒤
-      // 로더를 걷고(스피너 한 바퀴를 채운 뒤 0.75s 페이드 + 0.25s) 인트로를 시작한다
+      // 로더를 걷으며(스피너 한 바퀴를 채운 뒤 글이 흐려지기 시작할 때) 인트로를 시작한다
       await settle(renderer)
       if (destroyed) return
       prepared = true
@@ -801,15 +801,17 @@ export default function PlayScene() {
       if (destroyed) return
       await waitSpinTurn(loaderSince)
       if (destroyed) return
+      // 글이 흐려지기 시작할 때 인트로도 시작한다 — 로더 배경이 0.5초부터 녹으며(dissolve) 같은 크림색 덮개에서 소용돌이가
+      // 열리는 장면이 드러난다. 글이 다 빠진 뒤에 시작하면 소용돌이가 처음엔 아주 천천히 열려 빈 화면이 1초쯤 남는다
       setPhase('fading')
-      await new Promise((resolve) => setTimeout(resolve, LOADER_FADE_MS + LOADER_HIDDEN_MS))
-      if (destroyed) return
       introStartTime = performance.now()
       controller.startIntro()
       adaptive.active = true
       adaptive.waitUntil = introStartTime + DPR_WAIT_MS
       adaptive.lastUpdate = adaptive.waitUntil
       adaptive.bucketStart = introStartTime
+      await new Promise((resolve) => setTimeout(resolve, LOADER_EXIT_MS))
+      if (destroyed) return
       setPhase('playing')
     })().catch((err) => {
       console.error(err)
@@ -1159,6 +1161,7 @@ export default function PlayScene() {
           ) : (
             <Loader
               fading={phase === 'fading'}
+              dissolve
               // 사라지기 시작하면 문구가 따라오는 중이어도 바로 마지막 줄을 띄운다
               message={LOADING_STEPS[phase === 'fading' ? LOADING_STEPS.length - 1 : shownStep]}
             />
