@@ -96,21 +96,26 @@ const CSS = `
   /* 페이지 이동 로더(늘 붙어 있다) — 나타날 때는 배경이 먼저 깔리고 스피너(92% 크기에서)·글(6px 아래에서)이 시차를 두고
      떠오른다. 걷힐 때는 글이 먼저 빠지고 배경이 녹는다. 도착한 씬 로더가 이어받으면(handoff) 스피너 박자·문구가 같은
      화면이라 그대로 걷고(cut — 걷는 동안 씬 로더 문구가 바뀌어도 겹쳐 보이지 않는다), 씬 로더에만 안내·버튼이 있으면
-     한 덩어리로 0.25초에 걷는다. 다 걷힌 뒤에 스피너·글을 처음 자리(92%·6px 아래)로 돌려 둔다 */
+     한 덩어리로 0.25초에 걷는다. 다 걷힌 뒤에 스피너·글을 처음 자리(92%·6px 아래)로 돌려 둔다.
+     6px은 글 줄(.ld-body의 자식)만 옮긴다 — 글 영역(.ld-body)은 로더 바닥까지 늘어나 있어 통째로 내리면 바닥을 넘쳐, 떠오르는
+     0.5초 동안 로더 안에 세로 스크롤바가 생겼다 사라지며 가운데 스피너가 옆으로 튄다(두 번 뜨는 것처럼 보인다) */
   .ld-root.ld-in { transition: opacity ${LOADER_COVER_MS}ms var(--ld-standard); }
   .ld-root.ld-in > .ld-spinner { transition: opacity 0.4s var(--ld-enter) 0.1s, scale 0.5s var(--ld-enter) 0.1s; }
-  .ld-root.ld-in > .ld-body { transition: opacity 0.45s var(--ld-enter) 0.16s, translate 0.5s var(--ld-enter) 0.16s; }
+  .ld-root.ld-in > .ld-body { transition: opacity 0.45s var(--ld-enter) 0.16s; }
+  .ld-root.ld-in > .ld-body > * { transition: translate 0.5s var(--ld-enter) 0.16s; }
   .ld-root.ld-out { opacity: 0; visibility: hidden; pointer-events: none;
     transition: opacity 0.4s var(--ld-standard) 0.15s, visibility 0s linear 0.55s; }
-  .ld-root.ld-out > * { opacity: 0; transition: opacity 0.2s var(--ld-exit), scale 0s linear 0.55s, translate 0s linear 0.55s; }
+  .ld-root.ld-out > * { opacity: 0; transition: opacity 0.2s var(--ld-exit), scale 0s linear 0.55s; }
   .ld-root.ld-out > .ld-spinner { scale: 0.92; }
-  .ld-root.ld-out > .ld-body { translate: 0 6px; }
+  .ld-root.ld-out > .ld-body > * { translate: 0 6px; transition: translate 0s linear 0.55s; }
   .ld-root.ld-out.handoff { transition: opacity 0.25s ease-out, visibility 0s linear 0.25s; }
-  .ld-root.ld-out.handoff > * { transition: opacity 0s linear 0.25s, scale 0s linear 0.25s, translate 0s linear 0.25s; }
-  .ld-root.ld-out.handoff.cut, .ld-root.ld-out.handoff.cut > * { transition: none; }
+  .ld-root.ld-out.handoff > * { transition: opacity 0s linear 0.25s, scale 0s linear 0.25s; }
+  .ld-root.ld-out.handoff > .ld-body > * { transition: translate 0s linear 0.25s; }
+  .ld-root.ld-out.handoff.cut, .ld-root.ld-out.handoff.cut > *, .ld-root.ld-out.handoff.cut > .ld-body > * { transition: none; }
   @media (prefers-reduced-motion: reduce) {
     .ld-root.ld-in > .ld-spinner, .ld-root.ld-in > .ld-body { transition: opacity 0.2s linear; }
-    .ld-root.ld-out > .ld-spinner, .ld-root.ld-out > .ld-body { scale: none; translate: none; }
+    .ld-root.ld-out > .ld-spinner { scale: none; }
+    .ld-root.ld-out > .ld-body > * { translate: none; }
   }
   .ld-root > .ld-spinner.off { visibility: hidden; }
   .ld-body { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; }
