@@ -10,6 +10,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { loadBinGeometry, createInstancedLOD } from '@/lib/three/bin-loader'
 import { loadCharacter, type Character } from '@/lib/three/character'
 import { framingFor } from '@/lib/three/third-person'
+import { compileGradually } from '@/lib/three/warm-up'
 import Loader, { LOADER_EXIT_MS, useLoadingSteps, waitSpinTurn } from '@/components/ui/loader'
 
 // 원본 셰이더의 팔레트 규약 — ramps.png는 100행짜리 팔레트고,
@@ -118,6 +119,8 @@ export default function AssetViewer() {
     ro.observe(mount)
 
     let destroyed = false
+    // 셰이더를 미리 컴파일하기 전에는 그리지 않는다 — 첫 렌더의 동기 컴파일이 GPU를 붙잡아 로더 스피너가 끊긴다
+    let prepared = false
     const disposables: THREE.Material[] = []
 
     ;(async () => {
@@ -157,6 +160,10 @@ export default function AssetViewer() {
       charRef.current = char
       lines.unshift('kid: 22 bones · 24fps')
       setStatus(lines.join('\n'))
+      // 로더 뒤에서 물체마다 병렬 컴파일한 뒤에 그리기 시작한다
+      await compileGradually(renderer, scene, camera, null, () => destroyed)
+      if (destroyed) return
+      prepared = true
       // 준비 끝 — 지금 줄을 읽을 만큼 보여 준 뒤 마지막 줄("공원에 도착했어요!")을 잠깐 띄우고 걷는다
       await finishSteps()
       if (destroyed) return
@@ -180,7 +187,7 @@ export default function AssetViewer() {
       scene.traverse((o) => {
         if ((o as THREE.LOD).isLOD) (o as THREE.LOD).update(camera)
       })
-      renderer.render(scene, camera)
+      if (prepared) renderer.render(scene, camera)
 
       if (now - lastStats > 500) {
         lastStats = now
