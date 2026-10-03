@@ -1,8 +1,8 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { usePathname } from 'next/navigation'
-import Loader, { SPIN_MS } from '@/components/ui/loader'
+import { usePathname, useRouter } from 'next/navigation'
+import Loader, { LOADER_COVER_MS, SPIN_MS } from '@/components/ui/loader'
 
 /**
  * 가는 곳마다 로딩 안내 — 씬으로 갈 때는 도착한 씬 로더의 첫 문구와 같아, 씬 로더가 넘겨받아도 글이 바뀌지 않는다.
@@ -47,13 +47,16 @@ export function useStartPageLoading() {
 }
 
 /**
- * 전체 화면 라우트 전환 오버레이 — 링크 클릭 시점에 즉시 스피너를
- * 띄우고, 목적지 페이지가 실제로 준비됐다고 알려올 때까지(useTransitionReady)
- * 기다렸다가 부드럽게 페이드아웃한다. app/layout.tsx에서 children을 감싸
- * 사이트 전체에 적용.
+ * 전체 화면 라우트 전환 오버레이 — 링크 클릭 시점에 즉시 로더를 띄우고,
+ * 로더 배경이 화면을 다 덮은 뒤에 이동한다. 목적지 페이지가 실제로 준비됐다고
+ * 알려올 때까지(useTransitionReady) 기다렸다가 부드럽게 걷는다. app/layout.tsx에서
+ * children을 감싸 사이트 전체에 적용.
  */
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
+  const routerRef = useRef(router)
+  const pushTimerRef = useRef(0)
   const [visible, setVisible] = useState(false)
   const [handoff, setHandoff] = useState<'cut' | 'fade'>()
   const [message, setMessage] = useState(DEFAULT_MESSAGE)
@@ -112,6 +115,10 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     setVisible(true)
   }
 
+  useEffect(() => {
+    routerRef.current = router
+  }, [router])
+
   // 내부 링크 클릭 시 즉시 스피너 표시 — Next.js App Router는 라우터
   // 이벤트를 노출하지 않아서, 클릭을 직접 감지해 전환 시작 시점을 잡음
   useEffect(() => {
@@ -138,12 +145,21 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       if (url.origin !== window.location.origin) return
       if (url.pathname === window.location.pathname) return
 
+      // 링크의 이동은 잠시 막고(Link는 막힌 클릭이면 옮기지 않는다 — onClick은 그대로 불린다), 로더 배경이 화면을 다 덮은
+      // 뒤에 옮긴다. 먼저 옮기면 반투명한 배경 너머로 도착한 페이지(미리 받아 둔 씬의 로더 등)가 비쳐, 스피너가 나왔다
+      // 가려지고 다시 뜨는 것처럼 보인다
+      e.preventDefault()
+      if (loadingRef.current) return
       startLoading(url.pathname)
+      const to = url.pathname + url.search + url.hash
+      pushTimerRef.current = window.setTimeout(() => routerRef.current.push(to), LOADER_COVER_MS)
     }
 
     // 뒤로·앞으로 가기에는 전환 로더를 띄우지 않는다 — 도착한 곳은 라우터 캐시로 바로 뜨거나 제 로더를 띄우므로,
-    // 떠나는 씬의 로더 위에 로더가 한 번 더 겹치지 않는다. 링크를 누른 직후라 전환 로더가 떠 있었다면 바로 걷는다
+    // 떠나는 씬의 로더 위에 로더가 한 번 더 겹치지 않는다. 링크를 누른 직후라 전환 로더가 떠 있었다면 바로 걷고,
+    // 아직 옮기기 전이면 옮기지 않는다
     const onPopState = () => {
+      window.clearTimeout(pushTimerRef.current)
       if (!loadingRef.current) return
       loadingRef.current = false
       setHandoff(undefined)

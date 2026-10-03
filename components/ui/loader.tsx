@@ -11,6 +11,9 @@ export const SPIN_MS = 1000
 /** 준비를 마친 로더가 다 걷히는 시간 — 글·스피너가 0.75초에 흐려지고, dissolve면 배경이 0.5초부터 0.5초에 걸쳐 녹는다 */
 export const LOADER_EXIT_MS = 1000
 
+/** 페이지 이동 로더의 배경이 화면을 다 덮는 시간 — 이동은 이만큼 기다렸다가 한다(components/layout/page-transition.tsx) */
+export const LOADER_COVER_MS = 300
+
 /** 로딩 문구 한 줄을 적어도 이만큼 보여 준다 — 빠른 기기에서 단계가 금방 지나가도 문구가 휙휙 바뀌며 깜빡이지 않게 */
 export const LOADING_STEP_MIN_MS = 700
 
@@ -72,7 +75,7 @@ const CSS = `
      떠오른다. 걷힐 때는 글이 먼저 빠지고 배경이 녹는다. 도착한 씬 로더가 이어받으면(handoff) 스피너 박자·문구가 같은
      화면이라 그대로 걷고(cut — 걷는 동안 씬 로더 문구가 바뀌어도 겹쳐 보이지 않는다), 씬 로더에만 안내·버튼이 있으면
      한 덩어리로 0.25초에 걷는다. 다 걷힌 뒤에 스피너·글을 처음 자리(92%·6px 아래)로 돌려 둔다 */
-  .ld-root.ld-in { transition: opacity 0.3s var(--ld-standard); }
+  .ld-root.ld-in { transition: opacity ${LOADER_COVER_MS}ms var(--ld-standard); }
   .ld-root.ld-in > .ld-spinner { transition: opacity 0.4s var(--ld-enter) 0.1s, scale 0.5s var(--ld-enter) 0.1s; }
   .ld-root.ld-in > .ld-body { transition: opacity 0.45s var(--ld-enter) 0.16s, translate 0.5s var(--ld-enter) 0.16s; }
   .ld-root.ld-out { opacity: 0; visibility: hidden; pointer-events: none;
