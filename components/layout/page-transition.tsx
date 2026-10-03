@@ -9,12 +9,12 @@ import Loader, { SPIN_MS } from '@/components/ui/loader'
  * 모르는 곳·코드로 이동은 기본 문구
  */
 const DESTINATION_MESSAGES: Record<string, string> = {
-  '/': '처음 화면으로 가고 있어요. 잠시만요.',
+  '/': '처음 화면으로 가는 중이에요',
   '/play': '산책 가방 챙기는 중이에요',
-  '/nearby': '위치를 찾고 있어요…',
-  '/asset-viewer': '에셋을 불러오고 있어요. 잠시만 기다려 주세요.',
+  '/nearby': '내 위치 찾는 중이에요',
+  '/asset-viewer': '돗자리 챙기는 중이에요',
 }
-const DEFAULT_MESSAGE = '화면을 준비하고 있어요. 잠시만 기다려 주세요.'
+const DEFAULT_MESSAGE = '준비하는 중이에요'
 
 interface TransitionCtx {
   setReady: (ready: boolean) => void
@@ -55,7 +55,9 @@ export function useStartPageLoading() {
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [visible, setVisible] = useState(false)
+  const [handoff, setHandoff] = useState<'cut' | 'fade'>()
   const [message, setMessage] = useState(DEFAULT_MESSAGE)
+  const messageRef = useRef(DEFAULT_MESSAGE)
   const loadingRef = useRef(false)
   const startedAtRef = useRef(0)
   const isFirstPathRef = useRef(true)
@@ -80,7 +82,17 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     window.setTimeout(() => {
       // 새 화면이 실제로 한 번 그려진 뒤에 사라지도록 두 프레임 대기
       requestAnimationFrame(() => requestAnimationFrame(() => {
+        // 도착한 페이지가 제 로더를 띄웠으면(문구는 떠 있는 동안 따라갔다) 같은 화면이니 그대로 걷고, 그 로더에만 안내·버튼이
+        // 있으면 빠르게 흐려 걷는다. 로더가 없거나 그 로더가 벌써 걷히는 중이면 글부터 빼고 배경을 녹인다
+        const pageLoader = document.querySelector('.ld-root:not(.ld-in):not(.ld-out)')
         loadingRef.current = false
+        setHandoff(
+          !pageLoader || pageLoader.classList.contains('fading')
+            ? undefined
+            : pageLoader.querySelector('.ld-hint, .ld-detail, .ld-actions')
+              ? 'fade'
+              : 'cut',
+        )
         setVisible(false)
       }))
     }, wait)
@@ -93,7 +105,8 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
 
   const startLoading = (destination?: string) => {
     if (loadingRef.current) return
-    setMessage((destination && DESTINATION_MESSAGES[destination]) || DEFAULT_MESSAGE)
+    messageRef.current = (destination && DESTINATION_MESSAGES[destination]) || DEFAULT_MESSAGE
+    setMessage(messageRef.current)
     loadingRef.current = true
     startedAtRef.current = performance.now()
     setVisible(true)
@@ -133,6 +146,7 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     const onPopState = () => {
       if (!loadingRef.current) return
       loadingRef.current = false
+      setHandoff(undefined)
       setVisible(false)
     }
 
@@ -143,6 +157,22 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       window.removeEventListener('popstate', onPopState)
     }
   }, [])
+
+  // 떠 있는 동안 도착한 페이지 로더의 문구를 따라간다(fade through) — 그 로더가 이 로더 뒤에서 다음 단계로 넘어가도,
+  // 걷는 순간 두 로더가 같은 화면이라 다른 문구가 툭 드러나지 않는다
+  useEffect(() => {
+    if (!visible) return
+    const follow = () => {
+      const text = document.querySelector('.ld-root:not(.ld-in):not(.ld-out) .ld-message:not(.out)')?.textContent
+      if (!text || text === messageRef.current) return
+      messageRef.current = text
+      setMessage(text)
+    }
+    const observer = new MutationObserver(follow)
+    observer.observe(document.body, { subtree: true, childList: true })
+    follow()
+    return () => observer.disconnect()
+  }, [visible])
 
   // pathname이 바뀌었다는 건 새 라우트의 컴포넌트 트리가 커밋됐다는 뜻 —
   // 이 시점에 reveal 시도. 아무도 useTransitionReady(false)를 안 불렀으면
@@ -167,14 +197,9 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
   return (
     <TransitionContext.Provider value={{ setReady, startLoading }}>
       {children}
-      {/* 씬 로딩 화면과 같은 로더 — 도착한 씬이 제 로더를 띄우면 같은 화면이 이어진다 */}
-      <div
-        aria-hidden={!visible}
-        className={`fixed inset-0 z-[9999] transition-opacity duration-300 ease-out ${
-          visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
-      >
-        <Loader message={message} />
+      {/* 씬 로딩 화면과 같은 로더 — 도착한 씬이 제 로더를 띄우면 같은 화면이 이어진다. 나타나고 걷히는 움직임은 로더가 맡는다 */}
+      <div aria-hidden={!visible} className={`fixed inset-0 z-[9999] ${visible ? '' : 'pointer-events-none'}`}>
+        <Loader message={message} shown={visible} handoff={handoff} />
       </div>
     </TransitionContext.Provider>
   )
