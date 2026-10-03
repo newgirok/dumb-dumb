@@ -71,7 +71,7 @@ export function receiveState(player: RelayPlayer, body: unknown, now: number, ru
   if (position && acceptMove(player, position, now, rules)) setField(player, 'p', position)
   const rotation = readNumbers(r, 2, Math.PI * 2 + 0.01, 2)
   if (rotation) setField(player, 'r', rotation as RelayPlayerState['r'])
-  if (a === 0 || a === 1 || a === 2) setField(player, 'a', a)
+  if (a === 0 || a === 1 || a === 2 || a === 3) setField(player, 'a', a)
   if (typeof s === 'number' && s >= 0 && s < 4) setField(player, 's', s)
   return true
 }

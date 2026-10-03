@@ -21,8 +21,11 @@ export const RELAYS = {
 
 export type RelayName = keyof typeof RELAYS
 
-/** 캐릭터 모션 — 원본 userData.a (0 기본(idle·run) · 1 공중 · 2 심심함) */
-export type RelayMotion = 0 | 1 | 2
+/**
+ * 캐릭터 모션 — 원본 userData.a (0 기본(idle·run) · 1 공중 · 2 심심함) + 3 탈것(내 주변 휴대폰이 탈것 속도로 옮겨 가는 중.
+ * 위치가 몇 초에 한 번씩만 와서 받는 쪽이 그 사이를 선 채로 미끄러지듯 잇는다)
+ */
+export type RelayMotion = 0 | 1 | 2 | 3
 
 /** 캐릭터 한 명의 상태 — 원본 RealmData */
 export interface RelayPlayerState {
