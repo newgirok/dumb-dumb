@@ -42,6 +42,7 @@ project/
 │   │   ├── gps.ts                ← GPS 추적기·상태 (씬·펼침 지도가 함께 쓰는 watchPosition, 내 주변 시작 위치 대기)
 │   │   ├── gps-messages.ts       ← GPS 상태별 안내 문구·기기 판별 (지도 쪽지, 내 주변 대기 화면·알림)
 │   │   ├── local-frame.ts        ← 위경도 ↔ 원점 기준 로컬 미터 (내 주변(베타))
+│   │   ├── steps.ts              ← 가속도계 발걸음·iOS 동작 권한 (내 주변 탈것 판정)
 │   │   └── vector-tiles.ts       ← OpenStreetMap 벡터 타일(OpenFreeMap)에서 길 읽기
 │   ├── three/                    ← 3D 엔진 — 플레이 씬·내 주변·에셋 미리보기가 같이 쓴다
 │   │   ├── bin-loader.ts         ← ref-assets .bin(Draco) 로더 + 스킨·애니메이션·인스턴스 LOD 헬퍼
@@ -161,11 +162,12 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 | `lib/three/remote-players.ts` · `kid-animation.ts` | 같은 방 다른 캐릭터들 — 받은 상태를 2단 보간해 그리고 등장·퇴장 크기 연출, 만남 대화가 거리·머리 위 자리를 재는 발 위치(`positions()`, 사라지는 중인 캐릭터는 뺀다). 로컬·원격 캐릭터가 함께 쓰는 idle·run·air·bored 가중치 규칙 |
 | `features/nearby/ground-stream.ts` | 걷는 만큼 이어지는 바닥 — 256m 구역을 캐릭터 둘레 3×3으로 깔고 멀어진 구역은 치운다, 워커가 그린 마스크로 텍스처·메시 생성, 잔디 받침 바닥, 차도를 피해 설 곳 찾기(`nearestWalk`) |
 | `features/nearby/ground.worker.ts` · `ground-source.ts` | 워커에서 z14 타일 받기·해석(12장 캐시)과 구역 마스크 그리기(OffscreenCanvas) — 워커가 없으면 같은 코드를 메인 스레드에서 |
-| `features/nearby/nearby-scene.tsx` · `ground.ts` | 내 주변(베타) — 위치를 받을 때까지 대기 화면에서 기다렸다가(`waitForStartFix`) 그 주변 실제 길(OpenStreetMap)을 플레이 씬 지형 셰이더 마스크로 그려 1m = 1m로 걷는다. 휴대폰은 터치 조작 없이 ±50m 안 GPS(흔들림을 칼만 필터로 거른 자리, 차도 위면 가장 가까운 인도)를 따라 걷는다. 우상단 지도 버튼 하나(M·Esc), 펼침 지도의 '나'는 캐릭터 자리와 화면이 보는 방향(`MapTrack`)이다. 반경 200m 사람이 실제 자리에 보인다. `ground.ts`는 도로 폭 규칙·타일 경계에 맞춘 점선 박자·마스크 그리기 |
+| `features/nearby/nearby-scene.tsx` · `ground.ts` | 내 주변(베타) — 위치를 받을 때까지 대기 화면에서 기다렸다가(`waitForStartFix`) 그 주변 실제 길(OpenStreetMap)을 플레이 씬 지형 셰이더 마스크로 그려 1m = 1m로 걷는다. 휴대폰은 터치 조작 없이 ±50m 안 GPS(흔들림을 칼만 필터로 거른 자리, 차도 위면 가장 가까운 인도)를 따라 걷고, 걸음 없이 탈것 속도면(발걸음 + GPS 속도) 선 채로 미끄러진다. iOS는 시작 전 권한 단계의 '허용'으로 동작·위치 권한을 받는다. 우상단 지도 버튼 하나(M·Esc), 펼침 지도의 '나'는 캐릭터 자리와 화면이 보는 방향(`MapTrack`)이다. 반경 200m 사람이 실제 자리에 보인다. `ground.ts`는 도로 폭 규칙·타일 경계에 맞춘 점선 박자·마스크 그리기 |
 | `features/asset-viewer/asset-viewer.tsx` | 에셋 미리보기 — ref-assets 캐릭터·소품을 지도 없이 띄워 크기·본·애니메이션·인스턴스·LOD 규격을 확인한다(개발용). 자체 렌더러 + OrbitControls, 세로로 긴 화면은 `framingFor`로 화각을 넓힌다 |
 | `lib/geo/vector-tiles.ts` · `local-frame.ts` | OpenFreeMap z14 타일의 `transportation` 레이어 읽기(땅 위의 길만) · 위경도 ↔ 로컬 미터 변환 |
-| `lib/geo/gps.ts` | GPS 추적기(`createGpsTracker`) — `watchPosition` 하나를 씬과 펼침 지도가 나눠 쓰고, 권한·오류·정확도를 상태 하나로 묶는다. `waitForStartFix`(내 주변 시작 위치)·`isWalkableFix`(±50m)·`useGpsSnapshot`·`formatAccuracy` |
-| `lib/geo/gps-messages.ts` | GPS 상태별 안내 문구(해요체)와 기기 판별(iOS·Android·Windows·Mac, 삼성 인터넷, 앱 속 브라우저) — `gpsNote`(지도 쪽지·도장·버튼)·`startWaitNote`(내 주변 대기 화면)·`walkNote`(내 주변 위쪽 알림) |
+| `lib/geo/gps.ts` | GPS 추적기(`createGpsTracker`) — `watchPosition` 하나를 씬과 펼침 지도가 나눠 쓰고, 권한·오류·정확도를 상태 하나로 묶는다. 위치마다 GPS 속도(도플러, 못 재면 null)를 싣는다. `waitForStartFix`(내 주변 시작 위치)·`isWalkableFix`(±50m)·`queryGpsPermission`(묻지 않고 권한 알아보기)·`useGpsSnapshot`·`formatAccuracy` |
+| `lib/geo/steps.ts` | 발걸음 — `devicemotion` 가속도로 박자 맞는 걸음을 센다(`createStepTracker`, 브라우저와 떼어 둔 셈은 `createStepCounter`). iOS 동작 권한을 창 없이 알아보고(`queryMotionPermission`) 탭 안에서 묻는다(`requestMotionPermission`) |
+| `lib/geo/gps-messages.ts` | GPS 상태별 안내 문구(해요체)와 기기 판별(iOS·Android·Windows·Mac, 삼성 인터넷, 앱 속 브라우저) — `gpsNote`(지도 쪽지·도장·버튼)·`startWaitNote`(내 주변 대기 화면)·`motionAskNote`(내 주변 iOS 권한 단계)·`walkNote`(내 주변 위쪽 알림) |
 | `components/map/paper-map.tsx` | 펼침 지도 — 씬과 분리된 독립 Mapbox GL 캔버스([ADR 001](../adr/001-webgl-context-sharing.md)). 씬이 시작되면(플레이 씬은 씬을 불러오는 동안 로더 뒤에서) 한 번 만들고 접혀 있는 동안은 숨겨 둔다. 종이 폭에 따라 3단·반 접기·바로 펼침, GPS 상태 쪽지·도장·정확도 원·'나' 표시(DOM 마커). `MapIcon`·`GpsBadge`·`useMapHotkey`(M·Esc)·`MapTrack`도 내보낸다 |
 | `components/map/paper-map-style.ts` | 펼침 지도 스타일 `PAPER_STYLE` — Mapbox Streets v8 + 지형 DEM을 게임 화풍으로 칠한다. 무늬 `PATTERNS`(나무·풀포기·물결)는 `styleimagemissing`에서 캔버스로 그려 넣는다 |
 | `lib/realtime/relay.ts` | socket.io 익명 멀티플레이 연결(플레이 씬 `/room`·내 주변 `/proximity`) — 35ms마다 바뀐 필드만 전송, 5분 무변화 시 끊기(탭을 숨겨도 연결을 둔다, 만남 대화가 오가면 바뀐 것으로 친다), 재접속 때 전에 있던 방 요청, 만남 대화 이벤트 송수신(`RelayConnection.talk`) |
