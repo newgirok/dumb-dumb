@@ -24,10 +24,9 @@ const PLACES: Record<SceneRoute, { title: string; badge?: string; tilt: number; 
 // 곧바로 그려진다. 버튼 이름이나 배지 글자를 바꾸면 다시 만든다(공식 배포본에서 fontTools로, 라이선스 정보는 그대로 둔다):
 //   pyftsubset Stylish-Regular.ttf --text="플레이 내 주변 에셋 미리보기" --flavor=woff2 --name-IDs='*' --output-file=public/fonts/stylish-home.woff2
 //   pyftsubset Pretendard-Regular.otf --text="베타 개발용" --flavor=woff2 --name-IDs='*' --output-file=public/fonts/pretendard-home.woff2
-// 빠진 글자는 뒤의 전체 폰트(Stylish·Pretendard)로 그려진다
+// 빠진 글자는 뒤의 전체 폰트(Stylish·Pretendard)로 그려진다. 두 폰트의 @font-face는 globals.css에 한 번만 둔다 — 이 페이지 안에
+// 두면 뒤로 가기로 다시 붙을 때마다 폰트를 다시 맞추느라(서버에 다시 확인한다) 버튼 이름·배지가 잠깐 비어 보인다
 const CSS = `
-  @font-face { font-family: 'Stylish Home'; src: url('/fonts/stylish-home.woff2') format('woff2'); font-weight: 400; font-display: block; }
-  @font-face { font-family: 'Pretendard Home'; src: url('/fonts/pretendard-home.woff2') format('woff2'); font-weight: 400; font-display: block; }
   .home { --card-w: min(420px, 86vw); position: relative; min-height: 100dvh; overflow: hidden; display: flex; flex-direction: column; align-items: center;
     background:
       radial-gradient(circle at 84% 10%, rgba(255, 246, 220, 0.95) 0, rgba(255, 246, 220, 0) 20%),
