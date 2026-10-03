@@ -10,7 +10,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { loadBinGeometry, createInstancedLOD } from '@/lib/three/bin-loader'
 import { loadCharacter, type Character } from '@/lib/three/character'
 import { framingFor } from '@/lib/three/third-person'
-import Loader, { waitSpinTurn } from '@/components/ui/loader'
+import Loader, { LOADER_EXIT_MS, useLoadingSteps, waitSpinTurn } from '@/components/ui/loader'
 
 // 원본 셰이더의 팔레트 규약 — ramps.png는 100행짜리 팔레트고,
 // colorInfo.r이 행 번호, x축은 음영 정도다.
@@ -62,12 +62,22 @@ const PROPS = [
   { name: 'bush', lods: ['bush', 'bush-lod2', 'bush-lod3'], distances: [0, 40, 90] },
 ]
 
+/**
+ * 로딩 문구 — 플레이 씬(산책 채비)처럼 화면을 만드는 일이 아니라 내가 나무·바위·덤불이 있는 공원으로 소풍 가는 순서로
+ * 말한다. 단계는 실제 로딩(팔레트 → 소품 → 캐릭터 → 준비 끝)을 따라 넘어가고, 첫 줄은 페이지 전환 로더와 같아
+ * 넘겨받아도 그대로다
+ */
+const LOADING_STEPS = ['돗자리 챙기는 중이에요', '도시락 싸는 중이에요', '공원 가는 중이에요', '공원 도착!']
+
 export default function AssetViewer() {
   const mountRef = useRef<HTMLDivElement>(null)
   const charRef = useRef<Character | null>(null)
   const [moving, setMoving] = useState(true)
   const [status, setStatus] = useState('')
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [shownStep, reachStep] = useLoadingSteps()
+  // 준비가 끝나면 로더가 LOADER_EXIT_MS에 걸쳐 녹아 씬이 드러난 뒤에 걷힌다
+  const [loaderGone, setLoaderGone] = useState(false)
   // LOD가 실제로 전환되는지 눈이 아니라 숫자로 확인하려고 노출
   const [stats, setStats] = useState('')
 
@@ -120,6 +130,7 @@ export default function AssetViewer() {
 
       const lines: string[] = []
 
+      reachStep(1)
       for (const prop of PROPS) {
         const [instances, ...geoms] = await Promise.all([
           loadBinGeometry(`${prop.name}-instances`),
@@ -138,6 +149,7 @@ export default function AssetViewer() {
         )
       }
 
+      reachStep(2)
       const char = await loadCharacter(0x4f8ef7)
       if (destroyed) {
         char.dispose()
@@ -148,6 +160,7 @@ export default function AssetViewer() {
       charRef.current = char
       lines.unshift('kid: 22 bones · 24fps')
       setStatus(lines.join('\n'))
+      reachStep(LOADING_STEPS.length - 1)
       await waitSpinTurn(loaderSince)
       if (destroyed) return
       setPhase('ready')
@@ -205,6 +218,12 @@ export default function AssetViewer() {
     }
   }, [])
 
+  useEffect(() => {
+    if (phase !== 'ready') return
+    const timer = window.setTimeout(() => setLoaderGone(true), LOADER_EXIT_MS)
+    return () => window.clearTimeout(timer)
+  }, [phase])
+
   return (
     // 화면 크기가 바뀌어도 뷰포트를 꽉 채운다(100vw·100vh는 스크롤바·휴대폰 주소창까지 넣어 넘친다)
     <div className="fixed inset-0 overflow-hidden bg-[#1b1f27]">
@@ -223,8 +242,15 @@ export default function AssetViewer() {
           {moving ? 'run → idle' : 'idle → run'}
         </button>
       </div>
-      {/* 에셋을 다 받을 때까지 로더 — 페이지 이동 로더와 같은 안내라 그대로 이어진다 */}
-      {phase === 'loading' && <Loader message="에셋을 불러오고 있어요. 잠시만 기다려 주세요." />}
+      {/* 에셋을 다 받을 때까지 로더 — 첫 줄이 페이지 이동 로더와 같아 그대로 이어지고, 준비되면 배경까지 녹아 씬이 드러난다 */}
+      {(phase === 'loading' || (phase === 'ready' && !loaderGone)) && (
+        <Loader
+          fading={phase === 'ready'}
+          dissolve
+          // 사라지기 시작하면 문구가 따라오는 중이어도 바로 마지막 줄을 띄운다
+          message={LOADING_STEPS[phase === 'ready' ? LOADING_STEPS.length - 1 : shownStep]}
+        />
+      )}
       {phase === 'error' && (
         <Loader spinning={false} message="에셋을 불러오지 못했어요" hint="잠시 후 새로고침해 주세요">
           <button
