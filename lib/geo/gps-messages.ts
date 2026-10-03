@@ -161,24 +161,23 @@ export function gpsNote(snapshot: GpsSnapshot, env: GpsEnv, { walking = false } 
 }
 
 /**
- * 내 주변 시작 전 대기 화면 — 위치를 하나도 못 받는 동안은 넘어가지 않으므로 무엇을 기다리는지 알린다.
- * 흐린 위치를 받았으면 잠시 뒤 알아서 이 근처에서 시작하므로(waitForStartFix) 기다린다는 것만 알린다 —
+ * 내 주변 시작 전 대기 화면 — 위치를 기다리는 동안은 로딩 첫 줄("내 위치 찾는 중이에요")만 두고(null), 해야 할 일이
+ * 있을 때만 안내한다: 권한을 묻거나 꺼져 있을 때, 보안 연결이 아니거나 위치를 못 쓰는 브라우저일 때, 신호가 한참 늦을 때.
+ * 흐린 위치를 받았으면 잠시 뒤 알아서 이 근처에서 시작하므로(waitForStartFix) 따로 알리지 않는다 —
  * 위치를 또렷하게 하는 방법은 시작한 뒤 위쪽 알림과 지도가 보여 준다.
  */
 export function startWaitNote(snapshot: GpsSnapshot, env: GpsEnv): GpsNote | null {
-  const { status, fix } = snapshot
-  const accuracy = fix ? formatAccuracy(fix.accuracy) : ''
-  switch (status) {
-    case 'good':
-    case 'fair':
-      return { tone: 'ok', title: '위치를 찾았어요!', hint: '내 주변 길을 까는 중이에요' }
-    case 'weak':
-    case 'coarse':
-    case 'approximate':
-    case 'stale':
-      return { tone: 'wait', title: `위치를 또렷하게 맞추는 중이에요 · ${accuracy}`, hint: '또렷해지면 바로, 아니면 잠시 뒤 이 근처에서 시작해요' }
-    default:
+  switch (snapshot.status) {
+    case 'insecure':
+    case 'unsupported':
+    case 'prompt':
+    case 'denied':
+    case 'unavailable':
       return gpsNote(snapshot, env, { walking: true })
+    case 'searching':
+      return snapshot.slow ? gpsNote(snapshot, env, { walking: true }) : null
+    default:
+      return null
   }
 }
 
