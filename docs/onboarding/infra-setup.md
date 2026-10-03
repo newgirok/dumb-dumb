@@ -70,7 +70,6 @@ NestJS 실시간 서버(`apps/realtime`, socket.io)를 호스팅한다. 플레�
 | 변수 | 값 출처 |
 |---|---|
 | `NEXT_PUBLIC_WS_URL` | 실시간 서버 공개 주소 (플레이 씬·내 주변 소켓) |
-| `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapbox account.mapbox.com → Tokens (플레이 씬·내 주변 펼침 지도) |
 
 로그인·맵·상점 화면을 붙이면 다음도 등록한다:
 

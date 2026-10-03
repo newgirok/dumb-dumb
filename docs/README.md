@@ -1,6 +1,6 @@
 # Dumb Dumb (3D 소셜) — 문서 허브
 
-반려동물을 목줄로 데리고 다니는 반려인(유니크 3D 아바타)을 조종하며 다른 유저와 우연히 마주치고 커뮤니티를 형성하는 3D 소셜 서비스. 루트(`/`)는 플레이·내 주변·에셋 미리보기 버튼을 세로로 쌓은 게임 타이틀 화면(선택 페이지)이다. `/play`(플레이 씬)는 로그인 없이 공개되는 3D 씬으로, 같은 방(최대 20명)에 든 다른 방문자의 캐릭터가 익명으로 함께 보이고, 가까이 마주친 사람과는 서로 받아들이면 1:1로 글을 주고받으며(만남 대화), 우상단 지도 버튼이나 M 키로 유저의 실제 GPS 위치를 보여 주는 펼침 지도를 펼친다. `/nearby`(내 주변(베타))는 위치를 받을 때까지 기다렸다가 같은 화풍으로 내 위치 주변 실제 길을 깔아 걷는 만큼 이어 깔고, 반경 200m 안 사람의 캐릭터를 실제 자리에 보여 준다. `/asset-viewer`는 ref-assets 규격을 확인하는 개발용 에셋 미리보기다. 로그인·상점 화면과, Mapbox 실지형 지도 위에서 위치를 실시간으로 공유하는 맵은 예정이다.
+반려동물을 목줄로 데리고 다니는 반려인(유니크 3D 아바타)을 조종하며 다른 유저와 우연히 마주치고 커뮤니티를 형성하는 3D 소셜 서비스. 루트(`/`)는 플레이·내 주변·에셋 미리보기 버튼을 세로로 쌓은 게임 타이틀 화면(선택 페이지)이다. `/play`(플레이 씬)는 로그인 없이 공개되는 3D 씬으로, 같은 방(최대 20명)에 든 다른 방문자의 캐릭터가 익명으로 함께 보이고, 가까이 마주친 사람과는 서로 받아들이면 1:1로 글을 주고받으며(만남 대화), 우상단 지도 버튼이나 M 키로 유저의 실제 GPS 위치를 보여 주는 펼침 지도를 펼친다. `/nearby`(내 주변(베타))는 위치를 받을 때까지 기다렸다가 같은 화풍으로 내 위치 주변 실제 길을 깔아 걷는 만큼 이어 깔고, 반경 200m 안 사람의 캐릭터를 실제 자리에 보여 준다. `/asset-viewer`는 ref-assets 규격을 확인하는 개발용 에셋 미리보기다. 로그인·상점 화면과, OpenStreetMap 실지형 지도 위에서 위치를 실시간으로 공유하는 맵은 예정이다.
 
 **GitHub**: https://github.com/newgirok/dumb-dumb
 
@@ -55,7 +55,7 @@ Docker Compose로 프론트엔드(프로덕션 빌드)와 실시간 서버를 �
 |---|---|
 | [클라우드 인프라 초기 셋업](./onboarding/infra-setup.md) | Vercel, 오브젝트 스토리지 최초 1회 설정 |
 | [로컬 환경 세팅](./onboarding/local-setup.md) | Node.js, PostgreSQL, 프론트엔드 + 실시간 서버 + API 서버 초기 설정 |
-| [API 키 설정](./onboarding/api-keys.md) | Mapbox, PG사, OAuth 키 발급 방법 |
+| [API 키 설정](./onboarding/api-keys.md) | PG사, OAuth 키 발급 방법 |
 | [환경변수 레퍼런스](./onboarding/env-vars.md) | 전체 환경변수 목록 및 설명 |
 | [개발 명령어](./onboarding/commands.md) | npm / psql / Docker 명령어 레퍼런스 |
 
@@ -63,7 +63,7 @@ Docker Compose로 프론트엔드(프로덕션 빌드)와 실시간 서버를 �
 
 | 문서 | 설명 |
 |---|---|
-| [프론트엔드 컨벤션](./frontend/conventions.md) | 선택 페이지·플레이 씬·내 주변·에셋 미리보기, 이동·카메라, 씬 HUD, 만남 대화, 펼침 지도(Mapbox GL JS), App Router 라우트 설계 |
+| [프론트엔드 컨벤션](./frontend/conventions.md) | 선택 페이지·플레이 씬·내 주변·에셋 미리보기, 이동·카메라, 씬 HUD, 만남 대화, 펼침 지도(MapLibre GL JS), App Router 라우트 설계 |
 
 ### 백엔드 개발
 
@@ -83,7 +83,7 @@ Docker Compose로 프론트엔드(프로덕션 빌드)와 실시간 서버를 �
 | 문서 | 설명 |
 |---|---|
 | [배포 절차](./operations/runbook/deploy.md) | 로컬 → Vercel / API 서버·실시간 서버 프로덕션 배포 단계 |
-| [모니터링](./operations/monitoring.md) | Mapbox·서버 비용 알림 및 대시보드 |
+| [모니터링](./operations/monitoring.md) | 서버 비용 알림·지도 타일 점검 및 대시보드 |
 | [과금 방어 대응](./operations/runbook/billing-guard.md) | API 과금 폭탄 원인 및 즉시 차단 절차 |
 
 ---
@@ -133,4 +133,4 @@ docker compose --env-file .env.local up -d --build
 
 ## 인프라 비용 목표
 
-자체 호스팅 기준. DB/API 서버·실시간 서버 호스팅 + Mapbox(무료 티어 내) + Vercel(소규모 무료~소액)로 구성한다. 상세 항목은 [아키텍처 개요 — 비용 목표](./architecture/overview.md#비용-목표)를 확인하라.
+자체 호스팅 기준. DB/API 서버·실시간 서버 호스팅 + Vercel(소규모 무료~소액)로 구성하고, 지도 타일(OpenFreeMap)은 무료다. 상세 항목은 [아키텍처 개요 — 비용 목표](./architecture/overview.md#비용-목표)를 확인하라.

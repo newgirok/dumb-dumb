@@ -11,7 +11,7 @@
 │                         유저 브라우저 (PC / 모바일)                         │
 │  선택 페이지 (/) — /play · /nearby 카드 + /asset-viewer 링크            │
 │  플레이 씬 (/play)                       맵 (/map, 예정)          │
-│  - 로그인 없는 공개 씬 + 익명 방 멀티플레이   - Mapbox 실지형 지도 기반 멀티플레이 │
+│  - 로그인 없는 공개 씬 + 익명 방 멀티플레이   - OSM 실지형 지도 기반 멀티플레이    │
 │  - PC: WASD·방향키·마우스 가상 조이스틱      - PC: WASD·방향키                 │
 │  - 모바일: 터치 가상 조이스틱               - 모바일: 실제 GPS 이동             │
 │  내 주변 (/nearby) — 같은 화풍의 실제 길 + 반경 200m 가까운 사람         │
@@ -22,10 +22,10 @@
 ┌───────▼─────────────────────────┼─────────────────────────┐
 │             Next.js 15 (App Router, CSR)                   │
 │  [플레이 씬] Three.js 자체 WebGL 캔버스 (ref-assets 씬)        │
-│      + 펼침 지도 — 독립 Mapbox GL 캔버스 (실제 GPS)          │
+│      + 펼침 지도 — 독립 MapLibre GL 캔버스 (실제 GPS)        │
 │  [내 주변] 같은 캔버스 구조 + 바닥 워커(OffscreenCanvas)     │
-│  [맵 — 예정] Mapbox GL + Three.js 커스텀 레이어              │
-│      (Mapbox의 WebGL 컨텍스트 공유)                         │
+│  [맵 — 예정] MapLibre GL + Three.js 커스텀 레이어            │
+│      (MapLibre의 WebGL 컨텍스트 공유)                       │
 │  app/api/health = 헬스 체크 · BFF 프록시는 예정              │
 │  배포: Vercel Edge Network                                  │
 └───────┬─────────────────────────┼─────────────────────────┘
@@ -45,7 +45,7 @@
 │  PostgreSQL          │  │  외부 서비스                                 │
 │  + PostGIS           │  │  - PG 승인 웹훅 수신 (범용 HMAC 계약)         │
 │  (단일 공유 DB,      │  │  - 카카오 / 구글 OAuth (코드 교환)           │
-│   자체 호스팅)       │  │  (Mapbox 지도·타일, OpenFreeMap 길 타일은     │
+│   자체 호스팅)       │  │  (OpenFreeMap 지도·길 타일, AWS 지형 타일은   │
 │  pg_cron / pgcrypto  │  │   브라우저가 직접 호출)                       │
 │  citext              │  └─────────────────────────────────────────────┘
 └──────────────────────┘
@@ -61,15 +61,15 @@
   렌더링하는 공개 씬이다. 로그인 없이 열리고, 같은 방(최대 20명)에 든 다른 방문자의 캐릭터가 익명 소켓(`/room`)으로
   함께 보이고, 가까이 마주친 사람과는 같은 소켓으로 1:1 글을 주고받는다(만남 대화, 저장하지 않는다). 서버에 닿지 못하면
   혼자인 채로 돈다. 좌표는 씬 로컬 미터 좌표다. 우상단 지도 버튼이나
-  M 키로 여는 펼침 지도(`components/map/paper-map.tsx`)는 씬 렌더러와 분리된 독립 Mapbox GL 캔버스로, 유저의 실제
+  M 키로 여는 펼침 지도(`components/map/paper-map.tsx`)는 씬 렌더러와 분리된 독립 MapLibre GL 캔버스(처음 펼칠 때 만든다)로, 유저의 실제
   GPS 위치를 게임 화풍 종이 지도 위에 표시한다. 위치 권한은 지도를 처음 펼칠 때 묻는다(이미 허용된 사이트면 씬 시작 때
   바로 찾는다). 같은 렌더링을 쓰는 **내 주변(베타)**(`/nearby`, `features/nearby/`)은 위치를 받을 때까지 대기
   화면에서 기다렸다가 그 주변 실제 길을 깔고, 걷는 만큼 이어 깐다. 반경 200m 사람의 캐릭터가 익명 소켓(`/proximity`)으로
   실제 자리에 보이고, 펼침 지도는 캐릭터 자리를 '나'로 보여 준다.
 - **에셋 미리보기**(`/asset-viewer`, `features/asset-viewer/`)는 ref-assets 캐릭터·소품을 지도 없이 띄워 크기·본·애니메이션·인스턴스·LOD
   규격을 확인하는 개발용 페이지다.
-- **맵**(`/map`, 예정)은 Mapbox GL 실지형 지도를 베이스로 하고, 캐릭터를 Three.js 커스텀 레이어로
-  지도 위에 그리는 멀티플레이 화면이다. Three.js 렌더러는 Mapbox 캔버스의 WebGL 컨텍스트를 공유한다. 좌표는
+- **맵**(`/map`, 예정)은 OpenStreetMap 실지형 지도(MapLibre GL)를 베이스로 하고, 캐릭터를 Three.js 커스텀 레이어로
+  지도 위에 그리는 멀티플레이 화면이다. Three.js 렌더러는 지도 캔버스의 WebGL 컨텍스트를 공유한다. 좌표는
   위경도(EPSG:4326)이며, 위치 브로드캐스트·섹터 판정·속도 검증이 모두 위경도 기준으로 동작한다.
   서버 쪽 섹터 게이트웨이(`/sector`)는 실시간 서버에 있다.
 
@@ -94,9 +94,9 @@ NestJS 가드와 PostgreSQL RLS가 담당한다.
 | **코어 프레임워크** | Next.js 15 (App Router, CSR) | 개발 서버 Turbopack |
 | **3D 엔진** | Three.js (0.169) | ref-assets `.bin`(Draco) 지오메트리·스킨 애니메이션·인스턴스 LOD, 램프 팔레트 셰이더 |
 | **플레이 씬·내 주변 렌더링** | Three.js 자체 WebGL 캔버스 + EffectComposer | 펼침 지도와 WebGL 컨텍스트 분리 ([ADR 001](../adr/001-webgl-context-sharing.md)). 내 주변 바닥 마스크는 워커의 OffscreenCanvas가 그린다 |
-| **맵 렌더링 (예정)** | Mapbox GL JS v3 + Three.js 커스텀 레이어 | Mapbox 캔버스의 WebGL 컨텍스트 공유 ([ADR 001](../adr/001-webgl-context-sharing.md)) |
-| **지도 엔진** | Mapbox GL JS v3 | 펼침 지도(플레이 씬·내 주변) — Streets v8 벡터 타일과 지형 DEM을 게임 화풍으로 칠한 자체 스타일(`paper-map-style.ts`). 맵 베이스 지도(예정, Standard 스타일). 무료 티어 20만 건/월 |
-| **길 데이터** | OpenStreetMap 벡터 타일 (OpenFreeMap, OpenMapTiles 스키마) | 내 주변 바닥. z14 타일을 브라우저 워커가 직접 받아 `@mapbox/vector-tile`·`pbf`로 해석 |
+| **맵 렌더링 (예정)** | MapLibre GL JS v6 + Three.js 커스텀 레이어 | 지도 캔버스의 WebGL 컨텍스트 공유 ([ADR 001](../adr/001-webgl-context-sharing.md)) |
+| **지도 엔진** | MapLibre GL JS v6 (BSD, 오픈소스) | 펼침 지도(플레이 씬·내 주변, 처음 펼칠 때 만든다) — OpenStreetMap 벡터 타일(OpenFreeMap)과 AWS Terrain Tiles 지형 음영을 게임 화풍으로 칠한 자체 스타일(`paper-map-style.ts`). 맵 베이스 지도(예정, 같은 타일 + 건물 높이로 세운 3D 건물). 키·과금 없음 |
+| **길 데이터** | OpenStreetMap 벡터 타일 (OpenFreeMap, OpenMapTiles 스키마) | 내 주변 바닥·펼침 지도. 내 주변은 z14 타일을 브라우저 워커가 직접 받아 `@mapbox/vector-tile`(BSD 해석 라이브러리)·`pbf`로 해석 |
 | **UI 스타일** | Tailwind CSS v4 + oklch 디자인 시스템 | 루트 레이아웃 기본 글꼴 Nunito, 한글 UI 글씨 Pretendard, 선택 페이지 제목 Luckiest Guy, 선택 페이지 버튼 이름·펼침 지도 글씨 Stylish(선택 페이지 버튼 이름·배지는 쓰는 글자만 담은 4KB·2KB 폰트로 먼저 그린다. 웹 폰트는 모두 `font-display: block`). 플레이 씬 HUD는 `sa-*` 스타일 |
 | **프론트 배포** | Vercel Edge Network | Next.js 서버(`output: 'standalone'`, Route Handler `/api/health`) + ref-assets 정적 파일 |
 | **API 서버** | NestJS 11 (`apps/api`) | 자체 호스팅. REST 전용(9001) |
@@ -114,8 +114,8 @@ NestJS 가드와 PostgreSQL RLS가 담당한다.
 
 | 서비스 | 용도 | 제한 / 비용 |
 |---|---|---|
-| **Mapbox** | 펼침 지도 타일(플레이 씬·내 주변 — Streets v8·지형 DEM, 씬을 한 번 열 때 지도 한 번 로드), 맵 베이스 지도 타일(예정) | 무료 20만 건/월, 초과 종량 |
-| **OpenFreeMap** | 내 주변 길 데이터(OpenStreetMap z14 벡터 타일, 브라우저가 직접 호출) | 무료·키 없음. 화면에 출처(OpenStreetMap·OpenMapTiles·OpenFreeMap) 표기 필수 |
+| **OpenFreeMap** | 내 주변 길 데이터·펼침 지도 타일과 글꼴(OpenStreetMap z14 벡터 타일, 브라우저가 직접 호출), 맵 베이스 지도 타일(예정) | 무료·키 없음·사용량 제한 없음(SLA 없음). 화면에 출처(OpenStreetMap·OpenMapTiles·OpenFreeMap) 표기 필수 |
+| **AWS Terrain Tiles** | 펼침 지도 지형 음영 높이(Terrarium PNG, AWS Open Data) | 무료·키 없음. 출처(USGS 등 높이 데이터) 표기 |
 | **토스페이먼츠 / 카카오페이** | 원화 결제 PG | 건당 수수료 |
 | **카카오 / 구글 OAuth** | 소셜 로그인 (Authorization Code 흐름, 코드 교환은 API 서버) | 무료 |
 | **Vercel** | 프론트엔드 배포·CDN | 소규모 무료~소액 |
@@ -169,8 +169,8 @@ DB(PostgreSQL + PostGIS)와 NestJS API 서버·실시간 서버는 자체 호스
 |---|---|
 | DB / API 서버·실시간 서버 호스팅 (자체 호스팅) | 서버 사양에 따른 소액 |
 | Vercel (소규모 트래픽) | $0~소액 |
-| Mapbox (20만 건/월 무료 티어 내) | $0 |
-| OpenFreeMap (내 주변 길 타일) | $0 |
+| OpenFreeMap (내 주변 길 타일·펼침 지도 타일) | $0 |
+| AWS Terrain Tiles (펼침 지도 지형 음영) | $0 |
 
 MVP 규모에서는 대부분 무료 티어~소액 수준에서 운영 가능하며, 동접·트래픽 증가에 따라 자체 호스팅 서버
 사양과 각 외부 서비스 종량 요금이 늘어난다.
@@ -181,7 +181,7 @@ MVP 규모에서는 대부분 무료 티어~소액 수준에서 운영 가능하
 
 | ADR | 주제 |
 |---|---|
-| [ADR 001](../adr/001-webgl-context-sharing.md) | WebGL 컨텍스트 구성 — 플레이 씬·펼침 지도 분리, 맵(예정) Mapbox 공유 |
+| [ADR 001](../adr/001-webgl-context-sharing.md) | WebGL 컨텍스트 구성 — 플레이 씬·펼침 지도 분리, 맵(예정) MapLibre 공유 |
 | [ADR 002](../adr/002-self-hosted-backend.md) | 자체 백엔드(NestJS + 공유 Postgres) |
 | [ADR 003](../adr/003-direct-krw-payment.md) | 원화 직행 결제 구조 |
 | [ADR 004](../adr/004-postgis-gist-index.md) | PostGIS + GiST 공간 인덱스 |

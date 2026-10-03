@@ -11,7 +11,6 @@
 | 변수 | 필수 | 기본값 | 설명 |
 |---|---|---|---|
 | `NEXT_PUBLIC_WS_URL` | 필수 | `http://localhost:9002` | 브라우저가 직접 붙는 실시간 서버(socket.io) 주소 — 플레이 씬 익명 소켓(`/room`), 내 주변 익명 소켓(`/proximity`). Docker `app`은 빌드 인자로 받아 번들에 굽고, 없으면 `http://localhost:9002`로 굽는다. 9001은 소켓이 없는 API 서버다. localhost로 구운 페이지를 localhost가 아닌 주소에서 열면 플레이 씬·내 주변은 소켓에 접속하지 않고 혼자 돈다 |
-| `NEXT_PUBLIC_MAPBOX_TOKEN` | 필수 | — | Mapbox GL JS 공개 토큰. 플레이 씬·내 주변의 펼침 지도가 쓴다. 없으면 지도 대신 "지도를 그릴 수 없어요" 쪽지만 뜨고 씬은 그대로 돈다. 도메인 락 필수 (프로덕션) |
 
 `NEXT_PUBLIC_*` 값은 빌드 시점에 번들에 구워진다. 값을 바꾸면 프론트엔드를 다시 빌드해야 한다.
 
@@ -23,7 +22,7 @@
 |---|---|---|
 | `API_URL` | `http://localhost:9001` | NestJS API 서버 주소. BFF 라우트(Next Route Handler)에서만 쓰므로 `NEXT_PUBLIC_` 아님 |
 
-맵은 같은 `NEXT_PUBLIC_WS_URL`의 `/sector` 소켓과 Mapbox 토큰도 함께 쓴다.
+맵은 같은 `NEXT_PUBLIC_WS_URL`의 `/sector` 소켓을 함께 쓴다. 지도 타일(OpenFreeMap)은 키가 필요 없다.
 
 ### `.env.example`에 있으나 프론트엔드 코드가 읽지 않는 항목
 

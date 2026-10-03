@@ -116,14 +116,6 @@ CREATE POLICY sponsor_owner_write ON sponsor_buildings
 
 ---
 
-## Mapbox API 토큰 보안
-
-- `NEXT_PUBLIC_MAPBOX_TOKEN` 하나를 플레이 씬·내 주변의 펼침 지도가 쓰고(예정인 맵의 베이스맵도 같은 토큰을 쓴다), 브라우저에 노출된다.
-- 웹 토큰: 허가된 도메인(`https://*.서비스주소.com`)으로만 작동하도록 Allowed URLs 락
-- 토큰 노출 시: Mapbox 대시보드에서 즉시 Revoke 후 재발급
-
----
-
 ## 관련 문서
 
 - [개발 컨벤션](../conventions.md)

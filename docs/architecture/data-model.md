@@ -208,7 +208,7 @@ B2B 광고 랜드마크 마스터 테이블. Phase 4에서 씬에 배치할 브�
 |---|---|---|
 | `id` | BIGSERIAL PK | |
 | `advertiser_id` | UUID FK → users ON DELETE RESTRICT | 광고주 계정 (`role='advertiser'`) |
-| `mapbox_feature_id` | TEXT | Mapbox 실지형 Feature ID (지도·펼침 지도 좌표 마커 연동용) |
+| `mapbox_feature_id` | TEXT | 지도 건물 Feature ID (지도·펼침 지도 좌표 마커 연동용). 지도 데이터가 OpenStreetMap이라 랜드마크 등록을 만들 때 OSM 객체 ID를 담는 `osm_id`로 바꾼다([ADR 004](../adr/004-postgis-gist-index.md)) |
 | `geom` | GEOMETRY(Point, 4326) | 랜드마크 중심 위경도 (GiST 인덱스 적용) |
 | `texture_url` | TEXT | 브랜드 로고 URL |
 | `default_texture_url` | TEXT | 광고 미집행 시 기본 텍스처 |

@@ -37,7 +37,7 @@ Tailwind CSS v4 + `@theme` 블록 기반 커스텀 디자인 시스템. 색상 �
 - **Display / Body**: Nunito (Google Fonts, `next/font/google`)
 - **Mono**: JetBrains Mono (코드, 시리얼 번호 등)
 - **Luckiest Guy**(선택 페이지 제목): `app/page.tsx`가 `next/font/google`로 받아 `--font-title` 변수로 제목 "Dumb Dumb"에만 쓴다. 두툼한 만화 로고체라 장난꾸러기 같은 이름과 어울린다
-- **Stylish**(버튼 이름·지도 글씨): `app/globals.css`가 `@font-face 'Stylish'`(`/ref-assets/fonts/Stylish-Regular.woff2`·`.woff`)를 전역으로 선언한다. 펼침 지도 글씨(지도 라벨·제목 태그·표지·범례·축척·쪽지 제목·도장·마커 라벨)가 쓴다. woff2 파일이 1MB 가까이 돼 선택 페이지가 `react-dom`의 `preload`로 미리 받아 두되 `fetchPriority: 'low'`로 받아 첫 화면 글자와 대역폭을 다투지 않는다(Mapbox가 그린 글자 모양을 저장해 다시 쓰므로 지도는 조각이 아닌 전체 파일이 먼저 와 있어야 한다)
+- **Stylish**(버튼 이름·지도 글씨): `app/globals.css`가 `@font-face 'Stylish'`(`/ref-assets/fonts/Stylish-Regular.woff2`·`.woff`)를 전역으로 선언한다. 펼침 지도 글씨(지도 라벨의 한글·제목 태그·표지·범례·축척·쪽지 제목·도장·마커 라벨)가 쓴다. woff2 파일이 1MB 가까이 돼 선택 페이지가 `react-dom`의 `preload`로 미리 받아 두되 `fetchPriority: 'low'`로 받아 첫 화면 글자와 대역폭을 다투지 않는다(지도는 처음 쓰는 한글 글자 모양을 그려 저장해 다시 쓰므로 조각이 아닌 전체 파일이 먼저 와 있어야 한다)
 - **선택 페이지 글자 전용 폰트**: 선택 페이지 버튼 이름은 `'Stylish Home'`(`public/fonts/stylish-home.woff2`, 4KB — "플레이 내 주변 에셋 미리보기"), 배지는 `'Pretendard Home'`(`public/fonts/pretendard-home.woff2`, 2KB — "베타 개발용")으로 그리고, 두 파일을 `preload`로 먼저 받는다 — 느린 휴대폰 망(1.6Mbps)에서도 0.7초 안에 제 글꼴로 뜬다(전체 폰트 936KB·748KB를 기다리면 14초 걸린다). 두 폰트의 `@font-face`는 `globals.css`에 한 번만 둔다 — 페이지 안에 두면 뒤로 가기로 선택 페이지가 다시 붙을 때마다 폰트를 다시 맞추느라(서버에 다시 확인한다) 버튼 이름·배지가 잠깐 비어 보인다. 공식 배포본(Google Fonts의 Stylish TTF, Pretendard v1.3.9 OTF)에서 fontTools `pyftsubset --text=… --flavor=woff2 --name-IDs='*'`로 만들어 OFL 라이선스 정보를 폰트 안에 남긴다(명령은 `app/page.tsx` 주석). 버튼 이름·배지 글자를 바꾸면 다시 만들고, 빠진 글자는 뒤의 전체 폰트로 그려진다
 - **로더 글자 전용 폰트**: 로더 첫 줄(안내 한 줄)은 프로젝트 제목 글씨인 Stylish로 그린다(19px·`#5d5a57` — 펼침 지도 쪽지 제목과 같다). 로더 첫 줄과 GPS 상태 제목에 쓰는 글자만 담은 `'Stylish Loader'`(`public/fonts/stylish-loader.woff2`, 24KB)를 루트 레이아웃이 `preload`로 먼저 받아, 어느 페이지든 첫 화면이 로더여도 글자가 곧바로 제 글꼴로 뜬다. 만드는 법은 선택 페이지 글자 전용 폰트와 같고(명령은 `components/ui/loader.tsx` 주석), 로더 문구를 바꾸면 다시 만든다. 빠진 글자는 뒤의 전체 Stylish로 그려진다. `@font-face`는 `globals.css`에 한 번만 둔다 — 로더마다 넣으면 로더가 붙을 때마다 브라우저가 폰트를 다시 맞추느라 글자가 잠깐 숨는다
 - **Pretendard**(한글 UI 글씨): `app/globals.css`가 `@font-face 'Pretendard'`(굵기 400 하나, jsDelivr의 `pretendard@v1.3.9` woff2·woff)를 선언하고, 루트 레이아웃이 woff2(약 770KB)를 `preload`로 미리 받는다. 로더 안내 줄(첫 줄 아래), 펼침 지도 쪽지의 안내 글씨·버튼이 쓴다(선택 페이지 배지는 아래 글자 전용 폰트)
@@ -76,7 +76,7 @@ const nunito = Nunito({ subsets: ['latin'], variable: '--font-display', display:
 | 네트워크 | 익명 socket.io `/room` — 같은 방 캐릭터 상태 중계 + 만남 대화(1:1 글, 저장 없음). 인증 없음, 서버가 없으면 혼자 | 익명 socket.io `/proximity` — 반경 200m 안 가까운 19명 |
 | 펼침 지도 | M·HUD 지도 버튼으로 펼치는 종이 지도 — '나' = 실제 GPS 위치(캐릭터 옷 색), 북쪽 위 | 같은 종이 지도 — '나' = 캐릭터 자리 + 화면이 보는 방향 화살표, GPS가 잡은 자리는 작은 점·정확도 원으로 따로, 북쪽 위 |
 
-내 주변(베타)의 세부 규칙은 아래 [내 주변(베타)](#내-주변베타-nearby) 절에, 펼침 지도는 [펼침 지도](#펼침-지도-paper-map--mapbox-gl-js) 절에, 위치 추적은 [GPS 상태](#gps-상태) 절에 있다.
+내 주변(베타)의 세부 규칙은 아래 [내 주변(베타)](#내-주변베타-nearby) 절에, 펼침 지도는 [펼침 지도](#펼침-지도-paper-map--maplibre-gl-js) 절에, 위치 추적은 [GPS 상태](#gps-상태) 절에 있다.
 
 ### 렌더러 초기화 규칙
 
@@ -85,14 +85,14 @@ const nunito = Nunito({ subsets: ['latin'], variable: '--font-display', display:
 - **플레이 씬**: `features/play/play-scene.tsx`가 원본처럼 `new THREE.WebGLRenderer({ antialias: false, depth: false })`로 만들고 계단 현상은 SMAA로 편다. 픽셀 비율은 `min(devicePixelRatio, 1.5)`(데스크톱 사파리는 1)에 적응형 배수(0.7~1, 인트로 2초 뒤부터 4초마다 평균 FPS 30 미만이면 −0.1·60 이상이면 +0.1, 방향이 4번 뒤집히면 멈춤)를 곱한다. 그림자는 `PCFSoftShadowMap`. 후처리는 EffectComposer로 `RenderPass` → 최종 패스(`postprocess.ts` — 사면체 보간 LUT·인트로 리빌, 선형 공간) → `SMAAPass` → `OutputPass` 순서다. 카메라는 near 1m·far 175m다.
 - **내 주변(베타)**: `features/nearby/nearby-scene.tsx`가 같은 설정(`antialias: false`·`depth: false`, `PCFSoftShadowMap`, `RenderPass` → 최종 패스 → `SMAAPass` → `OutputPass`, near 1m·far 175m)으로 만든다.
 - 개발용 에셋 미리보기 `/asset-viewer`(`features/asset-viewer/asset-viewer.tsx`)는 자체 렌더러와 OrbitControls를 쓰고, 화면을 `fixed inset-0`으로 채워 창 크기를 따라간다. 세로로 긴 화면에서는 씬과 같은 기준(`framingFor(aspect).fov`)으로 화각을 넓힌다.
-- 펼침 지도(`components/map/paper-map.tsx`)는 씬 렌더러를 쓰지 않는다 — Mapbox GL이 자기 캔버스(별도 WebGL 컨텍스트)를 만든다([펼침 지도](#펼침-지도-paper-map--mapbox-gl-js) 절).
+- 펼침 지도(`components/map/paper-map.tsx`)는 씬 렌더러를 쓰지 않는다 — MapLibre GL이 자기 캔버스(별도 WebGL 컨텍스트)를 만든다([펼침 지도](#펼침-지도-paper-map--maplibre-gl-js) 절).
 
 ### 렌더 루프 규칙
 
 - **플레이 씬**: `play-scene.tsx`가 소유한 단일 `requestAnimationFrame` 루프에서 돈다. 프레임 간격(dt)은 0.1초로 클램프하고, 3인칭 컨트롤러 갱신 → 캐릭터 애니메이션 가중치(`kid-animation.ts` — idle↔run은 수평 속도, air·bored가 덮음) → 동적 그림자 중심을 카메라 시선 앞 6m로 이동 → 오디오(환경음·발소리) → 터치 원 UI → 같은 방 다른 캐릭터들(`remote-players.ts` — 위치·방향 보간, 가중치, 100m 안·화면 안일 때만 포즈) → 만남 대화 머리 위 자리(`talk.frame` — 머리 위 표시·E 키 상대 고르기, 표시·메뉴·말풍선 translate3d) → 캐릭터 믹서 → 갈매기 비행 → 하늘 돔 카메라 추종 → 인트로 리빌 uniform → 적응형 DPR → `composer.render()` 순서를 지킨다. LOD 단계는 렌더러가 `LODExtended.update`로 고르고, 생물 애니메이션은 각 오브젝트의 `onBeforeRender`(화면에 그려질 때만)에서 한다. NPC(UFO·alien·cats·sloth·gossip) 근접 상호작용은 비활성이며, 판정 로직은 `scene.tsx`에 주석으로 있다
 - 플레이 씬의 거리 안개는 램프 셰이더가 카메라 거리 40~300m 구간에서 명도를 0.6으로, 채도를 0.3으로 모으는 고정값이다(원본 식). 가시거리 라이선스 등급은 어느 씬도 렌더링에 반영하지 않는다
 - 플레이 씬의 그림자는 두 겹이다 — 동적 그림자맵(2048², 시선 앞 ±12m)과 로딩 때 씬 전체를 한 번 구운 정적 그림자(`shadows.ts`, 4096², LOD 단계별 3장 — 원본 데스크톱 값 8192²는 타깃을 잡는 것만으로 내장 GPU에서 화면 합성을 0.4초쯤 멈춰 로더 스피너가 끊긴다. 4096²도 한 번에 잡고 그리면 0.05~0.1초 멈춰 1024² 조각으로 나눠 굽는다). 동적 그림자 중심에서 9~12m 사이에서 정적 그림자로 넘어간다. 캐릭터가 아닌 면은 카메라 1.5~2m 안에서 가로줄 디더로 솎아낸다
-- **로더 뒤 GPU 예열**(`lib/three/warm-up.ts`): 로더는 렌더링 준비가 다 끝난 뒤에 걷는다 — 로더가 걷힌 뒤에는 셰이더 컴파일·버퍼·텍스처·렌더 타깃을 새로 만드는 일이 없고(걸어 다니며 처음 보는 곳까지), 매 프레임 애니메이션 갱신만 남는다. 플레이 씬은 에셋(늦게 오는 인트로 전환 이미지·터치 원 텍스처까지)을 모두 붙일 때까지 `composer.render()`를 부르지 않는다 — 로더가 덮은 동안 그리면 물체가 붙을 때마다 첫 렌더가 셰이더 컴파일·업로드를 몰고 온다. 다 붙으면 씬 재질을 물체마다 병렬 컴파일(`compileAsync`, `KHR_parallel_shader_compile`)하며 새 프로그램이 생길 때마다 한 프레임 쉬고, 후처리 패스 재질과 동적 그림자 깊이 재질(`compileShadowDepth` — three처럼 면·맵 등을 옮긴 재질)도 같은 방식으로 컴파일한다. 이어 텍스처를 하나씩 올리고(`initTexture`) 정적 그림자를 1024² 조각마다 굽되(조각만 보는 카메라 `setViewOffset`로 조각 크기 임시 타깃에 그려 맵의 같은 자리로 복사한다 — 4096² 깊이 타깃을 한 번에 잡지 않는다), 하나 넘길 때마다 GPU가 그 일을 끝낼 때까지 WebGL2 펜스로 기다린다(`settle` — 큰 업로드·그리기는 메인 스레드에서 금방 돌아와도 GPU에서는 더 걸려, 바로 다음 일을 넘기면 GPU에 일이 밀려 화면 합성이 끼어들 틈이 없다). 그다음 씬의 모든 물체(숨긴 LOD 단계·멀리 있어 숨긴 묶음·평소 숨겨 둔 터치 원까지)를 16×16 타깃에 24개씩 한 번 그려(`drawAllGradually`, 동적 그림자 포함) 지오메트리·인스턴스 버퍼와 그리기 상태(VAO)를 미리 만든다 — 그려 보지 않은 물체는 걸어가다 처음 화면에 들 때 이 일을 몰고 온다. 인트로가 시작될 카메라 자리(`INTRO_ZOOM`만큼 물린 자리)에서도 한 번 그리고, 펼침 지도가 다 그려지기(Mapbox `idle` — 타일·셰이더까지)를 기다린 뒤(네트워크가 막혀도 8초 뒤에는 넘어간다), GPU가 비면 그리기 시작해 3프레임을 그리고 로더를 걷는다. 크롬(윈도우)은 화면 합성과 WebGL 명령을 같은 GPU 스레드에서 처리해, 이런 일이 한 프레임에 몰리면 합성 스레드의 CSS 스피너도 멈추기 때문이다
+- **로더 뒤 GPU 예열**(`lib/three/warm-up.ts`): 로더는 렌더링 준비가 다 끝난 뒤에 걷는다 — 로더가 걷힌 뒤에는 셰이더 컴파일·버퍼·텍스처·렌더 타깃을 새로 만드는 일이 없고(걸어 다니며 처음 보는 곳까지), 매 프레임 애니메이션 갱신만 남는다. 플레이 씬은 에셋(늦게 오는 인트로 전환 이미지·터치 원 텍스처까지)을 모두 붙일 때까지 `composer.render()`를 부르지 않는다 — 로더가 덮은 동안 그리면 물체가 붙을 때마다 첫 렌더가 셰이더 컴파일·업로드를 몰고 온다. 다 붙으면 씬 재질을 물체마다 병렬 컴파일(`compileAsync`, `KHR_parallel_shader_compile`)하며 새 프로그램이 생길 때마다 한 프레임 쉬고, 후처리 패스 재질과 동적 그림자 깊이 재질(`compileShadowDepth` — three처럼 면·맵 등을 옮긴 재질)도 같은 방식으로 컴파일한다. 이어 텍스처를 하나씩 올리고(`initTexture`) 정적 그림자를 1024² 조각마다 굽되(조각만 보는 카메라 `setViewOffset`로 조각 크기 임시 타깃에 그려 맵의 같은 자리로 복사한다 — 4096² 깊이 타깃을 한 번에 잡지 않는다), 하나 넘길 때마다 GPU가 그 일을 끝낼 때까지 WebGL2 펜스로 기다린다(`settle` — 큰 업로드·그리기는 메인 스레드에서 금방 돌아와도 GPU에서는 더 걸려, 바로 다음 일을 넘기면 GPU에 일이 밀려 화면 합성이 끼어들 틈이 없다). 그다음 씬의 모든 물체(숨긴 LOD 단계·멀리 있어 숨긴 묶음·평소 숨겨 둔 터치 원까지)를 16×16 타깃에 24개씩 한 번 그려(`drawAllGradually`, 동적 그림자 포함) 지오메트리·인스턴스 버퍼와 그리기 상태(VAO)를 미리 만든다 — 그려 보지 않은 물체는 걸어가다 처음 화면에 들 때 이 일을 몰고 온다. 인트로가 시작될 카메라 자리(`INTRO_ZOOM`만큼 물린 자리)에서도 한 번 그린 뒤, GPU가 비면 그리기 시작해 3프레임을 그리고 로더를 걷는다(펼침 지도는 기다리지 않는다 — 처음 펼칠 때 만든다). 크롬(윈도우)은 화면 합성과 WebGL 명령을 같은 GPU 스레드에서 처리해, 이런 일이 한 프레임에 몰리면 합성 스레드의 CSS 스피너도 멈추기 때문이다
 - 셰이더는 그리는 곳(화면·렌더 타깃)에 따라 출력 색 공간이 달라 다른 프로그램이 된다 — 실제로 그릴 타깃(컴포저 버퍼)을 걸고 컴파일한다. 정적 그림자를 굽는 동안에는 씬의 빛을 굽기 레이어에 넣어 빛 조건을 화면과 같게 둔다(three는 프레임마다 그림자를 빛 상태를 갱신하기 전에 그려, 첫 프레임 동적 그림자가 직전 굽기의 빛 상태를 쓴다). 미리 컴파일에 쓴 재질은 씬을 치울 때 dispose한다 — 먼저 dispose하면 프로그램도 함께 지워진다
 
 ### 오브젝트 생명주기
@@ -102,7 +102,7 @@ const nunito = Nunito({ subsets: ['latin'], variable: '--font-display', display:
 - 에셋 미리보기는 `lib/three/character.ts`의 `loadCharacter`(ref-assets kid 스킨드 메시)로 캐릭터를 띄우고 `Character.dispose()`로 정리한다
 - 플레이 씬은 언마운트 시 루프를 멈추고 씬 소켓을 닫은 뒤 다른 캐릭터들·오디오·머티리얼·정적 그림자맵·바다 반사·갈매기·터치 원·KTX2 로더·컴포저·렌더러를 dispose하고 캔버스를 떼어 낸다
 - 만남 대화 상태(`createTalk`)는 씬 컴포넌트가 처음 렌더할 때 한 번 만들어 ref에 두고(대화 화면과 우상단 받기 버튼이 같은 것을 구독한다), 씬 소켓을 연 뒤 `bind(connection.talk)`로 잇는다. 언마운트·재접속 때는 `bind(null)`·`reset()`으로 진행 중인 요청·대화를 비운다
-- 펼침 지도는 내 주변은 씬이 시작되면(`playing`), 플레이 씬은 씬을 불러오는 동안 로더 뒤에서(WebGL2가 없거나 불러오지 못하면 만들지 않는다) 마운트돼 Mapbox 지도를 한 번 만들고 접혀 있어도 살려 두며, 언마운트 때 마커를 지우고 `map.remove()`한다. GPS 추적기(`createGpsTracker`)는 씬이 이펙트 안에서 만들고 언마운트 때 `dispose()`한다 — 개발 모드(StrictMode)가 이펙트를 두 번 돌려도 추적기가 하나만 남는다
+- 펼침 지도는 내 주변은 씬이 시작되면(`playing`), 플레이 씬은 씬을 불러오는 동안(WebGL2가 없거나 불러오지 못하면 붙이지 않는다) 마운트되고, 처음 펼칠 때 MapLibre 지도를 한 번 만들어 접혀 있어도 살려 두며, 언마운트 때 마커를 지우고 `map.remove()`한다. GPS 추적기(`createGpsTracker`)는 씬이 이펙트 안에서 만들고 언마운트 때 `dispose()`한다 — 개발 모드(StrictMode)가 이펙트를 두 번 돌려도 추적기가 하나만 남는다
 
 ---
 
@@ -205,9 +205,11 @@ const nunito = Nunito({ subsets: ['latin'], variable: '--font-display', display:
 
 ---
 
-## 펼침 지도 (Paper Map) — Mapbox GL JS
+## 펼침 지도 (Paper Map) — MapLibre GL JS
 
-플레이 씬과 내 주변은 M 키나 HUD 지도 버튼으로 게임 지도처럼 펼치는 종이 지도(`components/map/paper-map.tsx`)를 **씬 렌더러와 분리된 독립 Mapbox GL 캔버스**로 띄운다(별도 WebGL 컨텍스트, [ADR 001](../adr/001-webgl-context-sharing.md)의 분리 원칙). 플레이 씬에서는 유저의 실제 GPS 위치를, 내 주변에서는 캐릭터 자리를 '나'로 표시한다. 씬이 시작되면(`playing`) 마운트되어 지도를 한 번 만들고(플레이 씬은 그보다 앞서 씬을 불러오는 동안 로더 뒤에서 만든다. Mapbox 지도를 만드는 동안 메인 스레드가 0.1초 넘게 막혀, 씬이 돌 때 만들면 화면이 한 번 멈추기 때문이다 — 로더 스피너는 GPU 합성 스레드에서 돌아 멈추지 않는다. 로더는 지도가 다 그려질 때까지 기다린다 — `onIdleChange`가 Mapbox `idle`이면 true, 새 데이터를 받거나 움직이면 false를 알리고, 지도를 만들 수 없으면 바로 true다. 펼치는 건 인트로가 시작된 뒤부터다), 접혀 있는 동안은 루트를 `visibility: hidden`으로 숨겨 둔다(레이아웃과 지도는 살아 있다). 지도는 Stylish 폰트가 온 뒤(`document.fonts.load`) 만들고 `localFontFamily: 'Stylish'`로 모든 라벨을 그 폰트로 그린다. `NEXT_PUBLIC_MAPBOX_TOKEN`이 없거나 WebGL을 쓸 수 없어 지도를 만들지 못하면 지도 없이 GPS 쪽지 대신 "지도를 그릴 수 없어요" 쪽지를 띄운다(씬은 영향받지 않는다).
+플레이 씬과 내 주변은 M 키나 HUD 지도 버튼으로 게임 지도처럼 펼치는 종이 지도(`components/map/paper-map.tsx`)를 **씬 렌더러와 분리된 독립 MapLibre GL 캔버스**로 띄운다(별도 WebGL 컨텍스트, [ADR 001](../adr/001-webgl-context-sharing.md)의 분리 원칙). 플레이 씬에서는 유저의 실제 GPS 위치를, 내 주변에서는 캐릭터 자리를 '나'로 표시한다. 컴포넌트는 씬이 시작되면(`playing` — 플레이 씬은 씬을 불러오는 동안, 펼치는 건 인트로가 시작된 뒤부터다) 마운트되지만, 지도는 처음 펼칠 때 지도 코드(`maplibre-gl`, 동적 `import`)를 받아 만든다. 만드는 동안 셰이더 링크·타일 업로드로 GPU가 잠깐씩 막히는데, 윈도 크롬은 CSS 합성도 같은 GPU 스레드에서 처리해 로더 뒤에서 미리 만들면 로더 스피너가 끊긴다 — 그래서 씬 로더는 지도를 기다리지 않는다. 만든 지도는 접혀 있는 동안 루트를 `visibility: hidden`으로 숨겨 둔다(레이아웃과 지도는 살아 있다). 지도는 Stylish 폰트가 온 뒤(`document.fonts.load`) 만들고 `localIdeographFontFamily: 'Stylish'`로 라벨의 한글을 그 폰트로 그린다. 지도 코드를 받지 못했거나(오프라인) WebGL을 쓸 수 없어 지도를 만들지 못하면 GPS 쪽지 대신 "지도를 그릴 수 없어요" 쪽지를 띄운다(씬은 영향받지 않는다).
+
+MapLibre 워커는 페이지 번들과 따로 `public/maplibre/`에서 받는다(`setWorkerUrl('/maplibre/maplibre-gl-worker.mjs')`). 워커는 옆의 `maplibre-gl-shared.mjs`를 상대 경로로 불러오는데 번들러(Turbopack·webpack)는 이 파일을 함께 내보내지 않아, `scripts/copy-maplibre-worker.mjs`가 `npm run dev`·`npm run build` 전에(`predev`·`prebuild`) 두 파일을 `node_modules/maplibre-gl/dist`에서 복사한다. 복사본은 저장소에 두지 않는다(`.gitignore`).
 
 | export | 내용 |
 |---|---|
@@ -219,25 +221,25 @@ const nunito = Nunito({ subsets: ['latin'], variable: '--font-display', display:
 
 ### 스타일 (`paper-map-style.ts`)
 
-Mapbox Streets v8 벡터 타일(소스 `streets`)에 `mapbox-terrain-dem-v1` 지형 음영(소스 `dem`)을 얹어 게임 화풍으로 칠한다. 레이어는 모두 스타일 객체 `PAPER_STYLE`에 담아 지도를 만들 때 넘긴다(런타임에 `addLayer`하지 않는다).
+OpenStreetMap 벡터 타일(OpenFreeMap, OpenMapTiles 스키마 — 소스 `openmaptiles`)에 AWS Terrain Tiles 높이(Terrarium PNG, z14까지 받고 그보다 깊이는 늘려 쓴다 — 소스 `dem`)로 지형 음영을 얹어 게임 화풍으로 칠한다. 글자 모양(glyphs)도 OpenFreeMap에서 받는다. 키도 과금도 없고, 출처 표기만 지킨다(아래 '종이 위 UI'). 레이어는 모두 스타일 객체 `PAPER_STYLE`에 담아 지도를 만들 때 넘긴다(런타임에 `addLayer`하지 않는다).
 
 | 대상 | 칠 |
 |---|---|
 | 종이(배경) | `#f2e6c8`(`PAPER`) |
-| 주거·상업·산업·시설·주차 | `#ecdcbc` |
-| 학교·병원 | `#f0d6cc` |
+| 주거·상업·소매·산업·차고·철도 부지 | `#ecdcbc` |
+| 학교·유치원·대학·병원 | `#f0d6cc` |
 | 모래·바위 | `#ead19f` |
-| 공원·잔디·운동장·묘지·농지 | `#b7dba8` + 풀포기 무늬(공원·잔디·묘지, 줌 13~15에서 나타난다) |
-| 숲·덤불 | `#8fc39d` + 나무 무늬 — 왼쪽 위가 밝고 오른쪽 아래가 어두운 두 톤(씬 나무의 램프 셰이딩), 물러날수록 옅다 |
+| 잔디·공원·정원·농지·운동장·묘지 | `#b7dba8` + 풀포기 무늬(잔디류 땅, 줌 13~15에서 나타난다) |
+| 숲·덤불 | `#8fc39d` + 나무 무늬 — 왼쪽 위가 밝고 오른쪽 아래가 어두운 두 톤(씬 나무의 램프 셰이딩), 물러날수록 옅다. OpenMapTiles는 덤불(`scrub`)을 잔디로 묶지만 숲처럼 칠한다 |
 | 지형 음영 | 갈색 그림자 `#8b7462`·크림 하이라이트 `#fff7e2`, 과장 0.32, 빛 방향 315° |
 | 물 | `#9fd3d8` + 물결 무늬 + 가장자리선 `#78bcc6`. 물길 선은 `#8dcbd2`(강·운하는 굵게) |
-| 건물 | 줌 14부터 `#ead3c1`, 줌 14.5부터 오른쪽 아래 하드 그림자 `#716c66`(줌 15 1px → 줌 18 3px, HUD 버튼 그림자와 같은 언어). 지하 건물은 뺀다 |
-| 차도 | 간선(motorway·trunk·primary) 노랑 `#ffe3a3`, 보조(secondary·tertiary) `#fff1cc`, 그 밖 크림 `#fbf6ea`. 모래색 가장자리(`road-casing`)를 둘러 씬의 인도처럼 보이고, 굵기는 등급·줌별로 정한다 |
-| 보행로·철도 | 파선(`line-dasharray`, 보행로는 줌 14부터). 터널 구간은 차도·보행로·철도 모두 뺀다 |
-| 라벨 | 동네·도시 이름, 도로명(줌 14부터 선을 따라), 물 이름, 공원·역(지하철·철도)·주요 시설(학교·병원·공공시설·랜드마크·유적·종교, 줌 16부터) 이름. `name_ko`를 먼저 쓰고 크림 헤일로(`#fbf3df`)를 두른다 |
+| 건물 | 줌 14부터 `#ead3c1`, 줌 14.5부터 오른쪽 아래 하드 그림자 `#716c66`(줌 15 1px → 줌 18 3px, HUD 버튼 그림자와 같은 언어) |
+| 차도 | 간선(motorway·trunk·primary) 노랑 `#ffe3a3`, 보조(secondary·tertiary) `#fff1cc`, 그 밖(minor·service) 크림 `#fbf6ea`. 모래색 가장자리(`road-casing`)를 둘러 씬의 인도처럼 보이고, 굵기는 등급·줌별로 정한다 |
+| 보행로·철도 | 파선(`line-dasharray`, 보행로는 줌 14부터 — 승강장·실내 통로는 빼고 광장 같은 면은 테두리를 두르지 않는다). 철도는 일반 철도와 도시철도(`rail`·`transit`)다. 땅 밑(`brunnel` tunnel — 지하차도·복개천)은 차도·보행로·철도·물 모두 뺀다 |
+| 라벨 | 동네·도시 이름(시·읍·리는 크게, 구·동·동네는 작게), 도로명(줌 14부터 선을 따라 — 차도와 보행자 거리), 물 이름(호수·연못은 그 자리에, 강·개천은 물길을 따라), 공원·역(철도·지하철, 줌 13부터)·주요 시설(학교·대학·병원·관공서·도서관·경찰·소방·성·기념물·박물관·종교, 줌 16부터) 이름. `name:ko`를 먼저 쓰고 크림 헤일로(`#fbf3df`)를 두른다. 공원·시설은 OpenMapTiles `rank`(화면 칸마다 매긴 중요도 순서)로 칸마다 앞쪽 몇 개만 쓴다 |
 
-- 무늬 이미지(`pm-trees`·`pm-tufts`·`pm-waves`)는 `styleimagemissing` 이벤트에서 캔버스로 그려 넣는다(pixelRatio 2)
-- `text-font`는 형식상 값이다 — 글씨는 `localFontFamily`(Stylish)로 그린다
+- 무늬 이미지(`pm-trees`·`pm-tufts`·`pm-waves`)는 처음 필요할 때(`setMissingStyleImageResolver`) 캔버스로 그려 넣는다(pixelRatio 2)
+- `text-font`는 OpenFreeMap 글꼴(`Noto Sans Regular`)이다 — 한글은 `localIdeographFontFamily`(Stylish)로 브라우저에서 그리고, 숫자·로마자만 글꼴 파일(glyphs)로 그린다
 
 ### 소스·레이어 네이밍 규칙
 
@@ -245,17 +247,17 @@ Mapbox Streets v8 벡터 타일(소스 `streets`)에 `mapbox-terrain-dem-v1` 지
 
 | 유형 | 규칙 | 예시 |
 |---|---|---|
-| 소스 | 데이터를 가리키는 한 단어 | `streets`(Mapbox Streets v8), `dem`(지형 DEM) |
-| 레이어 | 그리는 대상 이름. 같은 대상에 딸린 층(무늬·가장자리·그림자)은 뒤에 붙인다 | `landuse-wood`·`landuse-wood-trees`, `water`·`water-waves`·`water-edge`, `road`·`road-casing`, `building`·`building-shadow` |
+| 소스 | 데이터를 가리키는 한 단어 | `openmaptiles`(OpenMapTiles 스키마 벡터 타일), `dem`(지형 높이) |
+| 레이어 | 그리는 대상 이름. 땅 쓰임 층은 소스 레이어 이름을 앞에 둔다(`landuse-*`·`landcover-*`). 같은 대상에 딸린 층(무늬·가장자리·그림자)은 뒤에 붙인다 | `landcover-wood`·`landcover-wood-trees`, `water`·`water-waves`·`water-edge`, `road`·`road-casing`, `building`·`building-shadow` |
 | 라벨 레이어 | `{대상}-label`(배치가 둘이면 `-point`·`-line`을 더한다) | `road-label`, `place-label`, `water-label-point`·`water-label-line` |
 | 무늬 이미지 | `pm-{무늬}` | `pm-trees`, `pm-tufts`, `pm-waves` |
 
 ### 생명주기·조작
 
-- 지도는 씬마다 한 번 만든다. 처음 중심은 캐릭터 자리(내 주변) 또는 GPS 위치(플레이 씬)이고, 둘 다 없으면 형식상 중심으로 만든다(위치를 받기 전에는 지도를 가려 두어 보이지 않는다). 줌은 16에서 시작한다
-- 컴포넌트 언마운트·페이지 이동 시 마커를 지우고 `map.remove()`를, 종이 크기를 재는 `ResizeObserver`는 `disconnect()`를 반드시 호출한다
-- 조작: 끌기·확대/축소는 되고, 회전·기울이기는 막는다(`dragRotate`·`pitchWithRotate`·`touchPitch` false, 핀치·Shift+방향키 회전도 끈다 — `touchZoomRotate.disableRotation()`·`keyboard.disableRotation()`). 북쪽이 위인 평면(`projection: 'mercator'`)이고 줌은 11~18.5다. 키보드 조작(방향키 이동·`+`/`-` 줌)은 지도에 포커스가 있을 때 Mapbox 기본 동작이다
-- 크기: `trackResize: false` — 종이(`.pm-sheet`)에 건 `ResizeObserver`로 직접 잰다. 펼치거나 접는 중에는 조상에 CSS 변환이 걸려 Mapbox가 크기를 틀리게 재므로, 그동안 생긴 크기 변화는 표시만 해 두고 애니메이션이 끝난 뒤(또는 다음에 펼치기 직전) `map.resize()`한다. 접혀 있을 때는 애니메이션을 모두 걷어(`cancel`) 변환이 없게 둔다
+- 지도는 씬마다 한 번, 처음 펼칠 때 만든다. 처음 중심은 캐릭터 자리(내 주변) 또는 GPS 위치(플레이 씬)이고, 둘 다 없으면 형식상 중심으로 만든다(위치를 받기 전에는 지도를 가려 두어 보이지 않는다). 줌은 16에서 시작한다(플레이 씬에서 흐린 위치면 아래 '가운데·줌'의 물러난 줌)
+- 컴포넌트 언마운트·페이지 이동 시 마커를 지우고 `map.remove()`를, 종이 폭을 재는 `ResizeObserver`는 `disconnect()`를 반드시 호출한다
+- 조작: 끌기·확대/축소는 되고, 회전·기울이기는 막는다(`dragRotate`·`pitchWithRotate`·`touchPitch` false, 핀치·Shift+방향키 회전도 끈다 — `touchZoomRotate.disableRotation()`·`keyboard.disableRotation()`). 북쪽이 위인 평면(메르카토르)이고 줌은 11~18.5다. 키보드 조작(방향키 이동·`+`/`-` 줌)은 지도에 포커스가 있을 때 MapLibre 기본 동작이다
+- 크기: MapLibre가 컨테이너 크기(`clientWidth`·`clientHeight` — 레이아웃 크기라 펼치는 중의 CSS 변환과 무관하다)를 스스로 따라간다(`trackResize` 기본값). 다 접히면 애니메이션을 모두 걷어(`cancel`) 변환이 남지 않게 둔다
 
 ### 종이 크기
 
@@ -282,7 +284,7 @@ Web Animations API로 한 장면을 만든다. 모든 애니메이션이 같은 
 - 접을 때는 같은 장면을 2배속으로 거꾸로 돌린다. 펼치는 중에 M·Esc를 누르면 그 자리에서 되돌아가고, 접는 중에 M을 누르면 다시 펼친다. 방향을 바꿀 때는 돌던 애니메이션의 재생 속도만 바꾸지 않고 지금 시각에서 장면을 새로 만들어 반대로 돌린다 — 속도만 바꾸면 크롬이 합성기 쪽을 처음 시각으로 다시 시작해 몇 프레임 동안 종이·배경이 사라지거나 접힌 모양이 번쩍인다. 장면 끝에 닿은 채 새로 돌리면 `play()`가 반대쪽 끝으로 되감으므로(auto-rewind) 끝에서 1ms 안쪽부터 돌린다. 배경 클릭은 다 펼쳤을 때만 접는다 — 펼치거나 접는 중의 클릭은 배경이 삼켜, 지도 버튼을 연달아 눌러도 펼치자마자 접히지 않는다. 펼친 채 창 크기가 달라져 면 수가 맞지 않게 되면, 접기 전에 지금 면 수로 장면을 다시 만들어 끝 장면부터 접는다
 - 펼치기 시작할 때 '나'에게 맞추고(아래 '가운데·줌' 참고), 다 펼치면 포커스를 지도 대화상자(루트, `tabIndex={-1}`)에 준다 — × 버튼에 주면 키보드로 펼쳤을 때 버튼에 포커스 테두리가 그려진다(Tab을 누르면 버튼으로 간다). 다 접으면 애니메이션을 모두 걷고 루트를 숨긴 뒤, 펼치기 전 포커스가 있던 요소로 포커스를 돌려준다
 - 날개: 3단은 왼쪽(종이 0~⅓)·오른쪽(⅔~1) 날개 둘, 반 접기는 오른쪽 반 날개 하나다. 살아 있는 지도 면(`.pm-live`)과 종이 그림자는 `clip-path`로 아직 펼쳐지지 않은 날개 자리를 잘라 두었다가, 날개가 내려앉는 순간 그 구간을 연다. 그 뒤 장면의 1~4% 동안 날개 안쪽 면을 흐리게 지워(크로스페이드) 밑의 진짜 지도로 넘기고, 다 지운 날개는 숨기지 않고 지도 면 바로 뒤(`translateZ(-1px)`)로 내린다(접을 때는 거꾸로 — 날개가 먼저 올라와 짙어진 뒤에 지도 면을 닫는다). 날개는 3D로 합성돼 지도보다 조금 흐리게 그려지므로 한 번에 바꾸면 선·글자가 한 픽셀 튀어 깜빡여 보이고, 지도 면을 여는 것(메인 스레드)과 날개를 내리는 것(합성기)이 한 프레임 어긋나면 그 자리가 비어 보인다. `visibility`로 숨겼다가 접을 때 다시 보이게 하면 크롬이 날개 속 음영을 한두 프레임 틀린 값으로 그린다. 날개 안쪽 면의 종이 결·그을림 층은 접는 선 쪽으로 종이 끝까지 늘여(면 밖은 잘린다) 펼친 종이의 결·그을림과 같은 자리에 온다 — 접는 선에 그을림이 없어 넘어가는 순간 띠가 사라지지 않는다. 다 펴진 면의 잘라내기는 `inset(0%)`가 아닌 `none`이다 — `inset`끼리만 오가면 크롬이 clip-path를 합성기에서 돌리며, 도중 시각에서 새로 만든 장면의 첫 프레임을 가끔 접힌 모양으로 그린다
-- 안쪽 면: Mapbox `render` 이벤트 안에서(펼치거나 접는 중에만) 살아 있는 지도 캔버스의 그 구간을 `drawImage`로 옮겨 그린다 — 렌더 직후라 드로잉 버퍼가 살아 있어 `preserveDrawingBuffer`가 필요 없다. 펼치기·접기를 시작할 때 `triggerRepaint()`로 한 번 그리게 해, 다 펴지는 순간 진짜 지도로 이음매 없이 넘어간다
+- 안쪽 면: MapLibre `render` 이벤트 안에서(펼치거나 접는 중에만) 살아 있는 지도 캔버스의 그 구간을 `drawImage`로 옮겨 그린다 — 렌더 직후라 드로잉 버퍼가 살아 있어 `preserveDrawingBuffer`가 필요 없다. 펼치기·접기를 시작할 때 `triggerRepaint()`로 한 번 그리게 해, 다 펴지는 순간 진짜 지도로 이음매 없이 넘어간다
 - 겉면: 맨 위에 접힌 날개가 표지(초록 띠·지도 아이콘·제목)이고, 3단의 뒤 날개는 범례(길·공원·물·건물 색 견본, 파선 테두리)다
 - 음영: 면이 옆으로 설수록(90°) 어두워진다 — 겉면은 들리며 어두워지고, 안쪽 면은 내려앉으며 밝아진다
 - 종이 질감: 접는 선 자국(⅓·⅔ 또는 ½), 종이 결(SVG 노이즈, `mix-blend-mode: multiply`), 가장자리 그을림(안쪽 그림자)
@@ -296,10 +298,10 @@ Web Animations API로 한 장면을 만든다. 모든 애니메이션이 같은 
 | 북쪽 화살표 | 오른쪽, × 버튼 아래 |
 | 축척 | 왼쪽 아래. 미터(`ScaleControl`, 최대 90px) |
 | 내 자리로 버튼 | 오른쪽 아래. '나'가 있을 때만 뜬다(플레이 씬은 위치를 받은 뒤). 누르면 '나'로 600ms `easeTo`하고, 줌은 지금 줌과 15.5 중 큰 값이다 |
-| Mapbox 로고·출처 | 로고는 왼쪽 아래, 출처는 오른쪽 아래(접힌 형태) |
+| 출처 | 오른쪽 아래 — "Terrain Tiles (USGS) \| OpenFreeMap © OpenMapTiles Data from OpenStreetMap"(소스마다 적은 표기를 MapLibre `AttributionControl`이 모은다). 처음 펼치면 펼친 채 내 자리 버튼 위에 떠 있다가(아래 줄의 축척·쪽지·버튼을 가리지 않게) 다 펼친 뒤 5초가 지나거나 지도를 끌면 (i) 버튼으로 접힌다(OSM 표기 지침 — 누르면 다시 편다). 로고는 없다 |
 
 - 버튼(`pm-btn`)은 HUD 버튼과 같은 모양(34px 크림 사각형, 10° 회전, 하드 그림자, 호버 1.1배, 누르면 눌림)이고, 손가락 기기에서는 40px다
-- 마커와 Mapbox 컨트롤은 다 펼친 뒤(`data-phase='open'`) 0.25초에 걸쳐 나타난다
+- 마커와 지도 컨트롤(축척·출처)은 다 펼친 뒤(`data-phase='open'`) 0.25초에 걸쳐 나타난다
 - 닫기: 배경 클릭·× 버튼·M·Esc
 - 접근성: 루트는 `role="dialog"`·`aria-modal`·`aria-label`(제목)이고, 접혀 있으면 `aria-hidden`이다
 
@@ -323,7 +325,7 @@ Web Animations API로 한 장면을 만든다. 모든 애니메이션이 같은 
 
 ### 마커
 
-- '나'·정확도 원·GPS 점은 Mapbox DOM 마커(`mapboxgl.Marker`)라 지도를 다시 그리지 않고 CSS로 움직인다. 마커 요소의 `position`은 Mapbox가 `absolute`로 두므로 덮어쓰지 않는다
+- '나'·정확도 원·GPS 점은 MapLibre DOM 마커(`Marker`)라 지도를 다시 그리지 않고 CSS로 움직인다. 마커 요소의 `position`은 MapLibre가 `absolute`로 두므로 덮어쓰지 않는다
 - 내 주변은 펼쳐 둔 동안(펼치고 접는 중 포함) rAF로 매 프레임 `MapTrack`을 읽어 '나'를 옮긴다. GPS 표시는 추적기를 구독해 옮긴다(좌표는 React 상태에 두지 않는다)
 
 ---

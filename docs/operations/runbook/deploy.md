@@ -136,7 +136,7 @@ vercel --prod
 ```
 
 Vercel 대시보드 → "Environment Variables"에서 다음이 설정되었는지 확인한다:
-`NEXT_PUBLIC_WS_URL`(실시간 서버 — 플레이 씬·내 주변 소켓), `NEXT_PUBLIC_MAPBOX_TOKEN`(플레이 씬·내 주변 펼침 지도). `NEXT_PUBLIC_*` 값은 빌드 시점에 구워지므로
+`NEXT_PUBLIC_WS_URL`(실시간 서버 — 플레이 씬·내 주변 소켓). `NEXT_PUBLIC_*` 값은 빌드 시점에 구워지므로
 바꾼 뒤에는 재배포한다. 로그인·맵·상점 화면을 붙이면 `API_URL`(서버 전용, BFF가 부르는 API 서버 주소)도 넣는다.
 
 컨테이너로 배포할 때는 `docker-compose.yml`의 `app`으로 이미지를 만든다.
@@ -157,13 +157,12 @@ docker compose --env-file .env.local up -d --build
 - [ ] API 서버 헬스 정상 (API 서버 `GET /health` → `{ "status": "ok" }`)
 - [ ] 실시간 서버 헬스 정상 (실시간 서버 `GET /health` → `{ "status": "ok" }`)
 - [ ] 선택 페이지(`/`)에 플레이·내 주변·에셋 미리보기 버튼 3개가 세로로 보임
-- [ ] 플레이 씬(`/play`) 로딩·인트로 정상, 우상단 지도 버튼이나 M으로 펼침 지도가 펼쳐지고 지도가 그려짐(토큰 없이 빌드하면 "지도를 그릴 수 없어요" 쪽지가 뜬다), 처음 펼칠 때 위치 권한을 허용하면 '나'가 표시됨
+- [ ] 플레이 씬(`/play`) 로딩·인트로 정상, 우상단 지도 버튼이나 M으로 펼침 지도가 펼쳐지고 지도가 그려짐(`/maplibre/maplibre-gl-worker.mjs`가 200으로 오는지 — 빌드 전에 `prebuild`가 복사한다), 오른쪽 아래 출처 표기가 5초 보였다가 (i) 버튼으로 접힘, 처음 펼칠 때 위치 권한을 허용하면 '나'가 표시됨
 - [ ] 실시간 서버 섹터 게이트웨이(`/sector`) 접속 및 `positions` 수신 정상 (API 서버가 발급한 액세스 토큰을 실은 두 socket.io 클라이언트를 같은 섹터 좌표로 붙여 확인 — 두 서버의 `JWT_ACCESS_SECRET`이 다르면 끊긴다)
 - [ ] 실시간 서버 방·근접 게이트웨이(`/room`·`/proximity`) 정상 (토큰 없이 두 클라이언트를 붙여 서로의 상태가 `states`로 오는지 — 내 주변은 서로 200m 안의 실제 좌표로)
 - [ ] 방 게이트웨이 만남 대화 정상 (같은 방 6m 안에 선 두 클라이언트 중 한쪽이 `talkInvite`, 다른 쪽이 `talkReply` 수락 → 둘 다 `talkStarted`, `talkSend`한 글이 두 쪽 모두에 `talkMessage`로 오는지)
 - [ ] 내 주변(`/nearby`)에서 위치를 허용하면 대기 화면을 지나 바닥이 깔리고(흐린 위치만 오면 6초 뒤 그 근처에서 시작) 좌하단 출처 표기가 5초 보였다가 (i) 버튼으로 접힘(누르면 다시 보임) (OpenFreeMap 타일을 브라우저가 직접 받는다)
 - [ ] Vercel 빌드 성공 (Vercel 대시보드 "Deployments")
-- [ ] Mapbox 토큰 도메인 락 설정 (프로덕션 도메인만 허용)
 - [ ] 결제 웹훅 URL이 프로덕션 API 서버 `POST /billing/webhook`으로 등록됨 (PG사 대시보드)
 - [ ] API가 `app_api` 롤로 접속하여 `orders` 등 RLS 정책이 적용됨을 확인
 

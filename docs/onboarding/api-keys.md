@@ -4,24 +4,9 @@
 
 ---
 
-## Mapbox
+## 지도 타일 (OpenFreeMap · AWS Terrain Tiles)
 
-1. https://account.mapbox.com 접속 → 계정 생성
-2. "Tokens" 탭 → "Create a token"
-3. **로컬 개발용**: 제한 없이 생성 후 `.env.local`에 저장
-4. **프로덕션용**: "Allowed URLs"에 서비스 도메인만 등록 (도메인 락 필수)
-
-```
-NEXT_PUBLIC_MAPBOX_TOKEN=pk.eyJ1...
-```
-
-이 토큰 하나를 펼침 지도(플레이 씬·내 주변)가 쓰고, 예정인 맵의 베이스맵도 같은 토큰을 쓴다. 무료 티어: 월 50,000 Map loads 무료. Mapbox 대시보드에서 사용량 알림 3단계 설정 권장.
-
----
-
-## OpenStreetMap 벡터 타일 (OpenFreeMap)
-
-내 주변(베타)의 길 데이터는 OpenFreeMap(`https://tiles.openfreemap.org/planet`)의 z14 벡터 타일을 브라우저가 직접 받는다. 키·가입이 필요 없고 설정할 환경변수도 없다. 대신 화면에 출처(© OpenStreetMap · OpenMapTiles · OpenFreeMap)를 표기해야 하며, `features/nearby/nearby-scene.tsx` 좌하단에 표기한다.
+내 주변(베타)의 길 데이터와 펼침 지도(플레이 씬·내 주변)는 OpenFreeMap(`https://tiles.openfreemap.org/planet`)의 OpenStreetMap 벡터 타일(z14)과 글꼴을, 펼침 지도의 지형 음영은 AWS Terrain Tiles(`elevation-tiles-prod`, Terrarium PNG)를 브라우저가 직접 받는다. 키·가입이 필요 없고 설정할 환경변수도 없다. 대신 화면에 출처를 표기해야 한다 — 내 주변은 좌하단(`features/nearby/nearby-scene.tsx`, © OpenStreetMap · OpenMapTiles · OpenFreeMap), 펼침 지도는 오른쪽 아래(지형 높이 USGS까지, MapLibre `AttributionControl`)에 둔다.
 
 ---
 

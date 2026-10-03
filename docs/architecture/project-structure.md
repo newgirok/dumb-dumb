@@ -22,8 +22,8 @@ project/
 │   ├── layout/
 │   │   └── page-transition.tsx   ← 링크 이동 때 전체 화면 로더
 │   ├── map/
-│   │   ├── paper-map.tsx         ← 펼침 지도 (플레이 씬·내 주변, 독립 Mapbox GL 캔버스)
-│   │   └── paper-map-style.ts    ← 펼침 지도 스타일(Streets v8·지형 음영)과 무늬
+│   │   ├── paper-map.tsx         ← 펼침 지도 (플레이 씬·내 주변, 독립 MapLibre GL 캔버스 — 처음 펼칠 때 만든다)
+│   │   └── paper-map-style.ts    ← 펼침 지도 스타일(OpenMapTiles 벡터 타일·지형 음영)과 무늬
 │   ├── location/
 │   │   └── gps-steps.tsx         ← 위치 설정 경로 안내 (펼침 지도 쪽지·내 주변 대기 화면)
 │   ├── hud/                      ← 씬 위에 겹치는 UI 부품
@@ -97,6 +97,7 @@ project/
 │   └── contract.ts               ← 익명 중계 소켓 이벤트 계약 (방 — 플레이 씬, 근접 — 내 주변, socket.io 제네릭 타입)·만남 대화 이벤트와 수치(`TALK`)
 │
 ├── public/
+│   ├── maplibre/                 ← MapLibre 워커 복사본 (scripts/copy-maplibre-worker.mjs가 만든다, 저장소에 두지 않음)
 │   ├── fonts/                    ← 첫 화면 글자 전용 작은 폰트 (stylish-home·pretendard-home — 선택 페이지 버튼, stylish-loader — 로더 첫 줄)
 │   ├── landing/                  ← 랜딩 배경 이미지 (앱 코드에서 참조하지 않음)
 │   │   ├── hero.jpg
@@ -111,6 +112,8 @@ project/
 │       └── MANIFEST.json
 │
 ├── docs/                         ← 이 문서 허브
+├── scripts/
+│   └── copy-maplibre-worker.mjs  ← MapLibre 워커·shared 파일을 public/maplibre에 복사 (npm run dev·build 전에 돈다)
 ├── Dockerfile                    ← 프론트 멀티스테이지 빌드 (builder / runner)
 ├── docker-compose.yml            ← app(프론트 프로덕션 빌드, standalone) + realtime(실시간 서버) — app이 depends_on으로 함께 띄운다
 ├── middleware.ts                 ← Next.js 전역 미들웨어 (matcher가 비어 있어 실행되지 않음)
@@ -168,8 +171,8 @@ API 서버에, `sector` 게이트웨이가 실시간 서버에 있다. 랜딩/�
 | `lib/geo/gps.ts` | GPS 추적기(`createGpsTracker`) — `watchPosition` 하나를 씬과 펼침 지도가 나눠 쓰고, 권한·오류·정확도를 상태 하나로 묶는다. 위치마다 GPS 속도(도플러, 못 재면 null)를 싣는다. `waitForStartFix`(내 주변 시작 위치)·`isWalkableFix`(±50m)·`queryGpsPermission`(묻지 않고 권한 알아보기)·`useGpsSnapshot`·`formatAccuracy` |
 | `lib/geo/steps.ts` | 발걸음 — `devicemotion` 가속도로 박자 맞는 걸음을 센다(`createStepTracker`, 브라우저와 떼어 둔 셈은 `createStepCounter`). iOS 동작 권한을 창 없이 알아보고(`queryMotionPermission`) 탭 안에서 묻는다(`requestMotionPermission`) |
 | `lib/geo/gps-messages.ts` | GPS 상태별 안내 문구(해요체)와 기기 판별(iOS·Android·Windows·Mac, 삼성 인터넷, 앱 속 브라우저) — `gpsNote`(지도 쪽지·도장·버튼)·`startWaitNote`(내 주변 대기 화면)·`motionAskNote`(내 주변 iOS 권한 단계)·`walkNote`(내 주변 위쪽 알림) |
-| `components/map/paper-map.tsx` | 펼침 지도 — 씬과 분리된 독립 Mapbox GL 캔버스([ADR 001](../adr/001-webgl-context-sharing.md)). 씬이 시작되면(플레이 씬은 씬을 불러오는 동안 로더 뒤에서) 한 번 만들고 접혀 있는 동안은 숨겨 둔다. 종이 폭에 따라 3단·반 접기·바로 펼침, GPS 상태 쪽지·도장·정확도 원·'나' 표시(DOM 마커). `MapIcon`·`GpsBadge`·`useMapHotkey`(M·Esc)·`MapTrack`도 내보낸다 |
-| `components/map/paper-map-style.ts` | 펼침 지도 스타일 `PAPER_STYLE` — Mapbox Streets v8 + 지형 DEM을 게임 화풍으로 칠한다. 무늬 `PATTERNS`(나무·풀포기·물결)는 `styleimagemissing`에서 캔버스로 그려 넣는다 |
+| `components/map/paper-map.tsx` | 펼침 지도 — 씬과 분리된 독립 MapLibre GL 캔버스([ADR 001](../adr/001-webgl-context-sharing.md)). 처음 펼칠 때 지도 코드(`maplibre-gl`)를 받아 한 번 만들고 접혀 있는 동안은 숨겨 둔다(씬 로더는 지도를 기다리지 않는다). 출처 표기는 처음 펼친 뒤 5초 보여 주고 (i)로 접는다. 종이 폭에 따라 3단·반 접기·바로 펼침, GPS 상태 쪽지·도장·정확도 원·'나' 표시(DOM 마커). `MapIcon`·`GpsBadge`·`useMapHotkey`(M·Esc)·`MapTrack`도 내보낸다 |
+| `components/map/paper-map-style.ts` | 펼침 지도 스타일 `PAPER_STYLE` — OpenStreetMap 벡터 타일(OpenFreeMap, OpenMapTiles 스키마) + AWS Terrain Tiles 지형 음영을 게임 화풍으로 칠한다. 무늬 `PATTERNS`(나무·풀포기·물결)는 처음 필요할 때(`setMissingStyleImageResolver`) 캔버스로 그려 넣는다 |
 | `lib/realtime/relay.ts` | socket.io 익명 멀티플레이 연결(플레이 씬 `/room`·내 주변 `/proximity`) — 35ms마다 바뀐 필드만 전송, 5분 무변화 시 끊기(탭을 숨겨도 연결을 둔다, 만남 대화가 오가면 바뀐 것으로 친다), 재접속 때 전에 있던 방 요청, 만남 대화 이벤트 송수신(`RelayConnection.talk`) |
 | `lib/realtime/talk.ts` | 만남 대화 상태(`createTalk`) — 누른 자리의 캐릭터 찾기(`pick`)와 원형 메뉴 열고 닫기(`select`, 말 걸기 아이콘은 4m 안에서 켜고 4.2m 밖·쿨다운 중에 끔 — 꺼진 아이콘으로 걸면 까닭 한 줄), 4m 안에 들어온 보이는 사람마다 머리 위 표시(`hints` — 4.2m 밖이면 사라지는 중으로 0.2초 남겼다 뺀다, 쉬는 사람은 흐리게)와 그 가운데 가장 가까운 E 키 상대 고르기(기다리던 요청도 4.2m 밖이면 거둠), 머리 위 표시(사람마다 `hintAnchor`)와 자리 4개(메뉴·건 사람 표시·내 말풍선·상대 말풍선)를 매 프레임 translate3d로 옮기기, 서버 이벤트대로 요청·대화·끝을 그리는 스토어(`useSyncExternalStore`), 받기 끄기(`localStorage`)·클라이언트 글 검증 |
 | `components/hud/talk-layer.tsx` | 만남 대화 화면 — 머리 위 손가락 표시(누르면 원형 메뉴, E 키)·원형 메뉴(말 걸기 아이콘, 멀면 옅은 색·쉬는 중 쿨다운 덮개)·건 사람 "!"·요청 카드(15초 타이머)·대화 창(로그·빠른 문구·입력)·말풍선·알림 한 줄. `tk-*` 스타일, 좁은 화면(639px 이하)은 요청 카드·대화 창을 아래에 |
