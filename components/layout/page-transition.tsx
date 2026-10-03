@@ -10,9 +10,9 @@ import Loader, { LOADER_COVER_MS, SPIN_MS } from '@/components/ui/loader'
  */
 const DESTINATION_MESSAGES: Record<string, string> = {
   '/': '처음 화면으로 가는 중이에요',
-  '/play': '산책 가방 챙기는 중이에요',
-  '/nearby': '내 위치 찾는 중이에요',
-  '/asset-viewer': '돗자리 챙기는 중이에요',
+  '/play': '산책 가방을 챙기는 중이에요',
+  '/nearby': '내 위치를 찾는 중이에요',
+  '/asset-viewer': '돗자리를 챙기는 중이에요',
 }
 const DEFAULT_MESSAGE = '준비하는 중이에요'
 

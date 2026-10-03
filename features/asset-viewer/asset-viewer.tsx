@@ -66,7 +66,7 @@ const PROPS = [
  * 로딩 문구 — 플레이 씬(산책 채비)처럼 화면을 만드는 일이 아니라 내가 나무·바위·덤불이 있는 공원으로 소풍 가는 순서로
  * 말한다. 같은 간격으로 넘기다가 마지막 줄은 준비가 끝나야 띄우고, 첫 줄은 페이지 전환 로더와 같아 넘겨받아도 그대로다
  */
-const LOADING_STEPS = ['돗자리 챙기는 중이에요', '도시락 싸는 중이에요', '공원 가는 중이에요', '공원 도착!']
+const LOADING_STEPS = ['돗자리를 챙기는 중이에요', '도시락을 싸는 중이에요', '공원에 가는 중이에요', '공원에 도착했어요!']
 
 export default function AssetViewer() {
   const mountRef = useRef<HTMLDivElement>(null)
@@ -157,7 +157,7 @@ export default function AssetViewer() {
       charRef.current = char
       lines.unshift('kid: 22 bones · 24fps')
       setStatus(lines.join('\n'))
-      // 준비 끝 — 지금 줄을 읽을 만큼 보여 준 뒤 마지막 줄("공원 도착!")을 잠깐 띄우고 걷는다
+      // 준비 끝 — 지금 줄을 읽을 만큼 보여 준 뒤 마지막 줄("공원에 도착했어요!")을 잠깐 띄우고 걷는다
       await finishSteps()
       if (destroyed) return
       await waitSpinTurn(loaderSince)
