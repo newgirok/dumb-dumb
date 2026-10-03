@@ -10,6 +10,13 @@ const ROTATION_LERP = 0.4
 const REMOTE_DAMP = 0.625
 /** 이보다 멀리 뛰면 보간하지 않고 그 자리로 옮긴다(원본 positionDeltaLimitSnap) */
 const SNAP_DISTANCE = 10
+/**
+ * 탈것(모션 3) — 위치가 몇 초에 한 번씩만 오므로 지난 위치가 온 뒤 흐른 시간(1~8초)에 걸쳐 새 위치까지 미끄러진다.
+ * 이보다 멀면(지하철에서 올라왔을 때) 곧장 옮긴다
+ */
+const GLIDE_MIN_MS = 1000
+const GLIDE_MAX_MS = 8000
+const GLIDE_DISTANCE = 500
 /** 이보다 멀거나 화면 밖이면 포즈를 갱신하지 않는다 */
 const ANIMATION_RANGE = 100
 /** 들어오면 0.35초에 걸쳐 커지고, 나가면 0.25초에 걸쳐 작아진다(power2.out) */
@@ -27,6 +34,8 @@ interface View {
   /** 원본 animationOffset — 전역 시간에 더해 캐릭터마다 다른 박자로 움직인다 */
   offset: number
   bornAt: number
+  /** 탈것으로 미끄러지는 중 — 출발 자리·시각과 걸리는 시간 */
+  glide: { from: THREE.Vector3; at: number; ms: number } | null
 }
 
 interface Remote {
@@ -34,6 +43,8 @@ interface Remote {
   view: View | null
   leftAt: number
   leaveFrom: number
+  /** 위치가 마지막으로 온 시각 */
+  movedAt: number
 }
 
 export interface Remotes {
@@ -123,6 +134,7 @@ export function createRemotes({
       velocity: new THREE.Vector3(),
       offset,
       bornAt: performance.now(),
+      glide: null,
     }
   }
 
@@ -155,7 +167,7 @@ export function createRemotes({
     apply({ id, ...fields }) {
       let remote = remotes.get(id)
       if (!remote) {
-        remote = { data: {}, view: null, leftAt: -1, leaveFrom: 1 }
+        remote = { data: {}, view: null, leftAt: -1, leaveFrom: 1, movedAt: performance.now() }
         remotes.set(id, remote)
       }
       if (remote.leftAt >= 0) {
@@ -170,6 +182,14 @@ export function createRemotes({
       const { p, r, a, s } = remote.data
       if (!remote.view && p && r && a !== undefined && s !== undefined) {
         remote.view = createView({ p, r, a, s })
+      }
+      if (fields.p) {
+        const now = performance.now()
+        if (remote.view && a === 3) {
+          const ms = THREE.MathUtils.clamp(now - remote.movedAt, GLIDE_MIN_MS, GLIDE_MAX_MS)
+          remote.view.glide = { from: remote.view.mesh.position.clone(), at: now, ms }
+        }
+        remote.movedAt = now
       }
     },
 
@@ -211,15 +231,23 @@ export function createRemotes({
           mesh.scale.setScalar(easeOut(Math.min(1, (now - view.bornAt) / 1000 / APPEAR_S)))
         }
 
-        // 위치 — 목표점이 받은 위치를, 몸이 목표점을 따라간다. 10m 넘게 뛰면 곧장 옮긴다
+        // 위치 — 목표점이 받은 위치를, 몸이 목표점을 따라간다. 10m 넘게 뛰면 곧장 옮긴다.
+        // 탈것이면 받은 위치까지 정해진 시간에 걸쳐 선 채로 미끄러진다
         prev.copy(mesh.position)
         next.fromArray(data.p)
-        const snap = next.distanceTo(prev) > SNAP_DISTANCE
-        const k = snap ? 1 : kp
-        view.targetPosition.lerp(next, k)
-        mesh.position.lerp(view.targetPosition, k)
-        view.velocity.add(step.subVectors(mesh.position, prev).multiplyScalar(ratio))
-        view.velocity.multiplyScalar(snap ? 0 : friction)
+        const glide = data.a === 3 && view.glide && view.glide.from.distanceTo(next) <= GLIDE_DISTANCE ? view.glide : null
+        if (glide) {
+          mesh.position.lerpVectors(glide.from, next, Math.min(1, (now - glide.at) / glide.ms))
+          view.targetPosition.copy(mesh.position)
+          view.velocity.set(0, 0, 0)
+        } else {
+          const snap = next.distanceTo(prev) > SNAP_DISTANCE
+          const k = snap ? 1 : kp
+          view.targetPosition.lerp(next, k)
+          mesh.position.lerp(view.targetPosition, k)
+          view.velocity.add(step.subVectors(mesh.position, prev).multiplyScalar(ratio))
+          view.velocity.multiplyScalar(snap ? 0 : friction)
+        }
 
         quaternionFromSpherical(data.r, rotation)
         view.targetRotation.slerp(rotation, kr)
