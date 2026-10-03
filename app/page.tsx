@@ -54,6 +54,12 @@ const CSS = `
   /* 제목·카드 묶음은 언덕 위 하늘의 가운데에 — 아래 여백은 언덕이 올라오는 만큼 */
   .home-hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6vh 0 max(22vh, 150px); }
   .home-places { margin-top: clamp(24px, 7vh, 72px); }
+  /* 들어올 때(처음 열거나 뒤로 가기로 돌아올 때) — 하늘은 그대로 두고 제목, 버튼이 차례로 살짝 떠오른다(Material 3 강조 감속 곡선).
+     기울기·누름은 transform이라 등장은 translate로만 움직인다 */
+  @keyframes home-rise { from { opacity: 0; translate: 0 14px; } }
+  @keyframes home-fade { from { opacity: 0; } }
+  .home-title { animation: home-rise 0.6s cubic-bezier(0.05, 0.7, 0.1, 1) both; }
+  .home-card { animation: home-rise 0.55s cubic-bezier(0.05, 0.7, 0.1, 1) calc(0.12s + var(--i) * 0.06s) both; }
   /* 낮은 화면(휴대폰 가로) — 언덕을 낮추고 제목·카드를 줄여 세 장이 한 화면에 들어오게 한다 */
   @media (max-height: 520px) {
     .home-land { height: 38vh; min-height: 0; }
@@ -65,7 +71,11 @@ const CSS = `
     .home-card svg { width: 34px; height: 34px; }
     .home-card-title { font-size: 24px; }
   }
-  @media (prefers-reduced-motion: reduce) { .home-cloud { animation: none; } .home-card { transition: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .home-cloud { animation: none; }
+    .home-card { transition: none; }
+    .home-title, .home-card { animation-name: home-fade; animation-duration: 0.3s; }
+  }
 `
 
 export default function Home() {
@@ -90,12 +100,17 @@ export default function Home() {
           <h1 className="home-title">Dumb Dumb</h1>
 
           <nav aria-label="갈 곳" className="home-places flex flex-col items-center gap-5">
-            {SCENE_ROUTES.map((href) => {
+            {SCENE_ROUTES.map((href, i) => {
               const place = PLACES[href]
               // 플레이 씬은 소리가 난다 — 누르는 순간 오디오를 켜 둔다
               const PlaceLink = href === '/play' ? SoundLink : Link
               return (
-                <PlaceLink key={href} href={href} className="home-card" style={{ ['--tilt' as string]: `${place.tilt}deg` }}>
+                <PlaceLink
+                  key={href}
+                  href={href}
+                  className="home-card"
+                  style={{ ['--tilt' as string]: `${place.tilt}deg`, ['--i' as string]: i }}
+                >
                   <place.Icon />
                   <span className="home-card-title">
                     {place.title}
