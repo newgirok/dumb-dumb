@@ -11,6 +11,9 @@ export const SPIN_MS = 1000
 /** 준비를 마친 로더가 다 걷히는 시간 — 글·스피너가 0.75초에 흐려지고, dissolve면 배경이 0.5초부터 0.5초에 걸쳐 녹는다 */
 export const LOADER_EXIT_MS = 1000
 
+/** dissolve 로더의 배경이 녹기 시작하는 때(걷기 시작한 뒤 ms) — 그 전까지 뒤의 씬은 덮여 있다 */
+export const LOADER_DISSOLVE_MS = 500
+
 /** 페이지 이동 로더의 배경이 화면을 다 덮는 시간 — 이동은 이만큼 기다렸다가 한다(components/layout/page-transition.tsx) */
 export const LOADER_COVER_MS = 300
 
@@ -93,7 +96,7 @@ const CSS = `
      같은 크림색 덮개에서 소용돌이가 열리는 장면이 드러난다).
      씬 위의 HUD(지도 버튼 등)도 장면과 함께 드러나게 그 위에 둔다 */
   .ld-root.dissolve { z-index: 30; }
-  .ld-root.fading.dissolve { opacity: 0; pointer-events: none; transition: opacity 0.5s var(--ld-standard) 0.5s; }
+  .ld-root.fading.dissolve { opacity: 0; pointer-events: none; transition: opacity 0.5s var(--ld-standard) ${LOADER_DISSOLVE_MS / 1000}s; }
   /* 페이지 이동 로더(늘 붙어 있다) — 나타날 때는 배경이 먼저 깔리고 스피너(92% 크기에서)·글(6px 아래에서)이 시차를 두고
      떠오른다. 걷힐 때는 글이 먼저 빠지고 배경이 녹는다. 도착한 씬 로더가 이어받으면(handoff) 스피너 박자·문구가 같은
      화면이라 그대로 걷고(cut — 걷는 동안 씬 로더 문구가 바뀌어도 겹쳐 보이지 않는다), 씬 로더에만 안내·버튼이 있으면

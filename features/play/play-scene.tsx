@@ -40,7 +40,6 @@ import {
   compileGradually,
   compileMaterialsGradually,
   drawAllGradually,
-  nextFrame,
   settle,
   uploadTexturesGradually,
 } from '@/lib/three/warm-up'
@@ -56,7 +55,7 @@ import { createTalk, type Project, type Talk } from '@/lib/realtime/talk'
 import TalkLayer from '@/components/hud/talk-layer'
 import type { RelayMotion } from '@/shared/relay/contract'
 import PaperMap, { GpsBadge, MapIcon, useMapHotkey } from '@/components/map/paper-map'
-import Loader, { LOADER_EXIT_MS, SPIN_MS, useLoadingSteps, waitSpinTurn } from '@/components/ui/loader'
+import Loader, { LOADER_DISSOLVE_MS, LOADER_EXIT_MS, SPIN_MS, useLoadingSteps, waitSpinTurn } from '@/components/ui/loader'
 import { createGpsTracker, useGpsSnapshot, type GpsTracker } from '@/lib/geo/gps'
 
 /**
@@ -334,7 +333,8 @@ export default function PlayScene() {
     let connection: RelayConnection | null = null
     let kidMesh: THREE.SkinnedMesh | null = null
     let frameDt = 0
-    // 로더 뒤 GPU 예열이 끝나기 전에는 씬을 그리지 않는다(물체가 붙을 때마다 첫 렌더가 컴파일·업로드를 몰고 온다)
+    // 로더가 녹기 시작하기 전에는 씬을 그리지 않는다(예열이 끝나기 전에 그리면 물체가 붙을 때마다 첫 렌더가 컴파일·업로드를
+    // 몰고 오고, 덮인 동안 그리면 GPU에 일이 밀려 쌓인다)
     let prepared = false
     const materials: THREE.Material[] = []
     const disposables: { dispose(): void }[] = [circles]
@@ -764,12 +764,14 @@ export default function PlayScene() {
       })
       talk.bind(connection.talk)
 
-      // 예열이 끝났다 — GPU가 비면 그리기 시작해 로더 뒤에서 몇 프레임 그려 첫 렌더의 버퍼 업로드를 마친 뒤
-      // 로더를 걷으며(스피너 한 바퀴를 채운 뒤 글이 흐려지기 시작할 때) 인트로를 시작한다
+      // 예열이 끝났다 — GPU가 비면 로더 뒤에서 한 프레임 그려 첫 렌더의 버퍼 업로드를 마치고 GPU가 다 그릴 때까지 기다린다.
+      // 로더가 덮는 동안에는 더 그리지 않는다 — 덮인 캔버스는 화면 합성이 기다리지 않아 매 프레임 그린 일이 GPU에 밀려
+      // 쌓이고(고해상도 화면은 한 프레임에 30~40ms), 로더가 녹아 씬이 처음 보이는 순간 그 일을 한꺼번에 기다리느라 화면이
+      // 0.4~1초 멈춘다. 그동안 GPU를 붙잡아 스피너도 끊긴다
       await settle(renderer)
       if (destroyed) return
-      prepared = true
-      for (let i = 0; i < 3; i++) await nextFrame()
+      composer.render()
+      await settle(renderer)
       if (destroyed) return
       // 준비 끝 — 지금 줄을 읽을 만큼 보여 준 뒤 마지막 줄("이제 나가요!")을 잠깐 띄우고 걷는다
       await finishSteps()
@@ -785,7 +787,12 @@ export default function PlayScene() {
       adaptive.waitUntil = introStartTime + DPR_WAIT_MS
       adaptive.lastUpdate = adaptive.waitUntil
       adaptive.bucketStart = introStartTime
-      await new Promise((resolve) => setTimeout(resolve, LOADER_EXIT_MS))
+      // 로더 배경이 녹기 시작할 때부터 씬을 그린다(그 전에는 아직 덮여 있다) — 덮인 동안 마지막으로 그린 크림색 덮개가
+      // 로더 배경과 같은 색이라, 그리기를 이어도 이음매가 없다
+      await new Promise((resolve) => setTimeout(resolve, LOADER_DISSOLVE_MS))
+      if (destroyed) return
+      prepared = true
+      await new Promise((resolve) => setTimeout(resolve, LOADER_EXIT_MS - LOADER_DISSOLVE_MS))
       if (destroyed) return
       setPhase('playing')
     })().catch((err) => {
