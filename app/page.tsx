@@ -59,8 +59,9 @@ const CSS = `
     .home-land { height: 38vh; min-height: 0; }
     .home-hero { padding: 3vh 0 18vh; }
     .home-title { font-size: clamp(48px, 18vh, var(--title-size)); }
-    .home-places { margin-top: 3vh; gap: 10px; }
-    .home-card { padding: 9px 18px; gap: 12px; }
+    /* 카드가 낮아져도 폭은 그대로라 같은 각도면 모서리가 이웃 카드에 닿는다 — 기울기를 반으로 줄이고, 간격은 568×320에 드는 만큼만 넓힌다 */
+    .home-places { margin-top: 3vh; gap: 14px; }
+    .home-card { padding: 9px 18px; gap: 12px; transform: rotate(calc(var(--tilt) / 2)); }
     .home-card svg { width: 34px; height: 34px; }
     .home-card-title { font-size: 24px; }
   }
