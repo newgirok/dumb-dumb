@@ -1,6 +1,6 @@
 'use client'
 
-import { useLayoutEffect, useRef, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 
 /**
  * 스피너 한 바퀴(ms) — 고정된 호 하나가 이 시간에 한 바퀴 돈다. 로더는 아무리 빨리 끝나도 한 바퀴는 돌고 사라진다
@@ -8,10 +8,45 @@ import { useLayoutEffect, useRef, type ReactNode } from 'react'
  */
 export const SPIN_MS = 1000
 
+/** 준비를 마친 로더가 다 걷히는 시간 — 글·스피너가 0.75초에 흐려지고, dissolve면 배경이 0.5초부터 0.5초에 걸쳐 녹는다 */
+export const LOADER_EXIT_MS = 1000
+
+/** 로딩 문구 한 줄을 적어도 이만큼 보여 준다 — 빠른 기기에서 단계가 금방 지나가도 문구가 휙휙 바뀌며 깜빡이지 않게 */
+export const LOADING_STEP_MIN_MS = 700
+
+/** 문구가 바뀔 때 앞 줄이 빠지는 시간 — 다 빠진 뒤에 새 줄이 0.3초에 떠오른다(fade through — 두 줄이 겹쳐 보이지 않는다) */
+const MESSAGE_OUT_MS = 120
+
 /** since(performance.now())에 뜬 로더가 한 바퀴를 다 돌 때까지 기다린다 — 이미 돌았으면 바로 끝난다 */
 export function waitSpinTurn(since: number): Promise<void> {
   const left = SPIN_MS - (performance.now() - since)
   return left > 0 ? new Promise((resolve) => setTimeout(resolve, left)) : Promise.resolve()
+}
+
+/**
+ * 로딩 단계 문구 — 로딩이 닿은 단계(reach)를 보이는 단계(shown)가 한 칸씩, 한 줄을 LOADING_STEP_MIN_MS는 보여 주며 따라간다.
+ * 처음부터 다시 받을 때는 reach(0)으로 되돌린다
+ */
+export function useLoadingSteps(): [shown: number, reach: (step: number) => void] {
+  const [loadStep, setLoadStep] = useState(0)
+  const [shownStep, setShownStep] = useState(0)
+  const shownAtRef = useRef(0)
+  useEffect(() => {
+    if (shownStep >= loadStep) return
+    const timer = setTimeout(
+      () => {
+        shownAtRef.current = performance.now()
+        setShownStep((step) => step + 1)
+      },
+      Math.max(0, LOADING_STEP_MIN_MS - (performance.now() - shownAtRef.current)),
+    )
+    return () => clearTimeout(timer)
+  }, [loadStep, shownStep])
+  const reach = useCallback((step: number) => {
+    setLoadStep(step)
+    setShownStep((shown) => Math.min(shown, step))
+  }, [])
+  return [shownStep, reach]
 }
 
 // 스피너는 회전(transform)만 움직여 GPU 합성 스레드에서 돈다 — 로딩 중 무거운 작업이 메인 스레드를 막아도 끊기지 않는다
@@ -19,14 +54,39 @@ export function waitSpinTurn(since: number): Promise<void> {
 // 준비되면 0.75s(cubic in-out)에 걸쳐 사라진다.
 // 스피너는 늘 화면 한가운데에 두고 글은 그 아래로만 늘어나게 해, 로더끼리 넘겨받아도(페이지 전환 로더 → 씬 로더,
 // 상태별 로더) 스피너와 첫 줄이 제자리에 있다. 글이 아래 절반에 다 들지 않는 낮은 화면(휴대폰 가로)에서만
-// 스피너가 위로 비키고, 그래도 넘치면 스크롤된다 — 위아래 끝에는 16px을 남긴다(min-height라 넉넉할 때는 가운데가 그대로다)
+// 스피너가 위로 비키고, 그래도 넘치면 스크롤된다 — 위아래 끝에는 16px을 남긴다(min-height라 넉넉할 때는 가운데가 그대로다).
+// 움직임은 Material 3 곡선을 쓴다 — 들어올 때 강조 감속(--ld-enter), 나갈 때 강조 가속(--ld-exit), 배경은 표준(--ld-standard)
 const CSS = `
   @keyframes ld-spin { to { transform: rotate(360deg); } }
-  .ld-root { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+  .ld-root { --ld-enter: cubic-bezier(0.05, 0.7, 0.1, 1); --ld-exit: cubic-bezier(0.3, 0, 0.8, 0.15); --ld-standard: cubic-bezier(0.2, 0, 0, 1);
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
     padding: 0 24px; background-color: #FFFDF8; text-align: center; overflow-y: auto; }
   .ld-root::before { content: ''; flex: 1 1 0; min-height: 16px; }
   .ld-root > * { transition: opacity 0.75s cubic-bezier(0.645, 0.045, 0.355, 1); }
   .ld-root.fading > * { opacity: 0; }
+  /* dissolve — 글이 거의 흐려질 무렵 배경도 녹아 뒤의 씬이 드러난다(플레이 씬은 인트로가 같은 크림색에서 장면을 드러내 배경을 둔다).
+     씬 위의 HUD(지도 버튼 등)도 장면과 함께 드러나게 그 위에 둔다 */
+  .ld-root.dissolve { z-index: 30; }
+  .ld-root.fading.dissolve { opacity: 0; pointer-events: none; transition: opacity 0.5s var(--ld-standard) 0.5s; }
+  /* 페이지 이동 로더(늘 붙어 있다) — 나타날 때는 배경이 먼저 깔리고 스피너(92% 크기에서)·글(6px 아래에서)이 시차를 두고
+     떠오른다. 걷힐 때는 글이 먼저 빠지고 배경이 녹는다. 도착한 씬 로더가 이어받으면(handoff) 스피너 박자·문구가 같은
+     화면이라 그대로 걷고(cut — 걷는 동안 씬 로더 문구가 바뀌어도 겹쳐 보이지 않는다), 씬 로더에만 안내·버튼이 있으면
+     한 덩어리로 0.25초에 걷는다. 다 걷힌 뒤에 스피너·글을 처음 자리(92%·6px 아래)로 돌려 둔다 */
+  .ld-root.ld-in { transition: opacity 0.3s var(--ld-standard); }
+  .ld-root.ld-in > .ld-spinner { transition: opacity 0.4s var(--ld-enter) 0.1s, scale 0.5s var(--ld-enter) 0.1s; }
+  .ld-root.ld-in > .ld-body { transition: opacity 0.45s var(--ld-enter) 0.16s, translate 0.5s var(--ld-enter) 0.16s; }
+  .ld-root.ld-out { opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity 0.4s var(--ld-standard) 0.15s, visibility 0s linear 0.55s; }
+  .ld-root.ld-out > * { opacity: 0; transition: opacity 0.2s var(--ld-exit), scale 0s linear 0.55s, translate 0s linear 0.55s; }
+  .ld-root.ld-out > .ld-spinner { scale: 0.92; }
+  .ld-root.ld-out > .ld-body { translate: 0 6px; }
+  .ld-root.ld-out.handoff { transition: opacity 0.25s ease-out, visibility 0s linear 0.25s; }
+  .ld-root.ld-out.handoff > * { transition: opacity 0s linear 0.25s, scale 0s linear 0.25s, translate 0s linear 0.25s; }
+  .ld-root.ld-out.handoff.cut, .ld-root.ld-out.handoff.cut > * { transition: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .ld-root.ld-in > .ld-spinner, .ld-root.ld-in > .ld-body { transition: opacity 0.2s linear; }
+    .ld-root.ld-out > .ld-spinner, .ld-root.ld-out > .ld-body { scale: none; translate: none; }
+  }
   .ld-root > .ld-spinner.off { visibility: hidden; }
   .ld-body { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; }
   .ld-body::after { content: ''; flex: none; height: 16px; }
@@ -34,17 +94,23 @@ const CSS = `
   .ld-spinner svg { display: block; width: 100%; height: 100%; }
   .ld-spinner .path { stroke: #BDBCB8; stroke-dasharray: 58 200; }
   /* 첫 줄 — 프로젝트 제목 글씨인 Stylish(지도 쪽지 제목과 같은 19px·#5d5a57), 아래 안내 줄은 Pretendard다. 로더 문구 글자만
-     담은 작은 폰트(public/fonts/stylish-loader.woff2, 21KB)를 루트 레이아웃이 미리 받아 첫 로더부터 바로 그린다. 글자는 로더
+     담은 작은 폰트(public/fonts/stylish-loader.woff2, 24KB)를 루트 레이아웃이 미리 받아 첫 로더부터 바로 그린다. 글자는 로더
      첫 줄(페이지 전환·플레이 씬·내 주변·에셋 미리보기 로더의 message)과 GPS 상태 제목에서 모은다 — 문구를 바꾸면 다시 만든다
      (공식 배포본에서 fontTools로, 라이선스 정보는 그대로 둔다. 빠진 글자는 뒤의 전체 Stylish로 그려진다):
        pyftsubset Stylish-Regular.ttf --flavor=woff2 --name-IDs='*' --output-file=public/fonts/stylish-loader.woff2
-         --text=" .,!?()-+0123456789GPSkm±·…가걸게결고권금기길깔꺼끈나내네는늦다대들또라략러려렷로를릿만맞멈면목못묶받발방변보불브비산살서세셋수시신써쓸아안았약어없에연열오요용우위으을음이인임있잠저적제져조주준줄중지직짝찾채책챙처추췄치하한해했허호화흐흔"
-     문구가 바뀌면(로딩 단계 안내 등) 살짝 떠오르며 바뀐다 — 글자만 갈아 끼우면 깜빡인 것처럼 보인다 */
-  @font-face { font-family: 'Stylish Loader'; src: url('/fonts/stylish-loader.woff2') format('woff2'); font-weight: 400; font-display: block; }
-  @keyframes ld-message { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
-  .ld-message { margin-top: 22px; font-family: 'Stylish Loader', Stylish, Pretendard, sans-serif; font-size: 19px; line-height: 1.35; color: #5d5a57;
-    word-break: keep-all; animation: ld-message 0.25s cubic-bezier(0.33, 1, 0.68, 1); }
-  @media (prefers-reduced-motion: reduce) { .ld-message { animation: none; } }
+         --text=" .,!?()-+0123456789GPSkm±·…가걸게결고공관권금기길깔꺼끈나날내네는늦다대도돗동들또라락략러려렷로를리릿만맞멈면목못묶문밖받발방베변보불브비산살서세셋수시신싸써쓸씨아안았약어없에엘연열오요용우원위으을음이인임있자잠저적제져조주준줄중지직짝착창찾채책챙처추췄치터하한해했허현호화흐흔"
+     문구가 바뀌면(로딩 단계 안내 등) 앞 줄이 먼저 빠지고 새 줄이 4px 아래에서 떠오른다(fade through) — 글자만 갈아 끼우면
+     깜빡인 것처럼 보인다. 처음 뜬 줄은 움직이지 않는다 — 로더끼리 넘겨받을 때 같은 줄이 다시 떠오르면 깜빡여 보인다.
+     'Stylish Loader'의 @font-face는 globals.css에 한 번만 둔다 — 로더마다 넣으면 붙을 때마다 폰트를 다시 맞추느라 글자가 잠깐 숨는다 */
+  @keyframes ld-message-in { from { opacity: 0; translate: 0 4px; } }
+  @keyframes ld-message-out { to { opacity: 0; } }
+  @keyframes ld-fade-in { from { opacity: 0; } }
+  /* 앞 줄과 새 줄은 한 칸에 겹친다 — 칸 폭이 긴 줄에 맞아 짧은 줄로 바뀌어도 빠지는 줄이 꺾이지 않는다 */
+  .ld-line { display: grid; margin-top: 22px; }
+  .ld-message { grid-area: 1 / 1; font-family: 'Stylish Loader', Stylish, Pretendard, sans-serif; font-size: 19px; line-height: 1.35; color: #5d5a57; word-break: keep-all; }
+  .ld-message.in { animation: ld-message-in 0.3s var(--ld-enter) ${MESSAGE_OUT_MS}ms both; }
+  .ld-message.out { animation: ld-message-out ${MESSAGE_OUT_MS}ms var(--ld-exit) both; }
+  @media (prefers-reduced-motion: reduce) { .ld-message.in { animation: ld-fade-in 0.2s linear both; } }
   .ld-hint { margin-top: 6px; max-width: 24rem; font-family: Pretendard, sans-serif; font-size: 12.5px; line-height: 1.55; color: #b3aea6; word-break: keep-all; }
   .ld-detail { margin-top: 10px; max-width: 26rem; font-family: Pretendard, sans-serif; font-size: 12.5px; line-height: 1.55; color: #9a968f;
     --gps-path: #716c66; }
@@ -86,6 +152,9 @@ export default function Loader({
   detail,
   spinning = true,
   fading = false,
+  dissolve = false,
+  shown,
+  handoff,
   children,
 }: {
   message?: string
@@ -95,17 +164,48 @@ export default function Loader({
   spinning?: boolean
   /** 준비가 끝나 사라지는 중 — 내용이 0.75초에 걸쳐 흐려진다 */
   fading?: boolean
+  /** 사라질 때 배경까지 녹아 뒤의 씬이 드러난다(LOADER_EXIT_MS 뒤에 걷는다) */
+  dissolve?: boolean
+  /** 늘 붙여 두고 띄웠다 걷는 로더(페이지 이동)만 준다 — 주지 않으면 붙어 있는 동안 늘 보인다 */
+  shown?: boolean
+  /** 걷힐 때 도착한 페이지의 로더가 이어받는다 — 같은 화면이면 그대로(cut), 그 로더에만 안내·버튼이 있으면 빠르게 흐려 걷는다(fade) */
+  handoff?: 'cut' | 'fade'
   children?: ReactNode
 }) {
+  // 문구가 바뀌면 앞 줄은 잠깐 남아 빠지고 새 줄이 떠오른다. 처음 뜬 줄은 움직이지 않는다
+  const [current, setCurrent] = useState(message)
+  const [leaving, setLeaving] = useState<string>()
+  const [changed, setChanged] = useState(false)
+  if (message !== current) {
+    setCurrent(message)
+    setLeaving(current)
+    setChanged(true)
+  }
+  useEffect(() => {
+    if (!leaving) return
+    const timer = setTimeout(() => setLeaving(undefined), MESSAGE_OUT_MS)
+    return () => clearTimeout(timer)
+  }, [leaving])
+
+  const state = shown === undefined ? '' : shown ? ' ld-in' : handoff ? ` ld-out handoff${handoff === 'cut' ? ' cut' : ''}` : ' ld-out'
   return (
-    <div className={`ld-root${fading ? ' fading' : ''}`} role="status" aria-live="polite">
+    <div className={`ld-root${fading ? ' fading' : ''}${dissolve ? ' dissolve' : ''}${state}`} role="status" aria-live="polite">
       <style>{CSS}</style>
       <LoaderSpinner className={spinning ? '' : 'off'} />
       <div className="ld-body">
-        {message && (
-          <p key={message} className="ld-message">
-            {message}
-          </p>
+        {(message || leaving) && (
+          <div className="ld-line">
+            {leaving && (
+              <p key={`out-${leaving}`} className="ld-message out" aria-hidden="true">
+                {leaving}
+              </p>
+            )}
+            {message && (
+              <p key={message} className={`ld-message${changed ? ' in' : ''}`}>
+                {message}
+              </p>
+            )}
+          </div>
         )}
         {hint && <p className="ld-hint">{hint}</p>}
         {detail && <div className="ld-detail">{detail}</div>}
