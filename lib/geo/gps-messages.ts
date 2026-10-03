@@ -115,7 +115,8 @@ export function gpsNote(snapshot: GpsSnapshot, env: GpsEnv, { walking = false } 
       return {
         tone: 'wait',
         title: '위치 권한을 허용해 주세요',
-        hint: `${mobile ? '화면에 뜬 창' : '주소창 아래 창'}에서 ‘허용’을 누르면 ${walking ? '내 주변 길이 깔려요' : '지도에 내 자리가 떠요'}`,
+        // 휴대폰으로 걷는 화면은 세계에 들어가기 전 이때 한 번만 운전 중 사용을 당부한다 — 들어간 뒤로는 글을 띄우지 않는다
+        hint: `${mobile ? '화면에 뜬 창' : '주소창 아래 창'}에서 ‘허용’을 누르면 ${walking ? '내 주변 길이 깔려요' : '지도에 내 자리가 떠요'}${mobile && walking ? '. 운전 중에는 화면을 보지 말아 주세요' : ''}`,
       }
     case 'searching':
     case 'unavailable':
