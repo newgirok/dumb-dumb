@@ -14,14 +14,17 @@ export const LOADER_EXIT_MS = 1000
 /** 페이지 이동 로더의 배경이 화면을 다 덮는 시간 — 이동은 이만큼 기다렸다가 한다(components/layout/page-transition.tsx) */
 export const LOADER_COVER_MS = 300
 
-/** 로딩 문구 한 줄을 보여 주는 간격 — 중간 줄은 실제 진행과 상관없이 이 간격으로 넘긴다(3~4어절을 읽는 시간) */
-export const LOADING_STEP_MS = 1600
+/**
+ * 로딩 문구 한 줄을 보여 주는 간격 — 중간 줄은 실제 진행과 상관없이 이 간격으로 넘긴다. 가장 긴 줄(16자)을 한국어 자막
+ * 읽기 속도(초당 12자, 넷플릭스 성인 기준)로 읽는 1.3초에, 줄이 바뀌며 흐려졌다 떠오르는 0.4초와 눈길이 가는 틈을 더했다
+ */
+export const LOADING_STEP_MS = 2400
 
-/** 준비가 끝나도 지금 줄은 적어도 이만큼 보인 뒤에 마지막 줄로 바꾼다 */
-const LOADING_READ_MS = 1200
+/** 준비가 끝나도(내 주변은 위치를 받아도) 지금 줄은 적어도 이만큼 보인 뒤에 넘긴다 — 가장 긴 줄을 읽고 바뀌는 시간 */
+const LOADING_READ_MS = 2000
 
-/** 마지막 줄(준비 끝)을 이만큼 보여 준 뒤에 로더를 걷는다 */
-const LOADING_FINAL_MS = 600
+/** 마지막 줄(준비 끝)을 이만큼 보여 준 뒤에 로더를 걷는다 — 떠오른 뒤 짧은 줄을 읽을 틈(자막 최소 표시 5/6초보다 길게) */
+const LOADING_FINAL_MS = 1200
 
 /** 문구가 바뀔 때 앞 줄이 빠지는 시간 — 다 빠진 뒤에 새 줄이 0.3초에 떠오른다(fade through — 두 줄이 겹쳐 보이지 않는다) */
 const MESSAGE_OUT_MS = 120
@@ -39,7 +42,8 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
  * 줄에서 기다린다), 마지막 줄은 준비가 끝났다고 알릴 때(finish) 띄운다. 첫 단계만 오래 걸리고 뒤 단계가 몰아서 지나가지
  * 않고, "준비 끝" 줄은 실제로 준비됐을 때만 보인다. finish는 지금 줄을 LOADING_READ_MS는 보여 준 뒤 마지막 줄로 바꾸고
  * LOADING_FINAL_MS 뒤에 끝난다 — 그다음에 로더를 걷는다.
- * hold면 첫 줄을 go()까지 붙잡아 둔다(내 주변은 위치를 받을 때까지 첫 줄이다). 처음부터 다시 받을 때는 reset()
+ * hold면 첫 줄을 go()까지 붙잡아 둔다(내 주변은 위치를 받을 때까지 첫 줄이다). 풀린 뒤에도 첫 줄을 LOADING_READ_MS는
+ * 보여 준 뒤 넘긴다 — 위치가 곧바로 와도 첫 줄이 반짝 지나가지 않는다. 처음부터 다시 받을 때는 reset()
  */
 export function useLoadingSteps(count: number, { hold = false }: { hold?: boolean } = {}) {
   const [shown, setShown] = useState(0)
@@ -50,14 +54,12 @@ export function useLoadingSteps(count: number, { hold = false }: { hold?: boolea
   }, [shown])
   useEffect(() => {
     if (!running || shown >= count - 2) return
-    const timer = setTimeout(() => setShown((step) => step + 1), LOADING_STEP_MS)
+    const wait = hold && shown === 0 ? Math.max(0, LOADING_READ_MS - (performance.now() - shownAtRef.current)) : LOADING_STEP_MS
+    const timer = setTimeout(() => setShown((step) => step + 1), wait)
     return () => clearTimeout(timer)
-  }, [running, shown, count])
+  }, [running, shown, count, hold])
 
-  const go = useCallback(() => {
-    setShown((step) => Math.min(Math.max(step, 1), count - 2))
-    setRunning(true)
-  }, [count])
+  const go = useCallback(() => setRunning(true), [])
   const reset = useCallback(() => {
     setShown(0)
     setRunning(!hold)
