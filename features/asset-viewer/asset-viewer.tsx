@@ -64,8 +64,7 @@ const PROPS = [
 
 /**
  * 로딩 문구 — 플레이 씬(산책 채비)처럼 화면을 만드는 일이 아니라 내가 나무·바위·덤불이 있는 공원으로 소풍 가는 순서로
- * 말한다. 단계는 실제 로딩(팔레트 → 소품 → 캐릭터 → 준비 끝)을 따라 넘어가고, 첫 줄은 페이지 전환 로더와 같아
- * 넘겨받아도 그대로다
+ * 말한다. 같은 간격으로 넘기다가 마지막 줄은 준비가 끝나야 띄우고, 첫 줄은 페이지 전환 로더와 같아 넘겨받아도 그대로다
  */
 const LOADING_STEPS = ['돗자리 챙기는 중이에요', '도시락 싸는 중이에요', '공원 가는 중이에요', '공원 도착!']
 
@@ -75,7 +74,7 @@ export default function AssetViewer() {
   const [moving, setMoving] = useState(true)
   const [status, setStatus] = useState('')
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [shownStep, reachStep] = useLoadingSteps()
+  const { shown: shownStep, finish: finishSteps } = useLoadingSteps(LOADING_STEPS.length)
   // 준비가 끝나면 로더가 LOADER_EXIT_MS에 걸쳐 녹아 씬이 드러난 뒤에 걷힌다
   const [loaderGone, setLoaderGone] = useState(false)
   // LOD가 실제로 전환되는지 눈이 아니라 숫자로 확인하려고 노출
@@ -130,7 +129,6 @@ export default function AssetViewer() {
 
       const lines: string[] = []
 
-      reachStep(1)
       for (const prop of PROPS) {
         const [instances, ...geoms] = await Promise.all([
           loadBinGeometry(`${prop.name}-instances`),
@@ -149,7 +147,6 @@ export default function AssetViewer() {
         )
       }
 
-      reachStep(2)
       const char = await loadCharacter(0x4f8ef7)
       if (destroyed) {
         char.dispose()
@@ -160,7 +157,9 @@ export default function AssetViewer() {
       charRef.current = char
       lines.unshift('kid: 22 bones · 24fps')
       setStatus(lines.join('\n'))
-      reachStep(LOADING_STEPS.length - 1)
+      // 준비 끝 — 지금 줄을 읽을 만큼 보여 준 뒤 마지막 줄("공원 도착!")을 잠깐 띄우고 걷는다
+      await finishSteps()
+      if (destroyed) return
       await waitSpinTurn(loaderSince)
       if (destroyed) return
       setPhase('ready')

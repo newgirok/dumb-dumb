@@ -152,8 +152,8 @@ const START = new THREE.Vector3(12.2, 2.25, -58)
 const LOADER_FADE_MS = 750
 const LOADER_HIDDEN_MS = 250
 /**
- * 로딩 문구 — 실제 단계(에셋 받기 → 셰이더·텍스처 예열 → 그림자 굽기·지도 → 시작 직전)마다 바꿔, 길어져도 멈춘 게
- * 아니라는 걸 보인다(10초를 넘길 수 있는 기다림은 진행을 보여 준다). 첫 줄은 페이지 전환 로더와 같아 넘겨받아도 그대로다
+ * 로딩 문구 — 산책 채비 순서로 같은 간격(LOADING_STEP_MS)마다 바꿔 길어져도 멈춘 게 아니라는 걸 보이고(10초를 넘길 수
+ * 있는 기다림은 진행을 보여 준다), 마지막 줄은 준비가 끝나야 뜬다. 첫 줄은 페이지 전환 로더와 같아 넘겨받아도 그대로다
  */
 const LOADING_STEPS = ['산책 가방 챙기는 중이에요', '신발 끈 묶는 중이에요', '목줄 채우는 중이에요', '이제 나가요!']
 /** 인트로 리빌 4초(원본 uTransition 0→1, ease none) */
@@ -197,8 +197,8 @@ export default function PlayScene() {
   const mountRef = useRef<HTMLDivElement>(null)
   // 'loading' → 에셋 로드 중, 'fading' → 로더가 사라지는 중, 'playing' → 인트로·조작 시작
   const [phase, setPhase] = useState<'loading' | 'fading' | 'playing'>('loading')
-  // 로딩 단계 — 로딩이 닿은 단계(setLoadStep)를 문구 단계(shownStep)가 한 칸씩 따라간다
-  const [shownStep, setLoadStep] = useLoadingSteps()
+  // 로딩 문구 — 같은 간격으로 넘기다가 준비가 끝나면 마지막 줄을 띄운다
+  const { shown: shownStep, finish: finishSteps } = useLoadingSteps(LOADING_STEPS.length)
   const [unsupported, setUnsupported] = useState(false)
   // 펼침 지도(M) — 지도가 화면에 있는 동안은 캐릭터 조작을 끈다(원본이 모달을 띄울 때처럼).
   // 접을 때는 다 접혀 배경(dim)까지 걷힌 뒤에 켠다
@@ -710,7 +710,6 @@ export default function PlayScene() {
       // 프로그램을 다시 쓴다
       await Promise.all(imageLoads)
       if (destroyed) return
-      setLoadStep(1)
       const cancelled = () => destroyed
       const postMaterials = [finalPass.material, smaaPass.materialEdges, smaaPass.materialWeights, smaaPass.materialBlend]
       await compileGradually(renderer, scene, camera, composer.readBuffer, cancelled)
@@ -723,7 +722,6 @@ export default function PlayScene() {
       disposables.push(...shadowDepth)
       await uploadTexturesGradually(renderer, scene, postMaterials, cancelled)
       if (destroyed) return
-      setLoadStep(2)
 
       // 정적 그림자 — 월드 전체를 한 번 굽는다(캐릭터·하늘·바다·새·터치 원은 빼고)
       colliderGeo.computeBoundingSphere()
@@ -796,8 +794,10 @@ export default function PlayScene() {
       await settle(renderer)
       if (destroyed) return
       prepared = true
-      setLoadStep(3)
       for (let i = 0; i < 3; i++) await nextFrame()
+      if (destroyed) return
+      // 준비 끝 — 지금 줄을 읽을 만큼 보여 준 뒤 마지막 줄("이제 나가요!")을 잠깐 띄우고 걷는다
+      await finishSteps()
       if (destroyed) return
       await waitSpinTurn(loaderSince)
       if (destroyed) return

@@ -14,8 +14,14 @@ export const LOADER_EXIT_MS = 1000
 /** 페이지 이동 로더의 배경이 화면을 다 덮는 시간 — 이동은 이만큼 기다렸다가 한다(components/layout/page-transition.tsx) */
 export const LOADER_COVER_MS = 300
 
-/** 로딩 문구 한 줄을 적어도 이만큼 보여 준다 — 빠른 기기에서 단계가 금방 지나가도 문구가 휙휙 바뀌며 깜빡이지 않게 */
-export const LOADING_STEP_MIN_MS = 700
+/** 로딩 문구 한 줄을 보여 주는 간격 — 중간 줄은 실제 진행과 상관없이 이 간격으로 넘긴다(3~4어절을 읽는 시간) */
+export const LOADING_STEP_MS = 1600
+
+/** 준비가 끝나도 지금 줄은 적어도 이만큼 보인 뒤에 마지막 줄로 바꾼다 */
+const LOADING_READ_MS = 1200
+
+/** 마지막 줄(준비 끝)을 이만큼 보여 준 뒤에 로더를 걷는다 */
+const LOADING_FINAL_MS = 600
 
 /** 문구가 바뀔 때 앞 줄이 빠지는 시간 — 다 빠진 뒤에 새 줄이 0.3초에 떠오른다(fade through — 두 줄이 겹쳐 보이지 않는다) */
 const MESSAGE_OUT_MS = 120
@@ -26,30 +32,44 @@ export function waitSpinTurn(since: number): Promise<void> {
   return left > 0 ? new Promise((resolve) => setTimeout(resolve, left)) : Promise.resolve()
 }
 
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
 /**
- * 로딩 단계 문구 — 로딩이 닿은 단계(reach)를 보이는 단계(shown)가 한 칸씩, 한 줄을 LOADING_STEP_MIN_MS는 보여 주며 따라간다.
- * 처음부터 다시 받을 때는 reach(0)으로 되돌린다
+ * 로딩 단계 문구 — 중간 줄은 실제 진행과 상관없이 LOADING_STEP_MS마다 같은 간격으로 넘기고(오래 걸리면 마지막 바로 앞
+ * 줄에서 기다린다), 마지막 줄은 준비가 끝났다고 알릴 때(finish) 띄운다. 첫 단계만 오래 걸리고 뒤 단계가 몰아서 지나가지
+ * 않고, "준비 끝" 줄은 실제로 준비됐을 때만 보인다. finish는 지금 줄을 LOADING_READ_MS는 보여 준 뒤 마지막 줄로 바꾸고
+ * LOADING_FINAL_MS 뒤에 끝난다 — 그다음에 로더를 걷는다.
+ * hold면 첫 줄을 go()까지 붙잡아 둔다(내 주변은 위치를 받을 때까지 첫 줄이다). 처음부터 다시 받을 때는 reset()
  */
-export function useLoadingSteps(): [shown: number, reach: (step: number) => void] {
-  const [loadStep, setLoadStep] = useState(0)
-  const [shownStep, setShownStep] = useState(0)
+export function useLoadingSteps(count: number, { hold = false }: { hold?: boolean } = {}) {
+  const [shown, setShown] = useState(0)
+  const [running, setRunning] = useState(!hold)
   const shownAtRef = useRef(0)
   useEffect(() => {
-    if (shownStep >= loadStep) return
-    const timer = setTimeout(
-      () => {
-        shownAtRef.current = performance.now()
-        setShownStep((step) => step + 1)
-      },
-      Math.max(0, LOADING_STEP_MIN_MS - (performance.now() - shownAtRef.current)),
-    )
+    shownAtRef.current = performance.now()
+  }, [shown])
+  useEffect(() => {
+    if (!running || shown >= count - 2) return
+    const timer = setTimeout(() => setShown((step) => step + 1), LOADING_STEP_MS)
     return () => clearTimeout(timer)
-  }, [loadStep, shownStep])
-  const reach = useCallback((step: number) => {
-    setLoadStep(step)
-    setShownStep((shown) => Math.min(shown, step))
-  }, [])
-  return [shownStep, reach]
+  }, [running, shown, count])
+
+  const go = useCallback(() => {
+    setShown((step) => Math.min(Math.max(step, 1), count - 2))
+    setRunning(true)
+  }, [count])
+  const reset = useCallback(() => {
+    setShown(0)
+    setRunning(!hold)
+  }, [hold])
+  const finish = useCallback(async () => {
+    setRunning(false)
+    const left = LOADING_READ_MS - (performance.now() - shownAtRef.current)
+    if (left > 0) await sleep(left)
+    setShown(count - 1)
+    await sleep(LOADING_FINAL_MS)
+  }, [count])
+  return { shown, go, reset, finish }
 }
 
 // 스피너는 회전(transform)만 움직여 GPU 합성 스레드에서 돈다 — 로딩 중 무거운 작업이 메인 스레드를 막아도 끊기지 않는다

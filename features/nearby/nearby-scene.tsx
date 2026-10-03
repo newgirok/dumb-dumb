@@ -38,9 +38,9 @@ const GPS_TELEPORT_M = 150
 /** 캐릭터가 서는 바닥 — 평평하니 충돌은 끝없이 넓은 평면 하나로 충분하다 */
 const COLLIDER_SIZE = 200_000
 /**
- * 로딩 문구 — 플레이 씬(산책 채비)처럼 화면을 만드는 일이 아니라 내가 동네로 나서는 순서로 말한다. 단계는 실제 로딩
- * (위치 받기 → 하늘·땅 텍스처와 캐릭터 → 주변 길 → 캐릭터 세우기·실시간 연결 → 시작 직전)을 따라 넘어가고, 첫 줄은 페이지
- * 전환 로더와 같아 넘겨받아도 그대로다. 위치를 기다리는 동안은 첫 줄만 두고, 해야 할 일이 있을 때만 GPS 안내로 바꾼다
+ * 로딩 문구 — 플레이 씬(산책 채비)처럼 화면을 만드는 일이 아니라 내가 동네로 나서는 순서로 말한다. 첫 줄은 위치를 받을
+ * 때까지 두고(해야 할 일이 있을 때만 GPS 안내로 바꾼다), 받은 뒤로는 같은 간격으로 넘기다가 마지막 줄은 준비가 끝나야
+ * 띄운다. 첫 줄은 페이지 전환 로더와 같아 넘겨받아도 그대로다
  */
 const LOADING_STEPS = ['내 위치 찾는 중이에요', '창밖 날씨 보는 중이에요', '현관문 나서는 중이에요', '엘리베이터 기다리는 중이에요', '동네로 나가요!']
 
@@ -54,7 +54,12 @@ export default function NearbyScene() {
   const mountRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<MapTrack | null>(null)
   const [phase, setPhase] = useState<Phase>('locating')
-  const [shownStep, reachStep] = useLoadingSteps()
+  const {
+    shown: shownStep,
+    go: goSteps,
+    reset: resetSteps,
+    finish: finishSteps,
+  } = useLoadingSteps(LOADING_STEPS.length, { hold: true })
   // 준비가 끝나면 로더가 LOADER_EXIT_MS에 걸쳐 녹아 씬이 드러난 뒤에 걷힌다
   const [loaderGone, setLoaderGone] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -75,7 +80,7 @@ export default function NearbyScene() {
     if (!mount) return
     // 로더가 뜬 때 — 준비가 일찍 끝나도 스피너가 한 바퀴는 돈 뒤에 걷는다
     const loaderSince = performance.now()
-    reachStep(0)
+    resetSteps()
 
     const mobile = isMobileDevice()
     const shared = createSharedUniforms()
@@ -163,7 +168,7 @@ export default function NearbyScene() {
       const local = createLocalFrame(Math.round(fix.lng / ORIGIN_GRID) * ORIGIN_GRID, Math.round(fix.lat / ORIGIN_GRID) * ORIGIN_GRID)
       const start = local.toLocal(fix.lng, fix.lat)
       setPhase('loading')
-      reachStep(1)
+      goSteps()
 
       const loader = new THREE.TextureLoader().setPath('/ref-assets/images/')
       const ktx2 = new KTX2Loader().setTranscoderPath('/ref-assets/libs/basis/').detectSupport(renderer)
@@ -204,7 +209,6 @@ export default function NearbyScene() {
       scene.add(sky)
 
       // 바닥 — 선 자리 둘레 구역부터 깔고, 걸으면 앞쪽을 이어 깐다
-      reachStep(2)
       stream = createGroundStream({
         scene,
         frame: local,
@@ -215,7 +219,6 @@ export default function NearbyScene() {
       disposables.push(stream)
       await stream.prime(start.x, start.z)
       if (destroyed) return
-      reachStep(3)
       const colliderGeometry = new THREE.PlaneGeometry(COLLIDER_SIZE, COLLIDER_SIZE).rotateX(-Math.PI / 2)
       disposables.push(colliderGeometry)
 
@@ -305,7 +308,9 @@ export default function NearbyScene() {
 
       frame = local
       trackRef.current = track
-      reachStep(LOADING_STEPS.length - 1)
+      // 준비 끝 — 지금 줄을 읽을 만큼 보여 준 뒤 마지막 줄("동네로 나가요!")을 잠깐 띄우고 걷는다
+      await finishSteps()
+      if (destroyed) return
       await waitSpinTurn(loaderSince)
       if (destroyed) return
       setPhase('playing')
